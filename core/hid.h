@@ -26,5 +26,6 @@ typedef struct {
 u64 hid_get_buttons(const HidView *v, u32 index);
 void hid_set_buttons(const HidView *v, u32 index, u64 value);
 u64 hid_merge_buttons(const HidView *v);
+u64 hid_get_clock(const HidView *v, u32 index);   /* the sample's clock (+0x00): newer samples count higher */
 
 #endif

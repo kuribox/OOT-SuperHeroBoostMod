@@ -20,3 +20,8 @@ u64 hid_merge_buttons(const HidView *v) {
     for (u32 i = 0; i < v->count; i++) out |= hid_get_buttons(v, i);
     return out;
 }
+
+u64 hid_get_clock(const HidView *v, u32 index) {
+    if (!v || !v->samples || index >= v->count) return 0;
+    return *(volatile u64 *)sample_ptr(v, index);
+}

@@ -38,7 +38,6 @@ CODE_SITES = (
     (0x33BDCE0, "hook_code_mp", 1),      # magic-gauge controller init (x0 = controller)
     (0x2D2D90, "hook_code_setframe", 3), # set_frame(anim, frame): observe UI animation frames
     (0x2C215E0, "hook_code_move", 5),    # physics-actor movement update (x0 = actor), every frame
-    (0x27E3A60, "hook_code_camera_lock", 22),  # ExecutePlayerCameraLockOn: skip the camera lock while L is the shield
     (0x27F7D00, "hook_guard0", 6),       # ExecutePlayerReactionGuard slot 10 (shield took a hit)
     (0x27F7F90, "hook_guard1", 7),       # ExecutePlayerReactionGuard slot 11
     (0x27FB0C0, "hook_guard2", 8),       # ExecutePlayerReactionGuardJustRepelled slot 10
@@ -49,6 +48,7 @@ CODE_SITES = (
     (0x3292070, "hook_code_ocarina_ui", 16),     # ocarina UI update (x0 = context, every frame)
     (0xA37320, "hook_code_iconctrl", 11),  # icon controller init (x0 controller, x1 heap): buttonMapping icons
     (0x33F5D20, "hook_code_hudinit", 12),  # PlayerStatus HUD init (x0 HUD, x1 heap): heap for our icon controllers
+    (0x575FE0, "hook_zl_press", 22, 0xB276039C),   # controller: ZL pressed -> action 0x400 (L shield drops the press)
     (0x2CBD20, "hook_code_menusel", 21),   # pause-menu Items caption update (x0 panel: +0x90 item index)
     (0x3C42590, "hook_fs_open", 18, 0xB00083F0),   # nn::fs::OpenFile import stub (x1 path, x2 mode): save slot files
     (0xF78BA8, "hook_code_menupage", 15, 0xF9401275),  # Items page build, after its cells' icon inits (x19 page, x20 heap): ldr x21, [x19, #0x20]

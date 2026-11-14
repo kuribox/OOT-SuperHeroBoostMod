@@ -250,33 +250,20 @@ CODE_HOOK hook_code_setframe, 3, RES_SETFRAME
 CODE_HOOK hook_code_inst, 4, RES_INST
 CODE_HOOK hook_code_move, 5, RES_MOVE
 
-/* ExecutePlayerCameraLockOn entry (0x27E3A60, pacibsp). The L-shield option keeps ZL for the
- * player (the shield) but skips this camera action, so the camera never acquires a target.
- * x0..x2 are the action's arguments; the C check only needs them preserved across the call. */
-    .global hook_code_camera_lock
-    .type hook_code_camera_lock, %function
-hook_code_camera_lock:
-    sub sp, sp, #0x60
-    stp x29, x30, [sp, #0x00]
-    stp x0, x1, [sp, #0x10]
-    stp x2, x3, [sp, #0x20]
-    stp x4, x5, [sp, #0x30]
-    stp x6, x7, [sp, #0x40]
-    bl  camera_lock_should_skip
-    mov w8, w0
-    ldp x29, x30, [sp, #0x00]
-    ldp x0, x1, [sp, #0x10]
-    ldp x2, x3, [sp, #0x20]
-    ldp x4, x5, [sp, #0x30]
-    ldp x6, x7, [sp, #0x40]
-    add sp, sp, #0x60
-    cbnz w8, 1f
-    pacibsp
-    b   RES_CAMERA_LOCK
+/* L as the shield (features/button_mapping) holds ZL for the game, but without ZL's press edge: in the player's
+ * controller update, main+0x575FE0 turns "ZL pressed this frame" into action 0x400 (`orr x28, x28, #0x400`, then
+ * back to 0x574D1C). The lock-on onto a target happens on that press; holding (action 0x400 from the held bits,
+ * main+0x575FA0) keeps LockOn and the guard. While g_zl_press_block is set the press is dropped. */
+    .global hook_zl_press
+    .type hook_zl_press, %function
+hook_zl_press:
+    adrp x16, g_zl_press_block
+    ldr w16, [x16, :lo12:g_zl_press_block]
+    cbnz w16, 1f
+    orr x28, x28, #0x400
 1:
-    pacibsp
-    ret
-    .size hook_code_camera_lock, . - hook_code_camera_lock
+    b   ZL_PRESS_RESUME
+    .size hook_zl_press, . - hook_zl_press
 /* the player's shield-hit reaction nodes (ExecutePlayerReactionGuard enter/update, GuardJustRepelled, GuardBreak). */
 CODE_HOOK hook_guard0, 6, RES_GUARD0
 CODE_HOOK hook_guard1, 7, RES_GUARD1

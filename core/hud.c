@@ -42,7 +42,6 @@ extern char GAMEDATA_MGR[];                                      /* main+0x4E842
 extern char WORLD_MGR[];                                         /* main+0x4E7EAB0: world manager pointer slot */
 int player_active(void);
 /* button_mapping overrides this while the L-shield option is active (see core/hooks.S). */
-__attribute__((weak)) int camera_lock_should_skip(void) { return 0; }
 
 #define MARK 0x1000000000000000ull
 /* Diagnostics (in .data, read by tools/live_check.py):

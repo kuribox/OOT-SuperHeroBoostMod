@@ -44,10 +44,12 @@ enum { PH_IDLE = 0, PH_EQUIP, PH_HOLD, PH_GAP, PH_RESTORE, PH_ZRBACK };
 #define GAP_TICKS 20
 
 int g_pending = -1;        /* item index to force on the next stock call (old R-press method, unused) */
-int g_l_shield_hold;       /* L is held as the shield (no physical ZL): skip the camera lock action */
-int camera_lock_should_skip(void) {
-    return g_shbcfg.button_mapping && g_shbcfg.bm_l_mode == 1 && g_l_shield_hold;
-}
+/* L as the shield (app option bm_l_mode 1): L holds ZL for the game, the native guard, while core/hooks.S
+ * hook_zl_press drops ZL's press edge (the lock-on onto a target happens on that press), so the shield goes up
+ * without targeting anyone. */
+int g_l_shield_held;       /* L held as the shield, from the newest new sample */
+u32 g_zl_press_block;      /* read by hook_zl_press: drop "ZL pressed" while L is the shield */
+static u64 g_l_clock;      /* clock of the newest sample looked at */
 int g_saved = -1;          /* item box content before a slot use (the ZR item) */
 int g_borrowed;            /* a slot item is in the box; the ZR item goes back when ZR is pressed */
 int g_borrow_item = -1;    /* the slot item in the box */
@@ -165,7 +167,7 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
 
     /* Death ragdoll / game over: do not remap or swallow anything, the game's screen needs every button. */
     if (player_dead()) {
-        g_l_shield_hold = 0;
+        g_l_shield_held = 0; g_zl_press_block = 0;
         g_phase = PH_IDLE; g_swallow = 0;
         g_cl_prev = hid_merge_buttons(&view);
         return;
@@ -193,8 +195,21 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
         hud_slot_item((u32)s, s == SLOT_ZR && g_assign[s] < 0 ? g_zr_item : g_assign[s]);
 
     u64 buttons = hid_merge_buttons(&view);
-    g_l_shield_hold = g_shbcfg.button_mapping && g_shbcfg.bm_l_mode == 1 &&
-                      (buttons & BTN_L) && !(buttons & BTN_ZL);
+    /* L held as the shield. The game reads the same samples several times and L is removed from them below, so only
+     * samples newer than the last ones looked at count; with none new, the previous state stays. */
+    if (g_shbcfg.button_mapping && g_shbcfg.bm_l_mode == 1) {
+        u64 newest = g_l_clock;
+        int any = 0, held = 0;
+        for (u32 i = 0; i < view.count; i++) {
+            u64 clk = hid_get_clock(&view, i);
+            if (clk <= g_l_clock) continue;
+            u64 b = hid_get_buttons(&view, i);
+            if (clk >= newest) { newest = clk; held = (b & BTN_L) && !(b & BTN_ZL); }
+            any = 1;
+        }
+        if (any) { g_l_clock = newest; g_l_shield_held = held; }
+        g_zl_press_block = (u32)g_l_shield_held;
+    }
     u64 pressed = buttons & ~g_cl_prev;
     g_cl_prev = buttons;
 
@@ -246,10 +261,11 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
         return;
     }
 
-    /* L as the shield: L raises it the way ZL does (for now through ZL itself, so it also targets) */
+    /* L as the shield: the game never sees L (it would open the item selector) but ZL instead; its press edge is
+     * dropped by hook_zl_press, so the guard comes up without locking onto a target */
     if (g_shbcfg.button_mapping && g_shbcfg.bm_l_mode == 1 && hud_ingame() && (buttons & BTN_L)) {
         set_all(&view, BTN_L, BTN_ZL);
-        buttons = (buttons & ~BTN_L) | BTN_ZL;
+        buttons &= ~BTN_L;
         pressed &= ~BTN_L;
     }
 

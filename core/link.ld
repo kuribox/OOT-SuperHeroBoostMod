@@ -45,7 +45,6 @@ SECTIONS
     WORLD_MGR = 0x4E7EAB0;
     GAMEDATA_MGR = 0x4E842A8;
     RES_GUARD0 = 0x27F7D04;
-    RES_CAMERA_LOCK = 0x27E3A64;
     RES_GUARD1 = 0x27F7F94;
     RES_GUARD2 = 0x27FB0C4;
     RES_GUARD3 = 0x27FA204;
@@ -80,6 +79,7 @@ SECTIONS
     ITEM_SET_SLOT = 0x4C7E2A8;  /* -> pointer to an object whose byte +0x5C0 is the item set passed to the equip call */
     MAIN_SCHED_VT = 0x4B05318;
     find_part = 0x43C3E0;
+    ZL_PRESS_RESUME = 0x574D1C;   /* hook_zl_press: back in the controller update, after the ZL-press action */
     ui_find_sub = 0x43C4A0;     /* (name, part, &sub part): a nested part by name */
     ui_owner_layout = 0x43C040; /* (pane+0x40): the layout that owns a pane */
     find_anim = 0x43C7A0;
