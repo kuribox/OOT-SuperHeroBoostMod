@@ -1,136 +1,86 @@
 # Menú rápido de espada y escudo
 
-Estado: **diseño**. Rama `feature/sword-shield-menu`. Todavía no hay código de la función: este documento fija el
-comportamiento, los datos y el plan para implementarla sin reutilizar el mod de referencia.
+Estado: **primera implementación** en la rama `feature/sword-shield-menu`. Rama de referencia: *Hyrule Armory
+Sync v1.1* (solo se replica el comportamiento descrito en su README; no se usa su código, sus tablas ni sus assets).
 
-Referencia analizada: *Hyrule Armory Sync v1.1* (README + módulo `subsdk5` + IPS). Solo se toma su comportamiento
-descrito; **no se copia código, tablas ni assets**, y el mod no se incluye ni se enlaza.
+## Cómo se usa
 
-## Comportamiento a replicar
+- El botón es el rol **«Menú de espada y escudo»** de la tabla de botones (app > Controles > Botones del mando).
+  Se puede poner en cualquiera de los diez botones físicos.
+- **Mantener** el botón ~0.2 s abre el drawer.
+- **Cruceta arriba / abajo**: cambia entre la fila de espadas y la de escudos.
+- **Cruceta izquierda / derecha**: recorre la fila.
+- **Soltar** el botón equipa la celda marcada y cierra.
+- La **primera celda** de cada fila está vacía: desequipa esa categoría; el objeto sigue en la bolsa.
+- El drawer recuerda la última fila usada durante la sesión (`ssm_flags` bit 0 lo desactiva).
 
-- Mantener el botón asignado abre el *drawer* de equipo (en el mod original es L / L1).
-- Stick **arriba / abajo**: cambia entre la fila de espadas y la de escudos.
-- Stick **izquierda / derecha**: recorre las celdas de la fila.
-- Al **soltar** el botón se confirma lo seleccionado; mientras se mantiene, nada se equipa.
-- El drawer recuerda la última fila usada durante la sesión.
-- La **celda vacía** de la izquierda desequipa esa categoría; el objeto sigue en la bolsa.
-- Solo se listan y equipan espadas y escudos que el jugador **ya tiene** (como la página de Items del menú de pausa).
-- R / R1 sigue abriendo el selector nativo de objetos: esta función no lo toca.
+Nota de diseño: el mod de referencia navega con los sticks; aquí se usa la **cruceta** para que el jugador no se
+mueva ni gire la cámara mientras elige. Si se prefiere el stick, hay que identificar y neutralizar sus campos en
+las muestras HID.
 
-Decisiones nuestras (a confirmar al probar): cancelar con B o abriendo un menú/cutscene, y no abrir el drawer si el
-inventario no tiene ninguna espada ni escudo.
+## Qué se ha implementado
 
-## Datos que ya usa el proyecto
-
-Todo lo necesario está ya identificado; no hace falta RE nuevo salvo los `kind` del equip request.
-
-| Dato | Dónde está |
+| Pieza | Dónde |
 |---|---|
-| `PlayerStatus.EquipWeapon` = String64 índice **23** | `core/hud.c` (`GD_S64_EQUIP_WEAPON`), `equip_mirror()` |
-| `PlayerStatus.EquipShield` = String64 índice **22** | `core/hud.c` (`GD_S64_EQUIP_SHIELD`) |
-| Lectura/escritura del String64 (live `+0x74`/`+0x68`, copia menú/save `+0xC4`/`+0xB8`) | `features/quick_select/quick_select.c`: `gd_get_string()` / `gd_set_string()` |
-| Aplicar el equipo con la ruta del menú (`equip_request` + `equip_refresh`) | `features/quick_select/quick_select.c`: `apply_equip()` |
-| Propiedad del objeto (`IsGet.<actor>`) | `core/hud.c`: `hud_owns_name()` |
-| Entrada del mando y botones virtuales | `core/hid.c`, `core/remap.c`, sitio de input 3 del dispatcher |
-| HUD: dibujar texto/paneles | `core/hud.c`: `put_text()`, `place()`, `tint_rec()`, `build_menu()` |
+| Estado, navegación, equipado | `features/sword_shield_menu/sword_shield_menu.c` |
+| Entrada (antes del remap) | `tools/build_core.py`: `FEATURE_INPUT_EARLY["sword_shield_menu"]` |
+| Rol del botón | `core/remap.h` / `core/remap.c`: `ROLE_DRAWER`; el juego no ve el botón |
+| Configuración | `core/config.h`: `ssm_enabled`, `ssm_flags` (append-only) |
+| Drawer en pantalla | `core/hud.c`: `drawer_update()`, panes `T_ShbTxt_14..27` y placa `P_ShbPic_275` |
+| App | `app/installer.py`, `app/main.py`, `app/remap_ui.py` (textos en 6 idiomas) |
+| Build | `tools/make_release.py` (las dos variantes incluyen la feature) |
 
-Nombres candidatos (verificar contra el dump; el HUD ya usa `Weapon_Sword_*` como nombre de textura):
+Datos del juego (ya usados por el proyecto): String64 `PlayerStatus.EquipWeapon` = índice **23** y
+`PlayerStatus.EquipShield` = **22**; la escritura usa `equip_request` + `equip_refresh` (la ruta del menú de pausa).
+La propiedad se comprueba con `hud_owns_known()` (`IsGet.<actor>`); si un nombre no existe en la tabla del build,
+se lista igualmente para no ocultar todo el equipo.
 
-- Espadas: `Weapon_Sword_Kokiri`, `_Master`, `_Giant`, `_Biggoron`, `_BrokenGiant`. `_BrokenGiant` (cuchillo roto)
-  no debería poder equiparse como espada.
-- Escudos: `Armor_Shield_Deku`, `_Hylian`, `_Mirror`.
+Edad: Kokiri solo de niño; Master, Giant y Biggoron solo de adulto; escudos Deku e Hylian para ambos y Espejo solo
+de adulto. El cuchillo roto de Biggoron no se lista como espada.
 
-Restricciones de edad a comprobar: Kokiri solo de niño; espada de Biggoron y escudo espejo solo de adulto.
+## Aspecto
 
-## Entrada
+El drawer se dibuja con los paneles de texto que el HUD ya clona y una placa oscura hecha con la textura de placa
+del propio juego. La fila activa muestra la celda elegida en amarillo, el equipo puesto en verde y el resto en gris.
+Las celdas usan nombres cortos (`Kokiri`, `Deku`...).
 
-Dos opciones, en orden de preferencia:
+Pendiente para la siguiente iteración: iconos de cada espada/escudo. El HUD ya resuelve nombres como
+`Weapon_Sword_Master` a través del controlador de iconos del juego (es lo que pinta el botón Y), pero montar ese
+controlador para las celdas del drawer necesita probarse en el juego.
 
-1. **Rol nuevo (`ROLE_DRAWER`)** dentro del remap (`core/remap.h`, `core/remap.c`). El jugador asigna el rol a
-   cualquier botón desde la app, igual que el escudo manual o el sprint; el botón se consume y el juego no lo ve
-   mientras abre el drawer. Es la opción coherente con 0.9.0.
-2. Campo propio `ssm_button` (índice `PB_*`). Más simple, pero duplica la UI de reasignación y puede chocar con L
-   (slot de objeto) o con el escudo manual.
+## Abrir y cerrar
 
-Por defecto: **L**. Si L ya es un slot de objeto, la app debe avisar del conflicto y proponer otro botón.
+- Solo en partida (`player_active`, `!player_dead`, `!hud_game_covered`). En pausa, diálogos, cutscenes o muerte se
+  cierra sin aplicar.
+- Mientras está abierto se consumen el botón y la cruceta; el resto de botones sigue su curso.
+- Si no hay ninguna espada ni escudo que elegir, no se abre.
 
-## Interfaz
-
-- **Fase A (iteración rápida, sin assets nuevos):** reutilizar los paneles de texto que ya clona `hud.c`
-  (`T_ShbTxt_*`, `put_text`) para pintar una lista de hasta 6 filas + título. Permite probar navegación y equipado
-  en el juego antes de invertir en el marco.
-- **Fase B (aspecto final):** clonar `P_SubItemBg_00` para el marco y colocar una celda vacía + los iconos, usando
-  los nombres de textura que el propio juego usa para el equipo (`Weapon_Sword_*`, `Armor_Shield_*`). El resaltado
-  va con `tint_rec()` y la selección actual con un marco más claro; el objeto equipado, con el marco oscuro.
-
-El drawer se dibuja en el frame del HUD, no en el menú de pausa, y solo con el juego en partida (`hud_game_covered()`
-en falso). Nada de paneles propios del mod de referencia.
-
-## Configuración (append-only)
-
-Campos nuevos al final de `ShbConfig` (los anteriores no se mueven):
+## Configuración
 
 ```c
-unsigned char ssm_enabled;   /* 0 off (default), 1 activo */
-unsigned char ssm_role;      /* ROLE_DRAWER o 0 = sin botón */
-unsigned char ssm_remember;  /* 1 recordar la última fila (default), 0 empezar en espadas */
-unsigned char ssm_flags;     /* reservado */
+unsigned char ssm_enabled;   /* 1 = activo */
+unsigned char ssm_flags;     /* bit0: no recordar la última fila */
+unsigned char ssm_unused[2];
 ```
 
-- `installer.py`: offsets nuevos y `Settings`.
-- `main.py`: interruptor en **Controls** y selector de botón; presets lo dejan **off**.
-- `i18n.py`: textos en los seis idiomas.
-- Sin bump de `version` (crecimiento append-only; una app vieja deja los bytes a 0 = off).
+La app escribe `f+74` y `f+75` cuando el módulo tiene al menos `0x5E` bytes de configuración. Los presets no lo
+activan: es una preferencia del jugador, como el remap.
 
-## Máquina de estados
+## Pendiente de probar en el juego
 
-```
-CLOSED --(botón mantenido >= HOLD_FRAMES)--> OPEN(fila = última)
-OPEN --(stick arriba/abajo)--> cambia fila (repeat con retardo)
-OPEN --(stick izq/der)--> mueve la celda (repeat con retardo)
-OPEN --(soltar)--> APPLY --(latch: esperar release)--> CLOSED
-OPEN --(pausa/menú/cutscene/dialogo)--> CLOSED sin aplicar
-```
+1. Que el módulo arranque con los 14 paneles de texto y la placa extra (contadores de las tablas del HUD).
+2. Posición y tamaño del marco y de las celdas (valores de layout a ojo: `drawer_update()`).
+3. Que la cruceta no mueva al jugador ni dispare quick select mientras el drawer está abierto.
+4. Que el equipado se aplique al soltar y persista al guardar/cambiar de área.
+5. Nombres de `IsGet` de cada espada/escudo (si falta alguno, se lista igualmente).
+6. El `kind` del `equip_request` (se usa 3, el mismo de botas/máscara); si espada y escudo usan otro, ajustarlo.
+7. Abrir/cerrar en pausa, diálogo, cutscene, muerte y con cada botón físico.
 
-- El botón se consume durante todo el gesto; el resto de botones siguen su curso.
-- Repetir la fila con stick no debe equipar hasta soltar.
-- `APPLY` escribe el String64 (live **y** copia del menú/save) y llama a `equip_request`/`equip_refresh`.
-- Verificar el `kind` del equip request para espada y escudo (quick_select usa `3` para botas/cabeza): si son
-  categorías distintas, usar el valor de cada slot; no asumir que `3` sirve para los cuatro.
+## Riesgos conocidos
 
-## Casos límite
-
-- Save sin espada/escudo: el drawer no se abre (o solo ofrece la celda vacía).
-- Objeto no poseído: nunca se lista ni se equipa.
-- Cuchillo roto de Biggoron: se lista como objeto, pero no como espada equipable.
-- Niño/adulto: filtrar Kokiri, Biggoron y Espejo según `hud_is_child()`.
-- Guardar y recargar, cambiar de área, morir y continuar: el equipo debe persistir.
-- Longshot/Hookshot/ReLink: mismo módulo; requiere rebuild una vez.
-- La app avisa si el botón elegido ya tiene otro rol (L como objeto, L como escudo manual, ZL target...).
-
-## Plan por fases
-
-1. **Lógica sin UI**: tablas de candidatos, propiedad, aplicar equipo y selección. Probar con el debug del HUD.
-2. **Input + estados**: rol/botón configurable, hold, repetición y cancelaciones.
-3. **UI fase A**: lista de texto y resaltado con los paneles existentes.
-4. **UI fase B**: marco e iconos con las texturas del juego.
-5. **App**: opción, botón, presets, i18n y offsets del instalador.
-6. **Pruebas**: emulador + Longshot, matriz de saves, documentación y nota de release.
-
-## Pruebas mínimas antes de publicar
-
-- Save 100 %, save recién empezado y save solo con Kokiri.
-- Niño y adulto; cuchillo roto; escudo espejo.
-- Abrir/cerrar en partida, pausa, diálogo, cutscene y muerte.
-- R y el selector nativo siguen funcionando.
-- Guardar, recargar y cambiar de área.
-- Con el botón reasignado a cada uno de los diez botones físicos.
-
-## Riesgos
-
-- **Panes del HUD**: clonar paneles exige nombres y hashes (`g_thash`, `g_pihash`) y respetar los contadores de las
-  tablas; un nombre de más rompe el boot del HUD. Validar en el arranque con `g_hud_dbg`.
-- **Equip request**: hacerlo en el frame del input puede competir con la acción del botón; consumir el botón y
-  aplicar al soltar evita la mayoría de casos.
-- **Conflicto de botones**: el rol debe consumir el botón también cuando el drawer está cerrado pero el gesto
-  empieza, o el juego verá un L suelto y abrirá su propio selector.
+- **Panes**: añadir paneles cambia los contadores del HUD; un nombre o hash mal puesto deja el HUD sin construir
+  (`g_hud_dbg[9]`). El build compila y enlaza, pero hay que verlo arrancar.
+- **Desequipar**: se escribe el String64 vacío y no se llama al equip request (evita pasarle un nombre vacío);
+  puede que el modelo tarde en desaparecer hasta recargar el área o abrir el menú.
+- **Conflicto de botón**: si el rol cae en L y L es un slot de objeto, el drawer tiene prioridad mientras el menú
+  está activo; la app permite moverlo a otro botón.

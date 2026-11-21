@@ -214,15 +214,24 @@ static void extend_pools(u8 *root, u32 add) {
  * 4 = X button label (Jump), 5 = A button label (context).
  * Each field has two panes (field f uses panes f and f + FLD_N): the text is written to the hidden one. */
 #define FLD_N 7
-#define TXT_N (FLD_N * 2)
+#define DRW_BASE (FLD_N * 2)   /* first pane of the sword/shield drawer */
+#define DRW_N 14               /* 2 rows x 5 cells + 2 titles + hint + spare */
+#define MAX_DRAW_CELLS 5
+#define TXT_N (DRW_BASE + DRW_N)
 static const char g_font_normal[] = "Normal";
 static const char g_font_ext[] = "External_00";   /* the button-glyph font */
 static char g_tnames[TXT_N][16] = {"T_ShbTxt_00", "T_ShbTxt_01", "T_ShbTxt_02", "T_ShbTxt_03",
                                    "T_ShbTxt_04", "T_ShbTxt_05", "T_ShbTxt_06", "T_ShbTxt_07",
                                    "T_ShbTxt_08", "T_ShbTxt_09", "T_ShbTxt_10", "T_ShbTxt_11",
-                                   "T_ShbTxt_12", "T_ShbTxt_13"};
+                                   "T_ShbTxt_12", "T_ShbTxt_13", "T_ShbTxt_14", "T_ShbTxt_15",
+                                   "T_ShbTxt_16", "T_ShbTxt_17", "T_ShbTxt_18", "T_ShbTxt_19",
+                                   "T_ShbTxt_20", "T_ShbTxt_21", "T_ShbTxt_22", "T_ShbTxt_23",
+                                   "T_ShbTxt_24", "T_ShbTxt_25", "T_ShbTxt_26", "T_ShbTxt_27"};
 static const u64 g_thash[TXT_N] = {HASH_TXT0, HASH_TXT1, HASH_TXT2, HASH_TXT3, HASH_TXT4, HASH_TXT5, HASH_TXT6,
-                                   HASH_TXT7, HASH_TXT8, HASH_TXT9, HASH_TXT10, HASH_TXT11, HASH_TXT12, HASH_TXT13};
+                                   HASH_TXT7, HASH_TXT8, HASH_TXT9, HASH_TXT10, HASH_TXT11, HASH_TXT12, HASH_TXT13,
+                                   HASH_TXT14, HASH_TXT15, HASH_TXT16, HASH_TXT17, HASH_TXT18, HASH_TXT19,
+                                   HASH_TXT20, HASH_TXT21, HASH_TXT22, HASH_TXT23, HASH_TXT24, HASH_TXT25,
+                                   HASH_TXT26, HASH_TXT27};
 /* Picture panes. Each gets its own copy of the textured material of P_SubItemBg_00 with the game's
  * texture named below (all in the Common texture archive):
  *  0..3  clock plate:  fill, fill mirrored, edge, edge mirrored   (NumBaseSide_00 / _01, the plate of
@@ -246,7 +255,8 @@ static const u64 g_thash[TXT_N] = {HASH_TXT0, HASH_TXT1, HASH_TXT2, HASH_TXT3, H
 #define BAR_SEG0 2
 #define BAR_SEG 16
 #define BAR_N (BAR_SEG0 + BAR_SEG)
-#define PIC_N (PIC_BAR + BAR_N)
+#define PIC_SSM (PIC_BAR + BAR_N)   /* background plate of the sword/shield drawer */
+#define PIC_N (PIC_SSM + 1)
 static char g_pinames[PIC_N][16];           /* "P_ShbPic_000".. filled by pic_names() */
 static const u64 g_pihash[400] = {HASH_PIC_LIST};   /* CityHash64 of "P_ShbPic_000".. (tools/build_core.py) */
 _Static_assert(PIC_N <= 400, "more picture panes than generated hashes");
@@ -258,6 +268,7 @@ static const u8 g_pitex0[20] = {0, 0, 1, 1, 0, 0, 1, 1, 2, 3, 4, 4, 4, 4, 4, 4, 
 static const float g_pic_w0[20] = {1014, 1014, 1014, 1014, 1014, 1014, 1014, 1014, 120, 60, 9, 9, 9, 9, 9, 9, 9, 9, 76, 70};
 static const float g_pic_h0[20] = {160, 160, 160, 160, 160, 160, 160, 160, 120, 60, 26, 26, 26, 26, 26, 26, 26, 26, 76, 70};
 static u32 pic_tex(u32 k) {
+    if (k >= PIC_SSM) return 0;   /* drawer background: the game's own plate texture, tinted dark */
     if (k >= PIC_BAR) return 4;   /* flat white panes: the bar draws its own segments in a solid colour */
     if (k >= PIC_COLL) {
         u32 j = k - PIC_COLL;
@@ -267,11 +278,13 @@ static u32 pic_tex(u32 k) {
     return k < 20 ? g_pitex0[k] : 3;
 }
 static float pic_w(u32 k) {
+    if (k >= PIC_SSM) return 1014.0f;   /* drawer plate: the stock number plate, scaled when drawn */
     if (k >= PIC_BAR) return 100.0f;   /* bar panes are scaled from a 100-unit base */
     if (k >= PIC_COLL) return (k - PIC_COLL) < 8 ? 1014.0f : 128.0f;
     return k < 20 ? g_pic_w0[k] : 100.0f;
 }
 static float pic_h(u32 k) {
+    if (k >= PIC_SSM) return 160.0f;
     if (k >= PIC_BAR) return 100.0f;
     if (k >= PIC_COLL) return (k - PIC_COLL) < 8 ? 160.0f : 128.0f;
     return k < 20 ? g_pic_h0[k] : 100.0f;
@@ -983,6 +996,8 @@ static void drive_segs(void) {
 /* ---- clock / rupee plates ---- */
 u64 g_txt_dbg[8] = {MARK, MARK, MARK, MARK, MARK, MARK, MARK, MARK};
 static char g_tbuf[TXT_N][48];      /* ASCII: the engine's text setter takes 8-bit text + byte length */
+static char g_drw_buf[DRW_N][24];   /* sword/shield drawer panes (T_ShbTxt_14..27) */
+static char g_drw_last[DRW_N][24];
 static char g_tlast[FLD_N][48];
 static u32 g_tfront[FLD_N], g_tpend[FLD_N], g_twait[FLD_N];
 /* Setting the text of a pane leaves it blank for a frame. Each field has two panes: the new text goes to the
@@ -1071,6 +1086,7 @@ static void plates_reset(void) {
     for (u32 k = 0; k < PIC_N; k++) g_pic_rec[k] = 0;
     bar_reset();
     for (u32 f = 0; f < FLD_N; f++) { g_tlast[f][0] = (char)0xFF; g_tpend[f] = 0; g_tfront[f] = 0; }
+    for (u32 t = 0; t < DRW_N; t++) g_drw_last[t][0] = 0;   /* the rebuilt panes have no text yet */
     g_plates_shown = 0;
 }
 static void plates_hide(u64 frame) {
@@ -2137,14 +2153,23 @@ int hud_menu_item(void) {
     return a && *(volatile float *)(a + 0x18) != 0.0f ? idx : -1;
 }
 /* the player owns an equipment item (IsGet.<actor name>): 1 / 0; unknown flag = not owned */
-int hud_owns_name(const char *actor) {
+static int owns_index(const char *actor) {
     u32 h = mmh3("IsGet.", actor), lo = 0, hi = GD_ISGET_N;
     while (lo < hi) {
         u32 mid = (lo + hi) / 2;
         if (GD_ISGET[mid][0] < h) lo = mid + 1; else hi = mid;
     }
-    if (lo < GD_ISGET_N && GD_ISGET[lo][0] == h) return gd_bool(GD_ISGET[lo][1]) > 0;
-    return 0;
+    return lo < GD_ISGET_N && GD_ISGET[lo][0] == h ? (int)GD_ISGET[lo][1] : -1;
+}
+int hud_owns_name(const char *actor) {
+    int idx = owns_index(actor);
+    return idx >= 0 ? gd_bool((u32)idx) > 0 : 0;
+}
+/* 1 / 0 when the flag exists, -1 when this build has no IsGet entry for the name (the drawer then lists it:
+ * better to show an item than to hide every sword because one name is not in the table). */
+int hud_owns_known(const char *actor) {
+    int idx = owns_index(actor);
+    return idx >= 0 ? gd_bool((u32)idx) > 0 : -1;
 }
 /* The cell's Decide animation: what the game plays when A puts an item in its box. main+0x2D0FE0 plays an
  * animation from its start (no sound); main+0x3772100 is what A does on a cell: the cell's button object
@@ -2557,6 +2582,87 @@ static void slots_labels(u64 frame) {
 static void slots_reset(void) {
     g_ps_frame = 0; for (u32 k = 0; k < PART_N; k++) g_sb[k].part = 0; g_stock_box_rec = 0; g_stock_dots_rec = 0; }
 
+/* ---- sword / shield drawer (features/sword_shield_menu) ----
+ * The feature owns the state; here we only place its texts on the panes T_ShbTxt_14..27 and the dark plate
+ * cloned from the game's number plate. Layout is in layout units, centred on the screen; the feature supplies
+ * the short labels ("Kokiri", "Deku"...). */
+__attribute__((weak)) int ssm_hud_open(void);
+__attribute__((weak)) int ssm_hud_row(void);
+__attribute__((weak)) int ssm_hud_sel(void);
+__attribute__((weak)) int ssm_hud_cells(int row);
+__attribute__((weak)) const char *ssm_hud_cell(int row, int i);
+__attribute__((weak)) int ssm_hud_equipped(int row, int i);
+
+static void drw_text(u32 t, const char *s, float x, float y, float sc, float r, float g, float b, int on) {
+    if (t >= DRW_N || !g_frame_node) return;
+    u64 rec = pane_record(g_frame_node, g_tnames[DRW_BASE + t]);
+    if (!rec) return;
+    if (!on || !s) { place(rec, x, y, 0.0f, 0.0f, 0.0f); return; }
+    tint_rec(rec, r, g, b, 1.0f);
+    place(rec, x, y, sc, sc, 0.0f);
+    u32 n = 0;
+    while (s[n] && n < 23u) n++;
+    int same = 1;
+    for (u32 i = 0; i <= n; i++) if (g_drw_last[t][i] != s[i]) same = 0;
+    if (same) return;
+    char *dst = g_drw_buf[t];
+    for (u32 i = 0; i < n; i++) dst[i] = s[i];
+    dst[n] = 0;
+    struct { const void *s; u32 len, z; long long m1; } ref = {dst, n, 0, -1};
+    set_text((void *)rec, &ref, 0);
+    for (u32 i = 0; i <= n; i++) g_drw_last[t][i] = s[i];
+}
+
+static void drawer_update(void) {
+    static int shown;
+    if (!g_frame_node || !ssm_hud_open) return;
+    if (!ssm_hud_open()) {
+        if (!shown) return;
+        for (u32 t = 0; t < DRW_N; t++) drw_text(t, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+        u64 fr = pane_record(g_frame_node, g_pinames[PIC_SSM]);
+        if (fr) place(fr, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        shown = 0;
+        return;
+    }
+    if (hud_game_covered()) {   /* a menu is up: do not leave the drawer frozen on screen */
+        for (u32 t = 0; t < DRW_N; t++) drw_text(t, 0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0);
+        u64 fr0 = pane_record(g_frame_node, g_pinames[PIC_SSM]);
+        if (fr0) place(fr0, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        shown = 0;
+        return;
+    }
+    shown = 1;
+    u64 fr = pane_record(g_frame_node, g_pinames[PIC_SSM]);
+    if (fr) {
+        tint_rec(fr, 0.02f, 0.02f, 0.03f, 0.82f);
+        place(fr, 0.0f, 55.0f, 1.25f, 2.9f, 0.0f);
+    }
+    int row = ssm_hud_row(), sel = ssm_hud_sel();
+    static const float NORMAL[3] = {0.78f, 0.78f, 0.78f};
+    static const float CHOICE[3] = {1.00f, 0.95f, 0.55f};
+    static const float EQUIPPED[3] = {0.55f, 1.00f, 0.55f};
+    static const float TITLE[3] = {0.55f, 0.60f, 0.70f};
+    static const float HINT[3] = {0.45f, 0.45f, 0.50f};
+    const char *titles[2] = {"SWORD", "SHIELD"};
+    float ys[2] = {140.0f, 10.0f};
+    for (int r = 0; r < 2; r++) {
+        int n = ssm_hud_cells(r);
+        if (n > MAX_DRAW_CELLS) n = MAX_DRAW_CELLS;
+        drw_text((u32)(10 + r), titles[r], -560.0f, ys[r], 0.34f, TITLE[0], TITLE[1], TITLE[2], 1);
+        for (int i = 0; i < MAX_DRAW_CELLS; i++) {
+            u32 t = (u32)(r * 5 + i);
+            int on = i < n;
+            const char *s = on ? ssm_hud_cell(r, i) : 0;
+            const float *c = NORMAL;
+            float sc = 0.36f;
+            if (on && r == row && i == sel) { c = CHOICE; sc = 0.42f; }
+            else if (on && ssm_hud_equipped(r, i)) c = EQUIPPED;
+            drw_text(t, s, -340.0f + (float)i * 165.0f, ys[r], sc, c[0], c[1], c[2], on);
+        }
+    }
+    drw_text(12, "RELEASE TO EQUIP", 0.0f, -155.0f, 0.28f, HINT[0], HINT[1], HINT[2], 1);
+}
+
 u32 hud_frame_count(void) { return g_tick; }
 static void hud_frame(void) {
     g_hud_dbg[1] = MARK | ++g_tick;
@@ -2584,6 +2690,7 @@ static void hud_frame(void) {
     bar_update(g_frame_node);
     slots_update(g_frame_node);
     slots_labels(g_frame_node);
+    drawer_update();
 }
 /* -------- observation of the stock item box (to learn icon frames) -------- */
 #define FL_N 24

@@ -65,6 +65,11 @@ typedef struct {
     /* 0.9.0: button remap (core/remap.h). The struct grows from 0x50 to 0x5A; older apps leave these 0 (classic). */
     unsigned char bm_remap;         /* 0 classic layout, 1 use bm_role */
     unsigned char bm_role[10];      /* role of each physical button, PB_ order: L X R Y A ZR B ZL L3 R3 (ROLE_*) */
+    /* 0.10.0: sword / shield quick menu (features/sword_shield_menu). Appended, so older apps leave them 0 (off).
+     * The button is the ROLE_DRAWER of the remap table (app: Controls > button roles). */
+    unsigned char ssm_enabled;      /* 1 = hold the drawer role to open it */
+    unsigned char ssm_flags;        /* bit0: do not remember the last row (0 = remember) */
+    unsigned char ssm_unused[2];
 } ShbConfig;
 
 extern volatile ShbConfig g_shbcfg;

@@ -35,6 +35,7 @@ enum {
     ROLE_SPRINT,     /* virtual L3: the stamina feature's sprint (ShbConfig.sprint_l3, toggle or hold) */
     ROLE_SHIELD,     /* VBTN_SHIELD: the manual shield's guard (ShbConfig.manual_shield) */
     ROLE_SELECTOR,   /* virtual L in the item-selector mode (ShbConfig.bm_l_mode = 2): opens the game's selector */
+    ROLE_DRAWER,     /* the sword / shield quick menu (features/sword_shield_menu); the game never sees the button */
     ROLE_N
 };
 

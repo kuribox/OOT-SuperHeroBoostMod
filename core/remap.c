@@ -28,6 +28,7 @@ static u32 classic_phys(u32 role) {
     case ROLE_SPRINT:    return g_shbcfg.sprint_l3 ? PB_L3 : PB_NONE;
     case ROLE_SHIELD:    return g_shbcfg.manual_shield ? PB_L : PB_NONE;
     case ROLE_SELECTOR:  return g_shbcfg.bm_l_mode == 2 ? PB_L : PB_NONE;
+    case ROLE_DRAWER:    return g_shbcfg.ssm_enabled ? PB_L : PB_NONE;
     default:             return PB_NONE;
     }
 }
@@ -61,8 +62,13 @@ u64 remap_role_virt(u32 role) {
 u64 remap_apply(u64 b) {
     if (!remap_on()) return b;
     u64 out = b & ~(REMAP_ALL | VBTN_SHIELD);
-    for (u32 p = 0; p < PB_N; p++)
-        if (b & REMAP_BIT[p]) out |= remap_role_virt(g_shbcfg.bm_role[p]);
+    for (u32 p = 0; p < PB_N; p++) {
+        if (!(b & REMAP_BIT[p])) continue;
+        /* The drawer role owns the button only while the drawer is enabled; otherwise it keeps its native
+         * function (the quick menu's roll is stripped by the game like any other remapped button). */
+        if (g_shbcfg.bm_role[p] == ROLE_DRAWER && !g_shbcfg.ssm_enabled) out |= REMAP_BIT[p];
+        else out |= remap_role_virt(g_shbcfg.bm_role[p]);
+    }
     return out;
 }
 

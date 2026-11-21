@@ -84,6 +84,7 @@ FEATURE_INPUT_HANDLERS = {
 # Input handlers that run before every feature's own, whatever the feature order: the button remap turns the
 # player's buttons into the virtual (default layout) ones that the other handlers and the game read.
 FEATURE_INPUT_EARLY = {
+    "sword_shield_menu": ["ssm_on_input"],   # before the remap: consumes its button and the D-pad
     "button_mapping": ["button_remap_on_input"],
 }
 FEATURE_SLOT_HANDLERS = {

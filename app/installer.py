@@ -33,7 +33,7 @@ L_MODE_VALUES = {"assign": 0, "selector": 2}
 # item selector); item1 / item2 / item3 are the mod's slots (classically B, L and R).
 REMAP_BUTTONS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL", "L3", "R3")
 ROLES = ("none", "jump", "sword", "action", "target", "item1", "item2", "item3", "item_main",
-         "camera", "sprint", "shield", "selector")
+         "camera", "sprint", "shield", "selector", "drawer")
 ITEM_ROLES = ("item1", "item2", "item3", "item_main")
 # Roles limited to some buttons (everything else goes anywhere)
 _NO_STICKS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL")
@@ -228,6 +228,7 @@ class Settings:
     sprint_l3_toggle: bool = False   # sprint_l3: L3 turns the sprint on / off instead of holding it
     bm_remap: bool = True            # button remap: use bm_roles (the table implies shield/sprint/selector)
     bm_roles: dict = field(default_factory=lambda: dict(CLASSIC_ROLES))   # button (REMAP_BUTTONS) -> role (ROLES)
+    ssm_enabled: bool = False        # sword / shield quick menu on the "drawer" role (Controls > button roles)
 
     def to_dict(self): return dict(self.__dict__)
 
@@ -594,6 +595,9 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                     b[f + 54] = int(s.manual_shield)
                     b[f + 55] = 0                                            # target_r3: target can be on R3 itself
                     b[f + 56] = int(fl["sprint_l3"])
+                if size >= 0x5E:                        # 0.10.0: sword / shield quick menu
+                    b[f + 74] = int(s.ssm_enabled)      # struct 90
+                    b[f + 75] = 0                       # struct 91: flags (0 = remember the last row)
     return bytes(b)
 
 

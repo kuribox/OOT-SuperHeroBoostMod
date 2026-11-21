@@ -77,6 +77,8 @@ def cli(argv) -> int:
     ap.add_argument("--no-songbook", action="store_true", help="disable playing songs from the native songbook")
     ap.add_argument("--quick-boots", action="store_true", help="hold D-pad down to switch boots")
     ap.add_argument("--quick-mask", action="store_true", help="hold D-pad up to switch masks")
+    ap.add_argument("--ssm", action="store_true",
+                    help="sword / shield quick menu on the 'drawer' role (classic layout: L)")
     ap.add_argument("--manual-shield", action="store_true",
                     help="ZL follows the game's Hold/Toggle setting; L holds the shield while targeting")
     ap.add_argument("--no-manual-shield", action="store_true", help="disable the manual shield of a profile")
@@ -156,8 +158,15 @@ def cli(argv) -> int:
                    enemy_alert=v.get("enemy_alert", 0), enemy_aggro=v.get("enemy_aggro", 0),
                    stamina_bar=bool(v["stamina_bar"]), manual_shield=v["manual_shield"],
                    auto_target=v["auto_target"], switch_target=v["switch_target"],
-                   target_r3=bool(v["target_r3"]), sprint_l3=bool(v["sprint_l3"]))
+                   target_r3=bool(v["target_r3"]), sprint_l3=bool(v["sprint_l3"]),
+                   ssm_enabled=bool(getattr(a, "ssm", False)))
     s.lang = a.lang or I.detect_lang(Path(a.emu).expanduser()) or system_lang()
+    if getattr(a, "ssm", False):   # CLI: no role table, put the drawer on L (as the reference mod)
+        s.ssm_enabled = True
+        roles = dict(s.bm_roles)
+        if "drawer" not in roles.values():
+            roles["L"] = "drawer"
+        s.bm_roles = roles
     if a.preset is not None:
         s.preset = a.preset
     if a.no_button_mapping:
@@ -409,6 +418,7 @@ def gui() -> None:
     songbook = tk.BooleanVar(value=bool(cfg.get("songbook", True)))
     quick_boots = tk.BooleanVar(value=bool(cfg.get("quick_boots", False)))
     quick_mask = tk.BooleanVar(value=bool(cfg.get("quick_mask", False)))
+    ssm = tk.BooleanVar(value=bool(cfg.get("ssm_enabled", False)))
     manual_shield = tk.BooleanVar(value=bool(cfg.get("manual_shield", False)))
     target_r3 = tk.BooleanVar(value=bool(cfg.get("target_r3", False)))
     sprint_l3 = tk.BooleanVar(value=bool(cfg.get("sprint_l3", False)))
@@ -634,7 +644,7 @@ def gui() -> None:
         refresh()
         autosave()
 
-    for var in (bmap, stamina, songbook, quick_boots, quick_mask, manual_shield, target_r3, sprint_l3, sprint_l3_toggle,
+    for var in (bmap, stamina, songbook, quick_boots, quick_mask, ssm, manual_shield, target_r3, sprint_l3, sprint_l3_toggle,
                 auto_target, switch_target,
                 hud_collectibles, hud_mode,
                 enemy_double, enemy_move, enemy_anim, enemy_attack, enemy_proj, boss_move, boss_anim, enemy_alert, enemy_aggro,
@@ -699,6 +709,7 @@ def gui() -> None:
                           bm_remap=True, bm_roles=RM.roles_value(broles),
                           songbook=songbook.get(),
                           quick_boots=quick_boots.get(), quick_mask=quick_mask.get(),
+                          ssm_enabled=ssm.get(),
                           manual_shield=manual_shield.get(),
                           target_r3=target_r3.get(), sprint_l3=sprint_l3.get(),
                           sprint_l3_toggle=sprint_l3_toggle.get(),
@@ -731,6 +742,7 @@ def gui() -> None:
             "bm_roles": RM.roles_value(broles),
             "stamina": stamina.get(), "stamina_bar": stamina_bar.get(), "songbook": songbook.get(),
             "quick_boots": quick_boots.get(), "quick_mask": quick_mask.get(),
+            "ssm_enabled": ssm.get(),
             "manual_shield": manual_shield.get(),
             "target_r3": target_r3.get(), "sprint_l3": sprint_l3.get(),
             "sprint_l3_toggle": sprint_l3_toggle.get(),
@@ -1491,6 +1503,7 @@ def gui() -> None:
         RM.RemapEditor(body, L, FAM, COLORS,
                        dict(bmap=bmap, roles=broles, bstyle=bstyle, bsimple=bsimple, switch_target=switch_target,
                             auto_target=auto_target, sprint_toggle=sprint_l3_toggle, mshield=manual_shield))
+        help_check(body, L("ssm_on"), ssm, L("ssm_help"))
         build_buttons(parent)
         build_quick_select(parent)
 
