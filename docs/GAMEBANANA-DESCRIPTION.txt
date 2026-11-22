@@ -97,7 +97,7 @@ COMPATIBILITY
 
 CREDITS
 - Kuribox - creator: module, HUD, stamina system, button remap and companion app.
-- PixelSage / Hyrule Armory (https://gamebanana.com/mods/740938) - the original Armory (sword and shield quick select); the Armory role of this mod is a reimplementation of that idea, with its own code.
+- PixelSage / Hyrule Armory - https://gamebanana.com/mods/740938 - the original Armory (sword and shield quick select); the Armory role of this mod is a reimplementation of that idea, with its own code.
 - HaseoSora - Switch GameCube preset and widescreen HUD groups.
 - Anthropic (Claude) - AI software used as an assistant for coding, reverse engineering and testing.
 - DeepSeek - AI software used as an assistant for coding, reverse engineering and testing.
