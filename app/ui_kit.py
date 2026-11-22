@@ -339,6 +339,7 @@ class Select(ctk.CTkOptionMenu):
                          dropdown_fg_color=PANEL, dropdown_hover_color=ROW_HOVER, dropdown_text_color=TEXT,
                          font=(FAM, 10), dropdown_font=(FAM, 10), command=self._chosen, **kw)
         self._popup = None
+        self._watch_id = None
 
     def _chosen(self, _value=None):
         if self._cb is not None:
@@ -483,6 +484,21 @@ class Select(ctk.CTkOptionMenu):
         except Exception:
             pass
         top.bind("<FocusOut>", lambda e: self.after(80, self._focus_lost), add="+")
+        self._anchor = (self.winfo_rootx(), self.winfo_rooty())
+        self._watch()
+
+    def _watch(self):
+        """Close the list when the field moves (the page scrolled, the window moved) or goes away."""
+        if self._popup is None:
+            return
+        try:
+            moved = (self.winfo_rootx(), self.winfo_rooty()) != self._anchor or not self.winfo_viewable()
+        except Exception:
+            moved = True
+        if moved:
+            self._close_popup()
+        else:
+            self._watch_id = self.after(50, self._watch)
 
     def _focus_lost(self):
         if self._popup is not None and self._popup.focus_displayof() is None:
@@ -496,6 +512,10 @@ class Select(ctk.CTkOptionMenu):
 
     def _close_popup(self):
         top, self._popup = self._popup, None
+        try:
+            self.after_cancel(self._watch_id)
+        except Exception:
+            pass
         if top is not None:
             try:
                 top.grab_release()
