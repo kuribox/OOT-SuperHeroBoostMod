@@ -191,7 +191,7 @@ def cli(argv) -> int:
     if a.switch_target:
         s.switch_target = True
     s.bm_roles = I.roles_from_flags(s.bm_roles, manual_shield=s.manual_shield, target_r3=s.target_r3,
-                                    sprint_l3=s.sprint_l3, l_selector=s.bm_l_mode == "selector")
+                                    sprint_l3=s.sprint_l3, l_selector=True if s.bm_l_mode == "selector" else None)   # (None: keep the table's own selector)
     if a.enemy_double:
         s.enemy_double = True
     if a.enemy_speed:
