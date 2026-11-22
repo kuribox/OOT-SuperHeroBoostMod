@@ -1701,6 +1701,18 @@ _BUTTONS = {
 for _lang, _txt in _BUTTONS.items():
     T[_lang].update(_txt)
 
+# Rekarina's converter takes an ExeFS patch file whole: say which record it could not lift
+_PATCHWHY = {
+    "en": "Rekarina's ExeFS patch converter rejected the mod's IPS. The rebuild was stopped.\n{a}",
+    "es": "El conversor de parches ExeFS de Rekarina rechazó el IPS del mod. Se detuvo la recompilación.\n{a}",
+    "pt": "O conversor de patches ExeFS da Rekarina rejeitou o IPS do mod. A recompilação foi parada.\n{a}",
+    "fr": "Le convertisseur de patches ExeFS de Rekarina a refusé l'IPS du mod. La recompilation a été arrêtée.\n{a}",
+    "de": "Rekarinas ExeFS-Patch-Konverter hat das IPS des Mods abgelehnt. Der Neubau wurde gestoppt.\n{a}",
+    "it": "Il convertitore di patch ExeFS di Rekarina ha rifiutato l'IPS del mod. La ricompilazione è stata fermata.\n{a}",
+}
+for _lang, _txt in _PATCHWHY.items():
+    T[_lang]["e_rekarina_patch_failed"] = _txt
+
 
 # game-wide controller layout: the PlayStation / Xbox archives are downloaded once from GameBanana
 _LAYOUT = {

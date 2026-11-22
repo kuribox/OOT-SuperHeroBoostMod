@@ -350,6 +350,70 @@ def _ips_offsets(data: bytes) -> set[int]:
         return set()
 
 
+def _ips_records(data: bytes) -> list[tuple[int, bytes]] | None:
+    """(offset, rest of the record) for every record of an IPS / IPS32 file; None when it is not one."""
+    if data[:5] == b"PATCH":
+        width, end = 3, b"EOF"
+    elif data[:5] == b"IPS32":
+        width, end = 4, b"EEOF"
+    else:
+        return None
+    out: list[tuple[int, bytes]] = []
+    at = 5
+    while at + len(end) <= len(data) and data[at:at + len(end)] != end:
+        if at + width + 2 > len(data):
+            return None
+        off = int.from_bytes(data[at:at + width], "big")
+        n = int.from_bytes(data[at + width:at + width + 2], "big")
+        size = 2 + (3 if n == 0 else n)              # length + data, or 0000 + RLE count + byte
+        rest = data[at + width:at + width + size]
+        if len(rest) != size:
+            return None
+        out.append((off, rest))
+        at += width + size
+    return out
+
+
+def _write_ips32(records: list[tuple[int, bytes]]) -> bytes:
+    return b"IPS32" + b"".join(off.to_bytes(4, "big") + rest for off, rest in records) + b"EEOF"
+
+
+def split_foreign_ips(game: Path, mods_root: Path | None = None, log=None) -> int:
+    """Move the patch records that are not ours out of our mod's IPS, into a sibling file.
+
+    A mod merger puts the ExeFS patches of every merged mod into one IPS. Rekarina's converter takes a patch file as a
+    whole: one record it cannot lift (a code change that alters the CPU flags differently from the game, for example)
+    makes it reject the file, and our hooks go with it. The foreign records move to `<id>-other-mods.ips`, which the
+    converter classifies and skips on its own. Returns the number of records moved."""
+    root = Path(mods_root) if mods_root else game / "mods"
+    path = root / MOD_NAME / "exefs" / (BUILD_ID + ".ips")
+    try:
+        recs = _ips_records(path.read_bytes())
+        ours = {off for off, _ in (_ips_records(_payload_ips().read_bytes()) or [])}
+    except OSError:
+        return 0
+    if not recs or not ours or not any(off in ours for off, _ in recs):
+        return 0
+    mine = [r for r in recs if r[0] in ours]
+    foreign = [r for r in recs if r[0] not in ours]
+    if not foreign:
+        return 0
+    other = path.with_name(BUILD_ID + "-other-mods.ips")
+    keep = []
+    try:
+        keep = _ips_records(other.read_bytes()) or []
+    except OSError:
+        pass
+    seen = {off for off, _ in keep}
+    keep += [r for r in foreign if r[0] not in seen]
+    other.write_bytes(_write_ips32(keep))
+    path.write_bytes(_write_ips32(mine))
+    if log:
+        log("Rekarina: %d patch record(s) of other mods moved out of %s into %s (the converter takes a whole file or "
+            "none)" % (len(foreign), path.name, other.name))
+    return len(foreign)
+
+
 def _is_our_ips(path: Path) -> bool:
     try:
         return bool(_ips_offsets(path.read_bytes()[:4096]) & set(INPUT_SITES))
@@ -851,6 +915,10 @@ def build(game: Path, setup: Path, s: I.Settings, progress=None, log=None, mods_
     status_dir.mkdir(parents=True, exist_ok=True)
     patches = base_patches
     # The mods' cheats and ExeFS patches become patch sets beside the port's own, as Rekarina's Lift does.
+    try:
+        split_foreign_ips(game, mods_root, log)
+    except OSError as ex:
+        line_log("Rekarina: could not separate the other mods' patches from ours: %s" % ex)
     inputs = [m for m in mods_root.iterdir() if m.is_dir() and (_first_exefs(m) or (m / "cheats").is_dir())] \
         if mods_root.is_dir() else []
     if inputs:
@@ -868,17 +936,19 @@ def build(game: Path, setup: Path, s: I.Settings, progress=None, log=None, mods_
             patches = base_patches
         try:
             out_exefs = work / "patches-exefs.txt"
+            why: list[str] = []
             _run([python, "-B", tools / "exefs_patches.py", "--exefs", exefs, "--mods", mods_root,
                   "--patches", patches, "--out", out_exefs, "--status", status_exefs],
-                 setup, env, log=line_log)
+                 setup, env, log=line_log,
+                 on_line=lambda ln: why.append(ln) if ln.startswith("exefs: unsupported") else None)
             patches = out_exefs
             if not _has_our_patch(out_exefs):
-                raise I.InstallError("rekarina_patch_failed")
+                raise I.InstallError("rekarina_patch_failed", "\n".join(why[:3]))
         except I.InstallError as ex:
             status_exefs.unlink(missing_ok=True)
             if ex.key == "recomp_cancelled":
                 raise
-            raise I.InstallError("rekarina_patch_failed") from None
+            raise I.InstallError("rekarina_patch_failed", ex.arg) from None
     else:
         status_exefs.unlink(missing_ok=True)
         status_cheats.unlink(missing_ok=True)
