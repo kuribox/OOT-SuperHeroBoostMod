@@ -4,7 +4,7 @@ Condensed from `README.md`, `docs/GUIA-DESARROLLO.md`, `docs/LONGSHOT.md` and `d
 Read this before touching `core/` or `features/`; go to those files for the full detail and addresses.
 
 Game: **Ocarina of Time remake**, Switch 2, update **v131072**, `main` Build ID
-`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Release **0.9.1**.
+`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Release **0.9.2**.
 
 ## 1. What the mod is
 
