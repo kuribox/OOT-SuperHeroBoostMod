@@ -100,8 +100,7 @@ ATTACK_INTERVAL_NAMES = frozenset((
 ))
 ATTACK_TABLE_FIELDS = ("/LongIntervalMax", "/LongIntervalMin", "/MediumIntervalMax",
                        "/MediumIntervalMin", "/ShortIntervalMax", "/ShortIntervalMin")
-# Aggression (the app's "alert radius" and "aggression" options; the same fields the community mod
-# AggressiveEnemies_Max sets by hand in every pack):
+# Aggression (the app's "alert radius" and "aggression" options):
 #   d  how far an enemy that spots Link alerts the others (EnemyCommonParam)
 #   k  how far it keeps chasing before it gives up (EnemyCommonParam)
 #   g  the shared pause during which only one enemy attacks Link at a time (GameBalanceClientParam)

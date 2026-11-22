@@ -1,8 +1,7 @@
 /* manual shield: ZL toggles the lock-on camera, L holds the guard while it is
  * active and R3 cancels targeting.
  *
- * Ported from the behaviour of REXCRAFT88's Manual Shield mod for the same game
- * build. The two halves are:
+ * The two halves are:
  *   - manual_shield_on_input: consumes the physical ZL (target toggle) and
  *     synthesises native ZL while our toggle is on; L is only consumed while the
  *     lock-on camera is active, so it keeps its normal game function otherwise;

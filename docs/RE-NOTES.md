@@ -224,7 +224,7 @@ Consequence: only site 3 sees gameplay input. The four item-button slot sites
   507x80 with a chevron on the left end; each is drawn twice (second copy mirrored, scale x = -1) so both ends get
   the chevron. Rupee icon = Nt_RupeeIconNew_00. Sun = Circle64_00 + 8 rotated White8_00_BC4L rays; moon = two
   Circle64_00 (crescent). All live in Common.Product.100.Nin_Ounce_NVN2.bntx.zs (no sun/moon texture exists there,
-  nor in the title or notes resources). A third-party HUD mod draws its sun the same way (32 small panes).
+  nor in the title or notes resources).
 - Materials: root+0x130 = {u64 *materials, count, stride}. Picture/text-list entry (+0x40 table) +0x14 = material
   index. A textured material starts with a sampler list {ptr, count}; sampler = {u32 flags, pad, u64 texture name}.
   Textures resolve by name at layout build, so a deep copy of a textured material (P_SubItemBg_00 uses #31,
@@ -473,9 +473,8 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
 
 - The game's button glyphs (A B X Y L R ZL ZR = U+E040..U+E047) live in
   `Font2/Scalable/External.Nin_Ounce_NVN2.bfotf.zs`: zstd with the game dictionary (`zs.zsdic`) over an 8-byte
-  header (`w0 = 0x18029A7F ^ key`, `w1` carries the unpacked size) and an XOR-obfuscated OTF (`OTTO`). The
-  community PlayStation layout (GameBanana 737074) changes 18 charstrings and its OTF is 15632 bytes against the
-  vanilla 14560.
+  header (`w0 = 0x18029A7F ^ key`, `w1` carries the unpacked size) and an XOR-obfuscated OTF (`OTTO`). A
+  font that replaces the button glyphs with the community layout's is 15632 bytes unpacked against the vanilla 14560.
 - **The loader (Owl, inside the system NSS) aborts with a null call when the unpacked OTF is too big**, not when a
   glyph is wrong: `Unmapped Read64 @ 0x0` at `Owl.nss+0xA7F6EC`, then `pc 0x4`. The crash happens while the
   resource loader is reading the `Font2/S...` path (R06/R07 hold that string), ~15 s into boot.

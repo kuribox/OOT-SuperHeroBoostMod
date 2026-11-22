@@ -90,7 +90,7 @@ module changed.
   native action through. The context prompt follows the button that holds the Action role.
 - **Armory.** A button with the Armory role opens the game's own item drawer while it is held, with the swords and
   shields Link owns and can use at his age; the stick or D-pad moves the cursor and letting go equips it. It is a
-  reimplementation of what the community mod Hyrule Armory Sync does. A button with the **Shield** role shows the
+  implementation of the Armory idea credited below. A button with the **Shield** role shows the
   equipped shield on the HUD.
 - **Quick mask** goes back from the Lens of Truth to the last mask you wore.
 - **Item buttons fixed.** The ZR item follows the game's item set (Child / Adult), so it no longer shows a stale icon;

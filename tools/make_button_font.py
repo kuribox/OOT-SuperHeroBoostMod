@@ -1,10 +1,10 @@
 """Developer step: build the PlayStation button font the game can actually load.
 
-The community Dualsense/XBOX/Steamdeck layout (GameBanana 737074) replaces 18 charstrings of
-`Font2/Scalable/External.Nin_Ounce_NVN2.bfotf.zs`. This build's font loader (Owl, inside the
+A full replacement of the button glyphs in
+`Font2/Scalable/External.Nin_Ounce_NVN2.bfotf.zs` (the community layouts ship one). This build's font loader (Owl, inside the
 system NSS) aborts with a null call when the unpacked OTF is larger than ~14640 bytes:
 the vanilla font is 14556 and 14676 already crashes (measured by bisection with
-`tools/font_variant.py --pad`, see docs/RE-NOTES.md). The layout's font is 15632, so it can
+`tools/font_variant.py --pad`, see docs/RE-NOTES.md). A community layout's font is 15632, so it can
 never be shipped as it comes.
 
 This tool keeps the **vanilla** font, swaps only the eight button glyphs U+E040..U+E047
