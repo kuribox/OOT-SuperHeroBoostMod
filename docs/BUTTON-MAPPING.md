@@ -27,7 +27,7 @@ The player chooses what each of the ten buttons X, Y, A, B, L, R, ZL, ZR, L3 and
 buttons, with presets: classic, action at the bottom, manual shield, souls). Roles: jump, sword, action, target,
 center camera, sprint, shield, item selector, item 1 / 2 / 3, the main item (the game's own item box) or nothing.
 Each role is on one button at most, so at most **four** buttons hold an item. Limits: items never on L3 / R3 (they
-have no HUD art), the item selector only on L or R, target only on ZL, ZR, L3 or R3, action only on A, B, X or Y
+have no HUD art), the item selector on any button but the sticks (it is the virtual L whichever button holds it), target only on ZL, ZR, L3 or R3, action only on A, B, X or Y
 (the game's context prompt next to Link, `DoCommand_00`, draws a face button; the mod shows the one that holds
 action there). Menus, dialogues and shops (Link in an `Evt*` state) keep the real buttons.
 
