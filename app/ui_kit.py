@@ -318,60 +318,41 @@ class Radio(ctk.CTkRadioButton):
     config = configure
 
 
-class Select(ctk.CTkButton):
-    """A rounded drop-down. The list waits for the mouse release, so the click can never
-    be sent to the control that happens to sit under the list."""
+class Select(ctk.CTkOptionMenu):
+    """A drop-down with the small part of the ttk.Combobox API the app uses.
+
+    The list is a small borderless popup of our own (the native menu draws a white edge that cannot be removed). It
+    grabs the pointer while it is open: the wheel scrolls the list and never the page, a click outside only closes
+    it (nothing behind receives it), and Up/Down/Enter/Escape work."""
 
     def __init__(self, parent, values, var, width=16, **kw):
         self._values = list(values or [""]) or [""]
         self._var = var
         self._cb = None
-        self._popup = None
         self._pending = None
-        self._rows = []
-        self._inner = None
-        self._scrollable = False
-        self._wheel_ids = []
-        self._watch_id = None
-        self._last_pos = None
-        self._hover_index = -1
         if var.get() not in self._values:
             var.set(self._values[0])
         _strip(kw)
-        super().__init__(parent, text=self._label_text(), command=self._clicked,
-                         width=max(150, int(width) * 9), height=34, corner_radius=8,
-                         fg_color=PANEL2, hover_color=BORDER, text_color=TEXT,
-                         text_color_disabled=DISABLED, border_width=1, border_color=BORDER,
-                         anchor="w", font=(FAM, 10), **kw)
-        self._arrow = tk.Label(self, text="▾", bg=PANEL2, fg=DIM, font=(FAM, 10),
-                               cursor="hand2", padx=0)
-        self._arrow.place(relx=1.0, x=-10, rely=0.5, anchor="e")
-        self._arrow.bind("<Button-1>", self._clicked)
-        self._arrow.bind("<Enter>", lambda e: self._arrow.configure(bg=BORDER))
-        self._arrow.bind("<Leave>", lambda e: self._arrow.configure(bg=PANEL2))
-        self._trace = var.trace_add("write", self._var_changed)
-        tk.Frame.bind(self, "<Destroy>", self._destroyed, add="+")
-
-    def _label_text(self):
-        return self._var.get()
-
-    def _var_changed(self, *_):
-        try:
-            self.configure(text=self._label_text())
-        except Exception:
-            pass
-
-    def _destroyed(self, e=None):
-        if e is not None and e.widget is not self:
-            return
-        try:
-            self._var.trace_remove("write", self._trace)
-        except Exception:
-            pass
+        super().__init__(parent, values=self._values, variable=var, width=max(150, int(width) * 9),
+                         height=34, corner_radius=8, fg_color=PANEL2, button_color=PANEL2,
+                         button_hover_color=BORDER, text_color=TEXT, text_color_disabled=DISABLED,
+                         dropdown_fg_color=PANEL, dropdown_hover_color=ROW_HOVER, dropdown_text_color=TEXT,
+                         font=(FAM, 10), dropdown_font=(FAM, 10), command=self._chosen, **kw)
+        self._popup = None
+        self._watch_id = None
 
     def _chosen(self, _value=None):
         if self._cb is not None:
             self._cb(None)
+
+    def _dropdown_callback(self, value):
+        # The variable is set inside the parent callback, and the app's trace may redraw the table before the
+        # command runs. current() reports the clicked value meanwhile.
+        self._pending = value
+        try:
+            super()._dropdown_callback(value)
+        finally:
+            self._pending = None
 
     def bind(self, seq, func, add=None):
         if seq == "<<ComboboxSelected>>":
@@ -398,35 +379,30 @@ class Select(ctk.CTkButton):
             self._values = list(kw.pop("values") or [""]) or [""]
             if self._var.get() not in self._values:
                 self._var.set(self._values[0])
+            kw["values"] = self._values
         if "state" in kw:
             state = kw.pop("state")
             kw["state"] = "disabled" if state == "disabled" else "normal"
-            if kw["state"] == "disabled":
-                self._close_popup()
-                try:
-                    self._arrow.configure(fg=DISABLED, bg=PANEL2)
-                except Exception:
-                    pass
-            else:
-                try:
-                    self._arrow.configure(fg=DIM, bg=PANEL2)
-                except Exception:
-                    pass
         return super().configure(**kw)
 
     config = configure
 
+
     # ---- the list ----
-    def _clicked(self, _e=None):
+    def _clicked(self, _event=0):
         if self._state == "disabled":
             return
-        if self._popup is not None and self._popup.winfo_exists():
+        if self._popup is not None:
             self._close_popup()
         else:
             self._open_popup()
 
     def _open_popup(self):
         self._close_popup()
+        n = len(self._values)
+        row_h = 28
+        shown = min(n, 12)
+        width = max(self.winfo_width(), 150)
         top = tk.Toplevel(self)
         top.withdraw()
         top.overrideredirect(True)
@@ -435,216 +411,121 @@ class Select(ctk.CTkButton):
             top.attributes("-topmost", True)
         except Exception:
             pass
-        shell = ctk.CTkFrame(top, fg_color=PANEL, corner_radius=12, border_width=1, border_color=BORDER)
-        shell.pack(fill="both", expand=True)
-        width = max(190, self.winfo_width())
-        total = max(1, len(self._values)) * 32 + 18
-        height = min(450, total)
-        if total <= 450:
-            inner = ctk.CTkFrame(shell, fg_color=PANEL, corner_radius=8)
-        else:
-            inner = ctk.CTkScrollableFrame(shell, fg_color=PANEL, corner_radius=8,
-                                           width=width - 12, height=height - 12,
-                                           scrollbar_button_color=BORDER,
-                                           scrollbar_button_hover_color=ACCENT_DARK)
-        inner.pack(fill="both", expand=True, padx=6, pady=6)
-        self._inner = inner
-        self._scrollable = isinstance(inner, ctk.CTkScrollableFrame)
-        current = self._var.get()
-        rows = []
-        for value in self._values:
-            active = value == current
-            row = ctk.CTkFrame(inner, fg_color=BORDER if active else PANEL, corner_radius=7, height=30)
-            row.pack(fill="x", pady=1)
-            row.pack_propagate(False)
-            lab = ctk.CTkLabel(row, text=value, anchor="w", text_color=ACCENT if active else TEXT,
-                               fg_color="transparent", font=(FAM, 10))
-            lab.pack(fill="both", expand=True, padx=10)
-            rows.append((row, lab, value))
+        box = tk.Listbox(top, bg=PANEL, fg=TEXT, selectbackground=ROW_HOVER, selectforeground=ACCENT2,
+                         activestyle="none", relief="flat", borderwidth=0, highlightthickness=0,
+                         exportselection=False, font=(FAM, 10), height=shown, takefocus=0)
+        for v in self._values:
+            box.insert("end", "  " + v)
+        sb = None
+        if n > shown:
+            sb = ctk.CTkScrollbar(top, width=12, fg_color=PANEL, button_color=BORDER,
+                                  button_hover_color=ACCENT_DARK, command=box.yview)
+            box.configure(yscrollcommand=sb.set)
+            sb.pack(side="right", fill="y", padx=(0, 1), pady=1)
+        box.pack(side="left", fill="both", expand=True, padx=1, pady=1)
+        cur = self._values.index(self._var.get()) if self._var.get() in self._values else 0
+        box.selection_set(cur)
+        box.see(cur)
         top.update_idletasks()
-        sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-        x = min(max(4, self.winfo_rootx()), sw - width - 8)
-        y = self.winfo_rooty() + self.winfo_height() + 3
-        if y + height > sh - 48:
-            y = max(8, self.winfo_rooty() - height - 3)
-        top.geometry(f"{width}x{height}+{int(x)}+{int(y)}")
+        height = box.winfo_reqheight() + 2 + (0 if n > shown else 0)
+        x, y = self.winfo_rootx(), self.winfo_rooty() + self.winfo_height() + 2
+        if y + height > self.winfo_screenheight() - 40:                 # no room below: open upwards
+            y = max(0, self.winfo_rooty() - height - 2)
+        top.geometry("%dx%d+%d+%d" % (width, height, x, y))
         top.deiconify()
         top.lift()
-        top.update_idletasks()
-        self._rows = rows
-        self._hover_index = -1
-        self._paint_rows()
+        self._popup = top
+        self._box = box
+
+        def inside(e):
+            return top.winfo_rootx() <= e.x_root < top.winfo_rootx() + top.winfo_width() and \
+                top.winfo_rooty() <= e.y_root < top.winfo_rooty() + top.winfo_height()
+
+        def motion(e):
+            i = box.nearest(e.y)
+            box.selection_clear(0, "end")
+            box.selection_set(i)
+
+        def click(e):
+            if not inside(e):
+                self._close_popup()
+            elif e.widget is box:
+                self._pick(box.nearest(e.y))
+            return "break"
+
+        def wheel(e):
+            box.yview_scroll(-1 if e.delta > 0 else 1, "units")
+            if sb is not None:
+                sb.set(*box.yview())
+            return "break"
+
+        def key(e):
+            sel = (box.curselection() or (cur,))[0]
+            if e.keysym in ("Up", "Down"):
+                sel = max(0, min(n - 1, sel + (-1 if e.keysym == "Up" else 1)))
+                box.selection_clear(0, "end")
+                box.selection_set(sel)
+                box.see(sel)
+            elif e.keysym in ("Return", "KP_Enter"):
+                self._pick(sel)
+            elif e.keysym == "Escape":
+                self._close_popup()
+            return "break"
+
+        for w in (top, box):
+            w.bind("<Button-1>", click)
+            w.bind("<MouseWheel>", wheel)
+            w.bind("<Key>", key)
+        box.bind("<Motion>", motion)
         try:
             top.focus_force()
-        except Exception:
-            pass
-        try:
+            box.focus_set()
             top.grab_set()
         except Exception:
             pass
-        # Consume the press; select on release. If the popup were destroyed on press, the
-        # release would land on the control below it (the click-through bug).
-        top.bind("<Button-1>", lambda e: "break")
-        top.bind("<ButtonRelease-1>", self._popup_release)
-        top.bind("<Motion>", self._popup_motion)
-        top.bind("<Leave>", lambda e: self._paint_rows(-1))
-        top.bind("<Escape>", lambda e: self._close_popup())
-        top.bind("<MouseWheel>", self._popup_wheel)
-        top.bind("<Button-4>", self._popup_wheel)
-        top.bind("<Button-5>", self._popup_wheel)
-        self._popup = top
-        self._last_pos = (self.winfo_rootx(), self.winfo_rooty())
-        self._watch_id = self.after(80, self._watch_select)
-        try:
-            root = self.winfo_toplevel()
-            self._wheel_ids = [root.bind("<MouseWheel>", self._page_wheel, add="+"),
-                               root.bind("<Button-4>", self._page_wheel, add="+"),
-                               root.bind("<Button-5>", self._page_wheel, add="+")]
-        except Exception:
-            self._wheel_ids = []
+        top.bind("<FocusOut>", lambda e: self.after(80, self._focus_lost), add="+")
+        self._anchor = (self.winfo_rootx(), self.winfo_rooty())
+        self._watch()
 
-    def _page_wheel(self, event=None):
-        # The main page is scrolling: keep the list attached to its select instead of
-        # leaving it floating in the old position.
-        if self._popup is not None:
-            self.after_idle(self._follow_select)
-        return None
-
-    def _watch_select(self):
-        self._watch_id = None
-        if self._popup is None or not self._popup.winfo_exists():
-            return
-        pos = (self.winfo_rootx(), self.winfo_rooty())
-        if pos != self._last_pos:
-            self._last_pos = pos
-            self._follow_select()
-        if self._popup is not None:
-            self._watch_id = self.after(80, self._watch_select)
-
-    def _follow_select(self):
-        top = self._popup
-        if top is None or not top.winfo_exists():
-            return
-        try:
-            if not self.winfo_ismapped():
-                self._close_popup()
-                return
-            w, h = top.winfo_width(), top.winfo_height()
-            sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-            x = min(max(4, self.winfo_rootx()), sw - w - 8)
-            y = self.winfo_rooty() + self.winfo_height() + 3
-            if y + h > sh - 48:
-                y = self.winfo_rooty() - h - 3
-            if y < 4 or y + h > sh - 4:
-                self._close_popup()
-                return
-            top.geometry(f"{w}x{h}+{int(x)}+{int(y)}")
-        except Exception:
-            self._close_popup()
-
-    def _popup_wheel(self, event=None):
-        num = getattr(event, "num", None)
-        delta = getattr(event, "delta", 0)
-        step = -1 if (num == 4 or delta > 0) else 1
-        if self._scrollable:
-            try:
-                self._inner._parent_canvas.yview_scroll(step, "units")
-            except Exception:
-                pass
-        else:
-            # The list fits: a wheel gesture belongs to the page behind it.
-            self._close_popup()
-        return "break"
-
-    def _paint_rows(self, hover_index=None):
-        if hover_index is None:
-            hover_index = self._hover_index
-        current = self._var.get()
-        for i, (row, lab, value) in enumerate(self._rows):
-            try:
-                if i == hover_index:
-                    row.configure(fg_color=ROW_HOVER)
-                    lab.configure(text_color=ACCENT2)
-                elif value == current:
-                    row.configure(fg_color=BORDER)
-                    lab.configure(text_color=ACCENT)
-                else:
-                    row.configure(fg_color=PANEL)
-                    lab.configure(text_color=TEXT)
-            except Exception:
-                pass
-
-    def _popup_motion(self, event=None):
-        if event is None or self._popup is None:
-            return
-        try:
-            y = event.y_root - self._popup.winfo_rooty()
-            index = -1
-            for i, (row, lab, value) in enumerate(self._rows):
-                y0 = row.winfo_rooty() - self._popup.winfo_rooty()
-                if y0 <= y < y0 + row.winfo_height():
-                    index = i
-                    break
-            if index != self._hover_index:
-                self._hover_index = index
-                self._paint_rows(index)
-        except Exception:
-            pass
-
-    def _popup_release(self, event=None):
-        w = self._popup
-        if w is None or event is None:
-            return
-        try:
-            x = event.x_root - w.winfo_rootx()
-            y = event.y_root - w.winfo_rooty()
-            if not (0 <= x < w.winfo_width() and 0 <= y < w.winfo_height()):
-                self._close_popup()
-                return
-            for row, lab, value in self._rows:
-                y0 = row.winfo_rooty() - w.winfo_rooty()
-                if y0 <= y < y0 + row.winfo_height():
-                    self._choose(value)
-                    return
-        except Exception:
-            pass
-
-    def _choose(self, value):
+    def _watch(self):
+        """Close the list when the field moves (the page scrolled, the window moved) or goes away."""
         if self._popup is None:
             return
-        self._pending = value
         try:
-            if self._cb is not None:
-                self._cb(None)
-        finally:
-            self._pending = None
-        self._var.set(value)
+            moved = (self.winfo_rootx(), self.winfo_rooty()) != self._anchor or not self.winfo_viewable()
+        except Exception:
+            moved = True
+        if moved:
+            self._close_popup()
+        else:
+            self._watch_id = self.after(50, self._watch)
+
+    def _focus_lost(self):
+        if self._popup is not None and self._popup.focus_displayof() is None:
+            self._close_popup()
+
+    def _pick(self, idx):
+        value = self._values[idx] if 0 <= idx < len(self._values) else None
         self._close_popup()
+        if value is not None:
+            self._dropdown_callback(value)
 
     def _close_popup(self):
-        pop = self._popup
-        self._popup = None
-        if self._watch_id is not None:
+        top, self._popup = self._popup, None
+        try:
+            self.after_cancel(self._watch_id)
+        except Exception:
+            pass
+        if top is not None:
             try:
-                self.after_cancel(self._watch_id)
-            except Exception:
-                pass
-            self._watch_id = None
-        for seq, fid in zip(("<MouseWheel>", "<Button-4>", "<Button-5>"), self._wheel_ids):
-            try:
-                self.winfo_toplevel().unbind(seq, fid)
-            except Exception:
-                pass
-        self._wheel_ids = []
-        if pop is not None:
-            try:
-                pop.grab_release()
+                top.grab_release()
             except Exception:
                 pass
             try:
-                pop.destroy()
+                top.destroy()
             except Exception:
                 pass
+
 
 
 class Progress(ctk.CTkProgressBar):
