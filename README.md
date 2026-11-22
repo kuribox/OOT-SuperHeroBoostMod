@@ -401,6 +401,9 @@ Thanks to:
   ("screen's edges") layouts.
 - [PixelSage / Hyrule Armory](https://gamebanana.com/mods/740938) for the original **Armory**: the sword and shield
   quick select that this mod's Armory role reimplements (its own code and drawer hooks, nothing bundled).
+- [DoctorTwitch / Dualsense/XBOX/Steamdeck UI](https://gamebanana.com/mods/737074) for the PlayStation and Xbox
+  button layouts that the app can download on request (the optional *Game button prompts*). They are not bundled:
+  the app fetches them from GameBanana the first time you choose them.
 - [Kabosune / oot-remake-modding](https://github.com/Kabosune/oot-remake-modding) for the modding documentation
   and help.
 - [platinumagpie / oot-remake-devtool](https://github.com/platinumagpie/oot-remake-devtool) for the development tools

@@ -127,6 +127,8 @@ def main() -> None:
             "Kuribox - creator (module, HUD, stamina, item buttons, app)",
             "Anthropic (Claude) - AI assistant used for coding, reverse engineering and testing",
             "DeepSeek - AI assistant used for coding, reverse engineering and testing",
+            "PixelSage / Hyrule Armory - the original Armory (https://gamebanana.com/mods/740938)",
+            "DoctorTwitch / Dualsense/XBOX/Steamdeck UI - PlayStation / Xbox prompts the app downloads (https://gamebanana.com/mods/737074)",
             "Kabosune / oot-remake-modding - modding documentation and help",
             "platinumagpie / oot-remake-devtool - development tools used during research",
             "",

@@ -83,6 +83,10 @@ Add these to the **Credits** module:
   https://www.anthropic.com
 - **DeepSeek** — AI software used as an assistant for coding, reverse engineering and testing —
   https://www.deepseek.com
+- **PixelSage / Hyrule Armory** — the original Armory (sword and shield quick select) —
+  https://gamebanana.com/mods/740938
+- **DoctorTwitch / Dualsense/XBOX/Steamdeck UI** — the PlayStation and Xbox button layouts the app downloads on
+  request (not bundled) — https://gamebanana.com/mods/737074
 - **Kabosune / oot-remake-modding** — modding documentation and help —
   https://github.com/Kabosune/oot-remake-modding
 - **platinumagpie / oot-remake-devtool** — development tools used during research and testing —
