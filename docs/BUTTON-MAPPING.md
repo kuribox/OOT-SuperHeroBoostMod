@@ -27,7 +27,7 @@ The player chooses what each of the ten buttons X, Y, A, B, L, R, ZL, ZR, L3 and
 buttons, with presets: classic, action at the bottom, manual shield, souls). Roles: jump, sword, action, target,
 center camera, sprint, shield, item selector, item 1 / 2 / 3, the main item (the game's own item box) or nothing.
 Each role is on one button at most, so at most **four** buttons hold an item. Limits: items never on L3 / R3 (they
-have no HUD art), the item selector only on L or R, target only on ZL, ZR, L3 or R3, action only on A, B, X or Y
+have no HUD art), the item selector on any button but the sticks (it is the virtual L whichever button holds it), target only on ZL, ZR, L3 or R3, action only on A, B, X or Y
 (the game's context prompt next to Link, `DoCommand_00`, draws a face button; the mod shows the one that holds
 action there). Menus, dialogues and shops (Link in an `Evt*` state) keep the real buttons.
 
@@ -45,6 +45,30 @@ gone: the table places everything (the installer writes 0).
 | Jump/B swap | the classic layout keeps it (item 1 on X, jump on B). With a remap the player's table wins |
 | HUD | each part is a role (`PART_ROLE` in `core/hud.c`); `sb_xy()` places it on the physical button holding that role (ZL gets a spot mirroring ZR) and its texture is that button's letter. A role on no button (or on a stick) hides its part. Target, camera, sprint, shield and the selector have no HUD part |
 | Pause menu | items 1..3 are assigned with their own button when the Items tab allows it (X / Y / L / R); a slot on A / B / ZL / ZR uses a free one of those instead (`remap_menu_buttons()`); A still puts the item in the game's box. The legend is built from the same table with the game's button glyphs |
+
+## D-pad right (long press)
+
+The eleventh button, `PB_DR`, is the D-pad's right arrow. In the game it calls **Navi**, and that stays: a short press
+still reaches the game. Only the **long press** is a role, in `ShbConfig.bm_role_dr` (appended after the HUD scales,
+struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no role).
+
+- The roles it takes are the ones that need no HUD button: jump, sword, camera, sprint, shield, **item selector** and
+  **armory** (`_DR_ROLES` in `app/installer.py`). No item slots, target or action, like L3 / R3.
+- `button_remap_on_input` holds the press back: released before `REMAP_DR_HOLD` (20) HUD frames it is replayed to
+  the game as a three-read pulse (Navi answers a little late, after the release); held longer the arrow is cleared for
+  good and the role's virtual button is set for as long as it is held. State is reset whenever the remap is off
+  (menus, dialogues, `Evt*`). With no role it passes through untouched.
+- Diagnostics: `g_remap_dr[0]` counts replayed short presses, `[1]` long presses that fired the role.
+- The app lists the arrow as the last row of Controls, with a note under it. It is not part of the presets: choosing
+  one keeps the arrow's role, and the preset buttons ignore it when they decide which preset is active.
+
+## Item selector (role)
+
+With the remap the selector has its own virtual button, `VBTN_SELECTOR` (HID bit 26, unused with a full controller), so
+it no longer shares L with item 2: both can be on the table at once, on any buttons (not the sticks). button_mapping
+turns the bit into the game's R (which opens the selector for ZR) and strips it (`remap_selector_on()`). The old
+`bm_l_mode` (L itself is the selector, L holds no item) only applies without the remap (`remap_l_selector()`); the
+installer writes it as 0 with the remap.
 
 ## Armory (role)
 

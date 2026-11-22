@@ -32,18 +32,22 @@ L_MODE_VALUES = {"assign": 0, "selector": 2}
 # (the config bytes bm_role[0..7]); ROLES is the byte value order. Four item roles, each on one button at most, so
 # at most four buttons hold an item. "item_main" is the game's own item box (picked with A in the pause menu or the
 # item selector); item1 / item2 / item3 are the mod's slots (classically B, L and R).
-REMAP_BUTTONS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL", "L3", "R3")
+REMAP_BUTTONS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL", "L3", "R3", "DR")
+# "DR" is the D-pad's right arrow: a short press stays the game's Navi call, the role is its LONG press (the config
+# byte bm_role_dr, appended at the end of the block). Roles that need no HUD button only.
 ROLES = ("none", "jump", "sword", "action", "target", "item1", "item2", "item3", "item_main",
          "camera", "sprint", "shield", "selector", "armory")   # byte value = index (core/remap.h ROLE_*)
 ITEM_ROLES = ("item1", "item2", "item3", "item_main")
 # Roles limited to some buttons (everything else goes anywhere)
 _NO_STICKS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL")
-ROLE_BUTTONS = {"selector": ("L", "R"), "target": ("ZL", "ZR", "L3", "R3"),
+_DR_ROLES = ("jump", "sword", "camera", "sprint", "shield", "selector", "armory")
+ROLE_BUTTONS = {"selector": (*_NO_STICKS, "DR"),   # any button, not the sticks
+                "target": ("ZL", "ZR", "L3", "R3"),
                 # action: a face button only (the game's context prompt draws one of A / B / X / Y)
                 "action": ("A", "B", "X", "Y"),
                 **{r: _NO_STICKS for r in ("item1", "item2", "item3", "item_main")}}   # items: no sticks (no HUD art)
 CLASSIC_ROLES = {"L": "item2", "X": "jump", "R": "item3", "Y": "sword", "A": "action", "ZR": "item_main",
-                 "B": "item1", "ZL": "target", "L3": "none", "R3": "camera"}
+                 "B": "item1", "ZL": "target", "L3": "none", "R3": "camera", "DR": "none"}
 # Ready-made tables (the app's preset list). Options (toggle sprint, switch target...) are kept apart.
 REMAP_PRESETS = {
     "classic": dict(CLASSIC_ROLES),
@@ -55,13 +59,25 @@ REMAP_PRESETS = {
 REMAP_PRESET_KEYS = ("classic", "action_down", "shield", "souls")
 
 
+def roles_with_armory(roles) -> dict:
+    """The table with the armory on the held D-pad right (the profiles' setup): the armory is on no other button."""
+    r = dict(normalize_roles(roles))
+    for b, role in r.items():
+        if role == "armory":
+            r[b] = "none"
+    r["DR"] = "armory"
+    return normalize_roles(r)
+
+
 def role_allowed(role: str, button: str) -> bool:
+    if button == "DR":
+        return role == "none" or role in _DR_ROLES
     return role in ROLES and (role not in ROLE_BUTTONS or button in ROLE_BUTTONS[role])
 
 
 def normalize_roles(roles) -> dict:
     """A role per button, every role but "none" on one button at most (the first one keeps it), only where it is
-    allowed (ROLE_BUTTONS). Item 2 and the item selector are the same virtual button (L): only one of them.
+    allowed (ROLE_BUTTONS). The item selector has its own virtual button (VBTN_SELECTOR): it no longer shares L with item 2.
     Unknown or missing buttons take their classic role when it is still free, else none."""
     src = roles if isinstance(roles, dict) else {}
     out, used = {}, set()
@@ -69,8 +85,7 @@ def normalize_roles(roles) -> dict:
         r = src.get(b, CLASSIC_ROLES[b])
         if not role_allowed(r, b):
             r = "none"
-        if r != "none" and (r in used or (r == "item2" and "selector" in used)
-                            or (r == "selector" and "item2" in used)):
+        if r != "none" and r in used:
             r = "none"
         out[b] = r
         used.add(r)
@@ -127,7 +142,7 @@ def roles_from_flags(roles, manual_shield=None, target_r3=None, sprint_l3=None, 
                 if dst:
                     r[dst] = displaced
         elif not manual_shield and sh:
-            r[sh] = "item2" if "item2" not in r.values() and "selector" not in r.values() else "none"
+            r[sh] = "item2" if "item2" not in r.values() else "none"
     if sprint_l3 is not None:
         sp = holder("sprint")
         if sprint_l3 and not sp and r["L3"] == "none":
@@ -598,13 +613,15 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                         roles = {k: ("none" if v in ("item1", "item2", "item3", "selector") else v)
                                  for k, v in roles.items()}
                     b[f + 63] = 1                                            # struct 79: bm_remap
-                    for k, btn in enumerate(REMAP_BUTTONS):                  # struct 80..89: bm_role[]
+                    for k, btn in enumerate(REMAP_BUTTONS[:10]):             # struct 80..89: bm_role[]
                         b[f + 64 + k] = ROLES.index(roles[btn])
+                    if size >= 0x5D:                                         # struct 92: bm_role_dr (long press)
+                        b[f + 76] = ROLES.index(roles["DR"])
                     # the options the table implies (they used to be separate switches)
                     fl = roles_flags(roles)
                     if s.bm_layout != "gamecube":                             # preserve prior custom-remap geometry
                         b[f + 9] = 0
-                    b[f + 24] = L_MODE_VALUES[fl["bm_l_mode"]]
+                    b[f + 24] = 0                                            # bm_l_mode: the selector is a role (VBTN_SELECTOR), not L
                     b[f + 54] = int(s.manual_shield)
                     b[f + 55] = 0                                            # target_r3: target can be on R3 itself
                     b[f + 56] = int(fl["sprint_l3"])

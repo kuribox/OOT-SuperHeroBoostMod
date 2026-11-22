@@ -544,8 +544,9 @@ def gui() -> None:
                          (stamina_bar, "stamina_bar")):
             if v[key] is not None:
                 var.set(v[key])
-        RM.set_roles(broles, I.roles_from_flags(RM.roles_value(broles), manual_shield=bool(v["manual_shield"]),
-                                                target_r3=v["target_r3"], sprint_l3=v["sprint_l3"]))
+        table = I.roles_from_flags(RM.roles_value(broles), manual_shield=bool(v["manual_shield"]),
+                                   target_r3=v["target_r3"], sprint_l3=v["sprint_l3"])
+        RM.set_roles(broles, I.roles_with_armory(table) if v["armory"] else table)   # the armory on the held D-pad right
         guard["on"] = False
         refresh()
         if save:
@@ -1597,6 +1598,19 @@ def gui() -> None:
         ui["combat"] = check(body, L("combat_only"), combat)
         ui["combat"].pack(anchor="w", pady=(6, 0))
 
+        body = card(parent, L("sprint_speed"))
+        row = UI.Frame(body, bg=PANEL)
+        row.pack(fill="x")
+        label(row, L("sprint_speed") + ":", size=10, bg=PANEL).pack(side="left", padx=(0, 8))
+        values = [L("speed_van")] + ["×%g" % (v / 100) for v in SPEEDS[1:]]
+        svar = tk.StringVar(value=values[SPEEDS.index(speed.get())])
+        ui["sprint_var"] = svar
+        ui["sprint_values"] = values
+        cb = combo(row, values, svar, width=14)
+        cb.pack(side="left")
+        cb.bind("<<ComboboxSelected>>", lambda e: speed.set(SPEEDS[cb.current()]))
+        ui["sprint"] = cb
+
     def build_difficulty(parent):
         body = card(parent, L("difficulty_title"), L("difficulty_desc"))
         row = UI.Frame(body, bg=PANEL)
@@ -1693,7 +1707,7 @@ def gui() -> None:
                 btn.set_active(key == current)
 
         def apply_preset(key):
-            table = I.REMAP_PRESETS["classic" if key == "gamecube" else key]
+            table = dict(I.REMAP_PRESETS["classic" if key == "gamecube" else key], DR=broles["DR"].get())
             if key == "gamecube":
                 bplace.set("gamecube")
                 bstyle.set("switch")

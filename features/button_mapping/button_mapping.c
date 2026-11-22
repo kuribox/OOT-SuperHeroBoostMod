@@ -232,6 +232,9 @@ static void dbg_tick(void);   /* diagnostic dump (below, beside the save code) *
  * game's own prompts there name them. The game fills the samples again on every read, so this is done once per read. */
 u32 g_remap_dbg[3];   /* reads remapped, reads left alone, last physical -> virtual (low bits) */
 u32 g_remap_live;     /* the last read was remapped: the HUD prompts name the roles' buttons (core/hud.c) */
+static u32 dr_since, dr_pulse;   /* D-pad right long press: frame it went down, replay reads left */
+static unsigned char dr_fired;
+u32 g_remap_dr[2];   /* diagnostics: short presses replayed, long presses that fired the role */
 void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     (void)a2;
     if (site != 3 || !a0) return;
@@ -255,13 +258,39 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
     if (!playing || covered || g_songbook_active || player_dead() || player_state_starts("Evt")) {
         g_remap_dbg[1]++;
         g_remap_live = 0;
+        dr_since = dr_pulse = 0;
+        dr_fired = 0;
         return;
     }
     g_remap_live = 1;
     HidView view = {a0, count, 0};
+    /* D-pad right: short press = Navi (the game's), long press = the role in bm_role_dr. The press is held back
+     * until it is known which: released early it is replayed as a short pulse, held it never reaches the game. */
+    u64 dr_add = 0, dr_clear = 0;
+    u32 dr_role = remap_role_of(PB_DR);
+    if (dr_role != ROLE_NONE && dr_role < ROLE_N) {
+        u64 all = 0;
+        for (u32 i = 0; i < count; i++) all |= hid_get_buttons(&view, i);
+        if (all & REMAP_BIT[PB_DR]) {
+            if (!dr_since) { dr_since = now ? now : 1; dr_fired = 0; dr_pulse = 0; }
+            if (now - dr_since >= REMAP_DR_HOLD) {
+                if (!dr_fired) g_remap_dr[1]++;
+                dr_fired = 1;
+                dr_add = remap_role_virt(dr_role);
+            }
+            dr_clear = REMAP_BIT[PB_DR];
+        } else {
+            if (dr_since && !dr_fired) { dr_pulse = 3; g_remap_dr[0]++; }   /* a short press: let the game see it now, for three reads */
+            dr_since = 0;
+            dr_fired = 0;
+        }
+        if (dr_pulse && !(all & REMAP_BIT[PB_DR])) { dr_add |= REMAP_BIT[PB_DR]; dr_pulse--; }
+    } else {
+        dr_since = 0; dr_fired = 0; dr_pulse = 0;
+    }
     for (u32 i = 0; i < count; i++) {
         u64 b = hid_get_buttons(&view, i);
-        u64 v = remap_apply(b);
+        u64 v = (remap_apply(b) & ~dr_clear) | dr_add;
         if (v != b) hid_set_buttons(&view, i, v);
         if (i == 0) g_remap_dbg[2] = (u32)(b & 0x3FF) | ((u32)(v & 0x3FF) << 16);
     }
@@ -291,10 +320,16 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     if (count == 0 || count > 64) return;
     HidView view = {a0, count, 0};
     /* the shield role's virtual bit is the manual shield's (it ran before): the game never sees it */
+    /* and the selector role's (remap): remembered here, turned into the game's R further down */
+    u32 sel_held = 0;
+    static u32 sel_prev;
     for (u32 i = 0; i < count; i++) {
         u64 b = hid_get_buttons(&view, i);
-        if (b & VBTN_SHIELD) hid_set_buttons(&view, i, b & ~VBTN_SHIELD);
+        if (b & VBTN_SELECTOR) sel_held = 1;
+        if (b & (VBTN_SHIELD | VBTN_SELECTOR)) hid_set_buttons(&view, i, b & ~(VBTN_SHIELD | VBTN_SELECTOR));
     }
+    u32 sel_was = sel_prev;
+    sel_prev = sel_held;
 
     /* Death ragdoll / game over: do not remap or swallow anything, the game's screen needs every button. */
     if (player_dead()) {
@@ -329,7 +364,7 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     }
 
     /* L as the game's item selector (app option): L never holds an item */
-    if (g_shbcfg.bm_l_mode) g_assign[SLOT_L] = -1;
+    if (remap_l_selector()) g_assign[SLOT_L] = -1;
 
     /* The item box the game uses (its item set) switched without the age flag: the other box is taken as it is,
      * like an age change (nothing borrowed in it, no swap with the slots). */
@@ -388,7 +423,7 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
         }
         for (int s = 0; s < SLOT_ZR; s++) {
             if (!MENU_BTN[s] || !(pressed & MENU_BTN[s])) continue;
-            if (s == SLOT_L && (g_shbcfg.bm_l_mode || (g_shbcfg.manual_shield && !remap_on()))) continue;   /* L: selector / shield */
+            if (s == SLOT_L && (remap_l_selector() || (g_shbcfg.manual_shield && !remap_on()))) continue;   /* L: selector / shield */
             int it = hud_menu_item();
             if (it < 0) continue;
             int old = g_assign[s];
@@ -460,14 +495,21 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     /* L as the game's item selector: outside menus, L does what R does (opens the selector for ZR).
      * The R slot is suppressed for this frame so an item assigned to R is not used as well. */
     u32 l_selector = 0;
-    if (g_shbcfg.button_mapping && (!g_shbcfg.manual_shield || remap_on()) && g_shbcfg.bm_l_mode == 2 && hud_ingame() &&
-        (buttons & BTN_L) && !(buttons & BTN_R)) {
-        u32 was_pressed = (pressed & BTN_L) != 0;
-        set_all(&view, BTN_L, BTN_R);
-        buttons = (buttons & ~BTN_L) | BTN_R;
-        pressed &= ~BTN_L;
-        if (was_pressed) pressed |= BTN_R;
-        l_selector = 1;
+    if (g_shbcfg.button_mapping && (!g_shbcfg.manual_shield || remap_on()) && remap_selector_on() && hud_ingame() &&
+        !(buttons & BTN_R)) {
+        if (remap_on() && sel_held) {   /* the role's own button: L stays whatever its own role is */
+            set_all(&view, 0, BTN_R);
+            buttons |= BTN_R;
+            if (!sel_was) pressed |= BTN_R;
+            l_selector = 1;
+        } else if (!remap_on() && (buttons & BTN_L)) {   /* the old mode: L itself */
+            u32 was_pressed = (pressed & BTN_L) != 0;
+            set_all(&view, BTN_L, BTN_R);
+            buttons = (buttons & ~BTN_L) | BTN_R;
+            pressed &= ~BTN_L;
+            if (was_pressed) pressed |= BTN_R;
+            l_selector = 1;
+        }
     }
 
     /* Link must be free to act: standing or moving. Menus, the ocarina, dialogues, the item selector, climbing,
@@ -482,7 +524,7 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     u64 no_sel = 0;
     if (g_shbcfg.button_mapping && ingame && !player_state_starts("Evt") && !g_songbook_active) {
         if (!l_selector) no_sel |= BTN_R;
-        if (g_shbcfg.bm_l_mode != 2) no_sel |= BTN_L;
+        if (!(g_shbcfg.bm_l_mode == 2 && !remap_on())) no_sel |= BTN_L;   /* L is the selector only in the old mode */
     }
     if (!g_shbcfg.button_mapping || (!free_now && !using)) {
         if (no_sel) set_all(&view, no_sel, 0);

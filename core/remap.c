@@ -4,12 +4,17 @@
 
 /* Button remap: see remap.h. Plain arrays only (no pointer tables: the module's data is not relocated). */
 
-const u64 REMAP_BIT[PB_N] = {BTN_L, BTN_X, BTN_R, BTN_Y, BTN_A, BTN_ZR, BTN_B, BTN_ZL, BTN_L3, BTN_R3};
+const u64 REMAP_BIT[PB_N] = {BTN_L, BTN_X, BTN_R, BTN_Y, BTN_A, BTN_ZR, BTN_B, BTN_ZL, BTN_L3, BTN_R3, 0x4000ull};
 #define REMAP_ALL (BTN_L | BTN_X | BTN_R | BTN_Y | BTN_A | BTN_ZR | BTN_B | BTN_ZL | BTN_L3 | BTN_R3)
 
 int hud_button_swap(void);   /* core/hud.c: the game's Jump/B swap option is on */
 
 int remap_on(void) { return g_shbcfg.bm_remap == 1; }
+int remap_l_selector(void) { return !remap_on() && g_shbcfg.bm_l_mode != 0; }
+int remap_selector_on(void) {
+    if (remap_on()) return remap_role_phys(ROLE_SELECTOR) != PB_NONE;
+    return g_shbcfg.bm_l_mode == 2;
+}
 
 /* The classic layout: every role on its own virtual button; the swap puts item 1 on X and jump on B. The options
  * of the old app (manual shield on L, L as the item selector, L3 sprint) are roles too. */
@@ -32,10 +37,15 @@ static u32 classic_phys(u32 role) {
     }
 }
 
+u32 remap_role_of(u32 p) {
+    if (p == PB_DR) return g_shbcfg.bm_role_dr;
+    return p < PB_DR ? g_shbcfg.bm_role[p] : ROLE_NONE;
+}
+
 u32 remap_role_phys(u32 role) {
     if (role == ROLE_NONE || role >= ROLE_N) return PB_NONE;
     if (!remap_on()) return classic_phys(role);
-    for (u32 p = 0; p < PB_N; p++) if (g_shbcfg.bm_role[p] == role) return p;
+    for (u32 p = 0; p < PB_N; p++) if (remap_role_of(p) == role) return p;
     return PB_NONE;
 }
 
@@ -53,7 +63,7 @@ u64 remap_role_virt(u32 role) {
     case ROLE_CAMERA:    return BTN_R3;
     case ROLE_SPRINT:    return BTN_L3;
     case ROLE_SHIELD:    return g_shbcfg.manual_shield ? (remap_on() ? VBTN_SHIELD : BTN_L) : 0;
-    case ROLE_SELECTOR:  return BTN_L;
+    case ROLE_SELECTOR:  return remap_on() ? VBTN_SELECTOR : BTN_L;
     case ROLE_ARMORY:    return VBTN_ARMORY;
     default:             return 0;
     }
@@ -61,8 +71,8 @@ u64 remap_role_virt(u32 role) {
 
 u64 remap_apply(u64 b) {
     if (!remap_on()) return b;
-    u64 out = b & ~(REMAP_ALL | VBTN_SHIELD | VBTN_ARMORY);
-    for (u32 p = 0; p < PB_N; p++)
+    u64 out = b & ~(REMAP_ALL | VBTN_SHIELD | VBTN_ARMORY | VBTN_SELECTOR);
+    for (u32 p = 0; p < PB_DR; p++)   /* (PB_DR is the long press, button_mapping.c) */
         if (b & REMAP_BIT[p]) out |= remap_role_virt(g_shbcfg.bm_role[p]);
     return out;
 }

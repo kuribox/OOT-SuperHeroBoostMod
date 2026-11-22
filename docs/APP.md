@@ -57,26 +57,30 @@ The language selector translates the window, and it is also the fallback for the
 installer can read it from the emulator settings or from `language.txt` next to a recompiled game, so the HUD matches
 the game's own prompts. `--lang` on the command line forces one.
 
-Sprint is **×1.5** in the profiles (Custom starts at a gentler **×1.25**). It is only a starting point and can be
-changed by hand in the Stamina section; the profiles never use ×1.75, ×2 or ×3.
+Sprint is **×1.25** in every profile and in Custom. It is only a starting point and can be changed by hand in the
+Stamina section; the profiles never use ×1.5 or more.
+
+Every profile that has the pack's buttons (all but Manual Shield) also puts the **Armory** on the **held D-pad right**
+(a short press still calls Navi): choosing the profile gives the arrow that role and takes the Armory off any other
+button. The rest of the button table stays yours.
 
 | Profile | Stamina | Stamina style | Enemy HP | Damage | No hearts | Enemy mods | Sprint | HUD | Buttons | Shield |
 |---|---|---|---|---|---|---|---|---|---|---|
-| **Recommended** | on | Hardcore | ×2 | ×2 | on | duplicate + ×2 (bosses ×2), aggressive | ×1.5 | on | on | on |
-| Recommended (no beta enemies) | on | Hardcore | ×2 | ×2 | on | — | ×1.5 | on | on | on |
-| Souls controls | on | Hardcore (bar) | ×1 | ×1 | off | — | ×1.5 | on | on | on |
-| Souls controls + Hero Mode | on | Hardcore (bar) | ×2 | ×2 | on | — | ×1.5 | on | on | on |
-| Base | off | — | ×1 | ×1 | off | — | ×1.5 | on | on | off |
-| Manual Shield | off | — | ×1 | ×1 | off | — | ×1.5 | off | off | on |
-| Hero Mode | off | — | ×1.5 | ×2 | on | — | ×1.5 | on | on | on |
-| Hero + Stamina | on | Hardcore | ×1.5 | ×2 | on | — | ×1.5 | on | on | on |
-| Hero Explorer | on | Sprint only | ×1.5 | ×2 | on | — | ×1.5 | on | on | on |
-| Super Hero | on | Hardcore | ×2.5 | ×2.5 | on | ×1.5 (bosses ×1.5) | ×1.5 | on | on | on |
-| Ultra Hero | on | Hardcore | ×3 | ×3 | on | duplicate + ×2 (bosses ×2) | ×1.5 | on | on | on |
-| Survival | on | Hardcore | ×2 | ×2 | on | — | ×1.5 | on | on | on |
-| World changes | off | — | ×1 | ×1 | off | — | ×1.5 | on | on | off |
-| Beta: duplicated + fast enemies | off | — | ×1 | ×1 | off | duplicate + ×2 (bosses ×2) | ×1.5 | on | on | off |
-| Beta: everything | on | Hardcore | ×3 | ×3 | on | duplicate + ×3, maximum aggression | ×1.5 | on | on | on |
+| **Recommended** | on | Hardcore | ×2 | ×2 | on | duplicate + ×2 (bosses ×2), aggressive | ×1.25 | on | on | on |
+| Recommended (no beta enemies) | on | Hardcore | ×2 | ×2 | on | — | ×1.25 | on | on | on |
+| Souls controls | on | Hardcore (bar) | ×1 | ×1 | off | — | ×1.25 | on | on | on |
+| Souls controls + Hero Mode | on | Hardcore (bar) | ×2 | ×2 | on | — | ×1.25 | on | on | on |
+| Base | off | — | ×1 | ×1 | off | — | ×1.25 | on | on | off |
+| Manual Shield | off | — | ×1 | ×1 | off | — | ×1.25 | off | off | on |
+| Hero Mode | off | — | ×1.5 | ×2 | on | — | ×1.25 | on | on | on |
+| Hero + Stamina | on | Hardcore | ×1.5 | ×2 | on | — | ×1.25 | on | on | on |
+| Hero Explorer | on | Sprint only | ×1.5 | ×2 | on | — | ×1.25 | on | on | on |
+| Super Hero | on | Hardcore | ×2.5 | ×2.5 | on | ×1.5 (bosses ×1.5) | ×1.25 | on | on | on |
+| Ultra Hero | on | Hardcore | ×3 | ×3 | on | duplicate + ×2 (bosses ×2) | ×1.25 | on | on | on |
+| Survival | on | Hardcore | ×2 | ×2 | on | — | ×1.25 | on | on | on |
+| World changes | off | — | ×1 | ×1 | off | — | ×1.25 | on | on | off |
+| Beta: duplicated + fast enemies | off | — | ×1 | ×1 | off | duplicate + ×2 (bosses ×2) | ×1.25 | on | on | off |
+| Beta: everything | on | Hardcore | ×3 | ×3 | on | duplicate + ×3, maximum aggression | ×1.25 | on | on | on |
 | Custom | your values | your values | your values | your values | your values | your values | your values | your values | your values | your values |
 
 "Sprint only" means only sprinting drains stamina. "Hardcore" means every enabled action drains it. "No hearts" means
@@ -290,6 +294,11 @@ folder (the one with `Rekarina.exe`, `rekarina.ini` and `exefs/main`). The app f
 - **Settings without a rebuild.** The module's config block lives in its data; applying a profile patches
   `exefs/subsdk9` and replaces the expected SHA-256 stored in `Rekarina.exe`, so it takes seconds. A full rebuild is
   needed only the first time or after the module changes (10–20 minutes, ~6 GB of free space).
+- **Prompts font.** On Rekarina the app never installs the PlayStation style's `Font2/…External…bfotf.zs`. Rekarina
+  switches the game's prompts (and the song screen's six note buttons) to PlayStation / Xbox by finding its own font in
+  memory while the game runs; a mod file for that font shadows it (its log: `a RomFS mod replaces Font2/…External…`,
+  `the game's button font was not found in memory`, `in use: nintendo`). Our HUD button textures and the pause legend do
+  not need it. The Reinstall / Apply settings button rewrites the mod folder without the font.
 - **Merged mods.** A mod merger joins the ExeFS patches of every mod into one IPS inside the mod folder. Rekarina's converter (`tools/exefs_patches.py`) takes a patch file whole: one record it cannot lift (for example a code change that alters the CPU flags differently from the game, as `young-link-rides-epona`'s patch at `main+0x482DFC` does) makes it reject the file, and our hooks go with it (`rekarina_patch_failed`). Before the conversion the app moves every record that is not ours (our sites are the ones of the payload's `ours.ips`) into `exefs/<id>-other-mods.ips`, which the converter classifies as *other* and skips. Our file is byte for byte the payload's. The other mod's romfs part keeps working; its code patch cannot run on Rekarina anyway.
 - **Uninstall** restores `Rekarina.exe`, the old module, the moved mod code, the status files and the mod order,
   then deletes `<game>/.shb-rekarina`.

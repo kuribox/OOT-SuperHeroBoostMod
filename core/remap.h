@@ -20,7 +20,7 @@
 typedef unsigned int u32;
 typedef unsigned long long u64;
 
-enum { PB_L, PB_X, PB_R, PB_Y, PB_A, PB_ZR, PB_B, PB_ZL, PB_L3, PB_R3, PB_N, PB_NONE = 0xFF };
+enum { PB_L, PB_X, PB_R, PB_Y, PB_A, PB_ZR, PB_B, PB_ZL, PB_L3, PB_R3, PB_DR, PB_N, PB_NONE = 0xFF };
 enum {
     ROLE_NONE = 0,
     ROLE_JUMP,       /* virtual X (B with the game's Jump/B swap) */
@@ -45,9 +45,24 @@ enum {
 /* The armory role's press (the left Joy-Con's SR, also unused with a full controller): read and stripped by
  * features/quick_select, the last input handler. */
 #define VBTN_ARMORY (1ull << 25)
+/* The item selector role's press (the right Joy-Con's SL, unused with a full controller): with the remap the selector
+ * has its own virtual button, so it no longer shares L with item 2. features/button_mapping turns it into the game's R
+ * (which opens the selector for ZR) and strips it. Without the remap the selector is still L (bm_l_mode = 2). */
+#define VBTN_SELECTOR (1ull << 26)
+/* The item selector is on: remap_on() and a button holds the role, or the old L selector (bm_l_mode = 2). */
+int remap_selector_on(void);
+/* The old L-as-selector mode: L itself is the selector (no remap): L holds no item, its HUD part is hidden. */
+int remap_l_selector(void);
 
 /* HID bit of each physical button, in PB_ order */
 extern const u64 REMAP_BIT[PB_N];
+
+/* D-pad right (PB_DR) is the game's Navi call, so it is not a plain remappable button: a short press keeps calling
+ * Navi, and only a long press does the role in ShbConfig.bm_role_dr (the app offers the roles that need no HUD art,
+ * armory and the item selector above all). The press is held back until it is known which one it is: released
+ * before REMAP_DR_HOLD HUD frames it reaches the game as a short pulse, held longer it never does. */
+#define REMAP_DR_HOLD 20u
+u32 remap_role_of(u32 phys);        /* the role on a physical button (bm_role_dr for PB_DR) */
 
 int remap_on(void);                 /* the player's own table is in use */
 u32 remap_role_phys(u32 role);      /* the physical button holding a role, PB_NONE if none */

@@ -123,7 +123,7 @@ module changed.
   sprinting and blocking with the shield.
 - **Stamina display**: a ring next to the player or a segmented bar under the magic gauge (yellow, red while
   recharging; grows with your hearts).
-- **Sprint speed** configurable (the profiles use +50%; Custom starts at +25%).
+- **Sprint speed** configurable (×1.25 in the profiles and in Custom).
 - **Enemy health** and **damage taken** multipliers (×1 to ×3).
 - **No heart drops**: hearts dropped by enemies become green rupees instead.
 - **Always-visible clock and rupee counter**, with the game's native look and 12/24-hour format.
