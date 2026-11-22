@@ -57,6 +57,7 @@ class Profile:
     sprint_l3: Optional[bool]    # hold L3 to sprint; None: a personal preference the profile keeps
     sprint_l3_toggle: Optional[bool]  # with sprint_l3: L3 turns the sprint on / off; None: keeps the user's choice
     armory: bool = False         # holding the D-pad's right arrow opens the armory (sword and shield drawer)
+    controls: Optional[str] = None   # a button table of installer.REMAP_PRESETS the profile applies (None: the user's own)
 
 
 def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 6, combat_only=False,
@@ -67,7 +68,7 @@ def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 
              enemy_alert=0, enemy_aggro=0, boss_move=0, boss_anim=0,
              great_fairy=False, farore_outdoor=False, stamina_bar=None, manual_shield=False,
              auto_target=False, switch_target=False, target_r3=None, sprint_l3=None,
-             sprint_l3_toggle=None, armory=None):
+             sprint_l3_toggle=None, armory=None, controls=None):
     if armory is None:   # every profile that has the pack's buttons has the armory on the held D-pad right
         armory = button_mapping
     return Profile(key=key, button_mapping=button_mapping, stamina=stamina, mode=mode, costs=costs,
@@ -83,7 +84,7 @@ def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 
                    great_fairy=great_fairy, farore_outdoor=farore_outdoor, stamina_bar=stamina_bar,
                    manual_shield=manual_shield, auto_target=auto_target, switch_target=switch_target,
                    target_r3=target_r3, sprint_l3=sprint_l3, sprint_l3_toggle=sprint_l3_toggle,
-                   armory=armory)
+                   armory=armory, controls=controls)
 
 
 # The targeting improvements every combat profile with the manual shield gets (both need the game's Targeting
@@ -97,7 +98,8 @@ _SOULS = dict(_TARGETING, stamina_bar=True, target_r3=True)
 _ENEMY_FAST = dict(enemy_double=True, enemy_move=2, enemy_anim=2, enemy_attack=2, enemy_proj=2,
                    enemy_alert=1, enemy_aggro=1, boss_move=2, boss_anim=2)
 # The tuned controls of the default: R3 lock-on and L3 sprint as a toggle on top of the targeting assists.
-_TUNED_CONTROLS = dict(_TARGETING, target_r3=True, sprint_l3=True, sprint_l3_toggle=True)
+# They come with the author's button table ("triggers": items on the triggers, the item selector on B).
+_TUNED_CONTROLS = dict(_TARGETING, target_r3=True, sprint_l3=True, sprint_l3_toggle=True, controls="triggers")
 
 
 PROFILES = {
@@ -176,7 +178,7 @@ def defaults() -> dict:
                 enemy_alert=0, enemy_aggro=0, boss_move=0, boss_anim=0,
                 great_fairy=False, farore_outdoor=False, stamina_bar=None, manual_shield=False,
                 auto_target=False, switch_target=False, target_r3=None, sprint_l3=None,
-                sprint_l3_toggle=None, armory=False)
+                sprint_l3_toggle=None, armory=False, controls=None)
 
 
 def profile_values(key: str) -> dict:
@@ -197,7 +199,7 @@ def profile_values(key: str) -> dict:
                 stamina_bar=p.stamina_bar, manual_shield=p.manual_shield,
                 auto_target=p.auto_target, switch_target=p.switch_target,
                 target_r3=p.target_r3, sprint_l3=p.sprint_l3,
-                sprint_l3_toggle=p.sprint_l3_toggle, armory=p.armory)
+                sprint_l3_toggle=p.sprint_l3_toggle, armory=p.armory, controls=p.controls)
 
 
 def settings_kwargs(key: str) -> dict:
@@ -209,7 +211,8 @@ def settings_kwargs(key: str) -> dict:
     import installer as I   # (late: the installer does not import the profiles)
     v = profile_values(key)
     costs = dict(zip(KEYS, v["costs"]))
-    return dict(bm_roles=I.roles_with_armory(I.CLASSIC_ROLES) if v["armory"] else dict(I.CLASSIC_ROLES), button_mapping=v["button_mapping"], stamina=v["stamina"], songbook=v["songbook"],
+    table = I.REMAP_PRESETS[v["controls"]] if v["controls"] else I.CLASSIC_ROLES
+    return dict(bm_roles=I.roles_with_armory(table) if v["armory"] else dict(I.normalize_roles(table)), button_mapping=v["button_mapping"], stamina=v["stamina"], songbook=v["songbook"],
                 preset=v["mode"], combat_only=v["combat_only"], **costs,
                 enemy_hp=v["enemy_hp"], damage=v["damage"], no_heart_drop=v["no_heart_drop"],
                 sprint_speed=v["sprint_speed"], hud_rupees=v["hud_rupees"], hud_clock=v["hud_clock"],

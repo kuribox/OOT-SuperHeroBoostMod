@@ -544,7 +544,10 @@ def gui() -> None:
                          (stamina_bar, "stamina_bar")):
             if v[key] is not None:
                 var.set(v[key])
-        table = I.roles_from_flags(RM.roles_value(broles), manual_shield=bool(v["manual_shield"]),
+        mine = RM.roles_value(broles)
+        if v["controls"]:   # the profile's own button table (the arrow keeps the user's role)
+            mine = dict(I.REMAP_PRESETS[v["controls"]], DR=mine["DR"])
+        table = I.roles_from_flags(mine, manual_shield=bool(v["manual_shield"]),
                                    target_r3=v["target_r3"], sprint_l3=v["sprint_l3"])
         RM.set_roles(broles, I.roles_with_armory(table) if v["armory"] else table)   # the armory on the held D-pad right
         guard["on"] = False
