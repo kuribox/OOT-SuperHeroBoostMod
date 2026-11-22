@@ -62,7 +62,10 @@ Stamina section; the profiles never use ×1.5 or more.
 
 Every profile that has the pack's buttons (all but Manual Shield) also puts the **Armory** on the **held D-pad right**
 (a short press still calls Navi): choosing the profile gives the arrow that role and takes the Armory off any other
-button. The rest of the button table stays yours.
+button. The profiles built on the tuned controls (Recommended, Recommended no beta enemies, Super Hero, Ultra Hero,
+Beta All) also bring the author's **Triggers** button table: items on the triggers (R, ZL, ZR), the item selector on B,
+the shield on L, sprint on L3, target on R3. The other profiles keep the table you have (only the options they imply
+follow). Pick any table by hand under Controls.
 
 | Profile | Stamina | Stamina style | Enemy HP | Damage | No hearts | Enemy mods | Sprint | HUD | Buttons | Shield |
 |---|---|---|---|---|---|---|---|---|---|---|

@@ -191,7 +191,7 @@ def cli(argv) -> int:
     if a.switch_target:
         s.switch_target = True
     s.bm_roles = I.roles_from_flags(s.bm_roles, manual_shield=s.manual_shield, target_r3=s.target_r3,
-                                    sprint_l3=s.sprint_l3, l_selector=s.bm_l_mode == "selector")
+                                    sprint_l3=s.sprint_l3, l_selector=True if s.bm_l_mode == "selector" else None)   # (None: keep the table's own selector)
     if a.enemy_double:
         s.enemy_double = True
     if a.enemy_speed:
@@ -544,7 +544,10 @@ def gui() -> None:
                          (stamina_bar, "stamina_bar")):
             if v[key] is not None:
                 var.set(v[key])
-        table = I.roles_from_flags(RM.roles_value(broles), manual_shield=bool(v["manual_shield"]),
+        mine = RM.roles_value(broles)
+        if v["controls"]:   # the profile's own button table (the arrow keeps the user's role)
+            mine = dict(I.REMAP_PRESETS[v["controls"]], DR=mine["DR"])
+        table = I.roles_from_flags(mine, manual_shield=bool(v["manual_shield"]),
                                    target_r3=v["target_r3"], sprint_l3=v["sprint_l3"])
         RM.set_roles(broles, I.roles_with_armory(table) if v["armory"] else table)   # the armory on the held D-pad right
         guard["on"] = False
