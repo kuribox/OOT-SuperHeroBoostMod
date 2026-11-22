@@ -418,14 +418,11 @@ class RemapEditor:
         table = {b: var.get() for b, var in rv.items()}
         if new != "none":
             # each role on one button: the button that had it takes this one's old role (if it may), else nothing.
-            # Item 2 and the selector share L in the game: picking one drops the other.
             for other, r in table.items():
                 if other == btn:
                     continue
                 if r == new:
                     table[other] = old if I.role_allowed(old, other) else "none"
-                elif {r, new} == {"item2", "selector"}:
-                    table[other] = "none"
         table[btn] = new
         set_roles(rv, table)
 

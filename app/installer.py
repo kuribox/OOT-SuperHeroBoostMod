@@ -67,7 +67,7 @@ def role_allowed(role: str, button: str) -> bool:
 
 def normalize_roles(roles) -> dict:
     """A role per button, every role but "none" on one button at most (the first one keeps it), only where it is
-    allowed (ROLE_BUTTONS). Item 2 and the item selector are the same virtual button (L): only one of them.
+    allowed (ROLE_BUTTONS). The item selector has its own virtual button (VBTN_SELECTOR): it no longer shares L with item 2.
     Unknown or missing buttons take their classic role when it is still free, else none."""
     src = roles if isinstance(roles, dict) else {}
     out, used = {}, set()
@@ -75,8 +75,7 @@ def normalize_roles(roles) -> dict:
         r = src.get(b, CLASSIC_ROLES[b])
         if not role_allowed(r, b):
             r = "none"
-        if r != "none" and (r in used or (r == "item2" and "selector" in used)
-                            or (r == "selector" and "item2" in used)):
+        if r != "none" and r in used:
             r = "none"
         out[b] = r
         used.add(r)
@@ -133,7 +132,7 @@ def roles_from_flags(roles, manual_shield=None, target_r3=None, sprint_l3=None, 
                 if dst:
                     r[dst] = displaced
         elif not manual_shield and sh:
-            r[sh] = "item2" if "item2" not in r.values() and "selector" not in r.values() else "none"
+            r[sh] = "item2" if "item2" not in r.values() else "none"
     if sprint_l3 is not None:
         sp = holder("sprint")
         if sprint_l3 and not sp and r["L3"] == "none":
@@ -612,7 +611,7 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                     fl = roles_flags(roles)
                     if s.bm_layout != "gamecube":                             # preserve prior custom-remap geometry
                         b[f + 9] = 0
-                    b[f + 24] = L_MODE_VALUES[fl["bm_l_mode"]]
+                    b[f + 24] = 0                                            # bm_l_mode: the selector is a role (VBTN_SELECTOR), not L
                     b[f + 54] = int(s.manual_shield)
                     b[f + 55] = 0                                            # target_r3: target can be on R3 itself
                     b[f + 56] = int(fl["sprint_l3"])

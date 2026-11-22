@@ -45,6 +45,14 @@ enum {
 /* The armory role's press (the left Joy-Con's SR, also unused with a full controller): read and stripped by
  * features/quick_select, the last input handler. */
 #define VBTN_ARMORY (1ull << 25)
+/* The item selector role's press (the right Joy-Con's SL, unused with a full controller): with the remap the selector
+ * has its own virtual button, so it no longer shares L with item 2. features/button_mapping turns it into the game's R
+ * (which opens the selector for ZR) and strips it. Without the remap the selector is still L (bm_l_mode = 2). */
+#define VBTN_SELECTOR (1ull << 26)
+/* The item selector is on: remap_on() and a button holds the role, or the old L selector (bm_l_mode = 2). */
+int remap_selector_on(void);
+/* The old L-as-selector mode: L itself is the selector (no remap): L holds no item, its HUD part is hidden. */
+int remap_l_selector(void);
 
 /* HID bit of each physical button, in PB_ order */
 extern const u64 REMAP_BIT[PB_N];

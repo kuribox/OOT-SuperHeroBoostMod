@@ -61,7 +61,14 @@ struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no rol
 - Diagnostics: `g_remap_dr[0]` counts replayed short presses, `[1]` long presses that fired the role.
 - The app lists the arrow as the last row of Controls, with a note under it. It is not part of the presets: choosing
   one keeps the arrow's role, and the preset buttons ignore it when they decide which preset is active.
-- Selector and item 2 share the virtual L, so a selector on the arrow takes L's item 2 away (the table drops it).
+
+## Item selector (role)
+
+With the remap the selector has its own virtual button, `VBTN_SELECTOR` (HID bit 26, unused with a full controller), so
+it no longer shares L with item 2: both can be on the table at once, on any buttons (not the sticks). button_mapping
+turns the bit into the game's R (which opens the selector for ZR) and strips it (`remap_selector_on()`). The old
+`bm_l_mode` (L itself is the selector, L holds no item) only applies without the remap (`remap_l_selector()`); the
+installer writes it as 0 with the remap.
 
 ## Armory (role)
 

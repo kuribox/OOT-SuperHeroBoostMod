@@ -2421,7 +2421,7 @@ u64 g_mb_dbg[PART_N];
 static int bm_part_hidden(u32 k) {
     if (part_phys(k) >= PB_L3) return 1;   /* remap: the role is on no button (or on a stick: no HUD art) */
     if (g_shbcfg.bm_simple && (k == SB_X || k == SB_Y || k == SB_A || k == 9 || k >= SB_SHIELD)) return 1;
-    if (g_shbcfg.bm_l_mode && (k == SB_L || k == 7)) return 1;   /* L opens the item selector: no L button */
+    if (remap_l_selector() && (k == SB_L || k == 7)) return 1;   /* L opens the item selector: no L button */
     return 0;
 }
 /* Our parts are clones of the stock item box and each gets that box's UI control. The stock box's control has its
@@ -2629,7 +2629,7 @@ static void hud_menu_legend(u64 page) {
         for (u32 pr = 0; pr < 4; pr++) {
             u32 src = pr < 3 ? mb[pr] : PB_A, dst = remap_role_phys(SLOT_ROLE[pr]);
             pair_on[pr] = src < PB_N && dst < PB_L3 &&
-                          !(pr == 1 && (g_shbcfg.bm_l_mode || (g_shbcfg.manual_shield && !remap_on())));   /* L slot */
+                          !(pr == 1 && (remap_l_selector() || (g_shbcfg.manual_shield && !remap_on())));   /* L slot */
             if (!pair_on[pr]) { n_off++; continue; }
             char *ts = g_leg_txt[1 + pr * 3], *td = g_leg_txt[3 + pr * 3];
             u8 gs = (u8)(0x80 + GLYPH[src]), gd = (u8)(0x80 + GLYPH[dst]);

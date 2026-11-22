@@ -320,10 +320,16 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     if (count == 0 || count > 64) return;
     HidView view = {a0, count, 0};
     /* the shield role's virtual bit is the manual shield's (it ran before): the game never sees it */
+    /* and the selector role's (remap): remembered here, turned into the game's R further down */
+    u32 sel_held = 0;
+    static u32 sel_prev;
     for (u32 i = 0; i < count; i++) {
         u64 b = hid_get_buttons(&view, i);
-        if (b & VBTN_SHIELD) hid_set_buttons(&view, i, b & ~VBTN_SHIELD);
+        if (b & VBTN_SELECTOR) sel_held = 1;
+        if (b & (VBTN_SHIELD | VBTN_SELECTOR)) hid_set_buttons(&view, i, b & ~(VBTN_SHIELD | VBTN_SELECTOR));
     }
+    u32 sel_was = sel_prev;
+    sel_prev = sel_held;
 
     /* Death ragdoll / game over: do not remap or swallow anything, the game's screen needs every button. */
     if (player_dead()) {
@@ -358,7 +364,7 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     }
 
     /* L as the game's item selector (app option): L never holds an item */
-    if (g_shbcfg.bm_l_mode) g_assign[SLOT_L] = -1;
+    if (remap_l_selector()) g_assign[SLOT_L] = -1;
 
     /* The item box the game uses (its item set) switched without the age flag: the other box is taken as it is,
      * like an age change (nothing borrowed in it, no swap with the slots). */
@@ -417,7 +423,7 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
         }
         for (int s = 0; s < SLOT_ZR; s++) {
             if (!MENU_BTN[s] || !(pressed & MENU_BTN[s])) continue;
-            if (s == SLOT_L && (g_shbcfg.bm_l_mode || (g_shbcfg.manual_shield && !remap_on()))) continue;   /* L: selector / shield */
+            if (s == SLOT_L && (remap_l_selector() || (g_shbcfg.manual_shield && !remap_on()))) continue;   /* L: selector / shield */
             int it = hud_menu_item();
             if (it < 0) continue;
             int old = g_assign[s];
@@ -489,14 +495,21 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     /* L as the game's item selector: outside menus, L does what R does (opens the selector for ZR).
      * The R slot is suppressed for this frame so an item assigned to R is not used as well. */
     u32 l_selector = 0;
-    if (g_shbcfg.button_mapping && (!g_shbcfg.manual_shield || remap_on()) && g_shbcfg.bm_l_mode == 2 && hud_ingame() &&
-        (buttons & BTN_L) && !(buttons & BTN_R)) {
-        u32 was_pressed = (pressed & BTN_L) != 0;
-        set_all(&view, BTN_L, BTN_R);
-        buttons = (buttons & ~BTN_L) | BTN_R;
-        pressed &= ~BTN_L;
-        if (was_pressed) pressed |= BTN_R;
-        l_selector = 1;
+    if (g_shbcfg.button_mapping && (!g_shbcfg.manual_shield || remap_on()) && remap_selector_on() && hud_ingame() &&
+        !(buttons & BTN_R)) {
+        if (remap_on() && sel_held) {   /* the role's own button: L stays whatever its own role is */
+            set_all(&view, 0, BTN_R);
+            buttons |= BTN_R;
+            if (!sel_was) pressed |= BTN_R;
+            l_selector = 1;
+        } else if (!remap_on() && (buttons & BTN_L)) {   /* the old mode: L itself */
+            u32 was_pressed = (pressed & BTN_L) != 0;
+            set_all(&view, BTN_L, BTN_R);
+            buttons = (buttons & ~BTN_L) | BTN_R;
+            pressed &= ~BTN_L;
+            if (was_pressed) pressed |= BTN_R;
+            l_selector = 1;
+        }
     }
 
     /* Link must be free to act: standing or moving. Menus, the ocarina, dialogues, the item selector, climbing,
@@ -511,7 +524,7 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     u64 no_sel = 0;
     if (g_shbcfg.button_mapping && ingame && !player_state_starts("Evt") && !g_songbook_active) {
         if (!l_selector) no_sel |= BTN_R;
-        if (g_shbcfg.bm_l_mode != 2) no_sel |= BTN_L;
+        if (!(g_shbcfg.bm_l_mode == 2 && !remap_on())) no_sel |= BTN_L;   /* L is the selector only in the old mode */
     }
     if (!g_shbcfg.button_mapping || (!free_now && !using)) {
         if (no_sel) set_all(&view, no_sel, 0);
