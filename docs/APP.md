@@ -290,6 +290,11 @@ folder (the one with `Rekarina.exe`, `rekarina.ini` and `exefs/main`). The app f
 - **Settings without a rebuild.** The module's config block lives in its data; applying a profile patches
   `exefs/subsdk9` and replaces the expected SHA-256 stored in `Rekarina.exe`, so it takes seconds. A full rebuild is
   needed only the first time or after the module changes (10–20 minutes, ~6 GB of free space).
+- **Prompts font.** On Rekarina the app never installs the PlayStation style's `Font2/…External…bfotf.zs`. Rekarina
+  switches the game's prompts (and the song screen's six note buttons) to PlayStation / Xbox by finding its own font in
+  memory while the game runs; a mod file for that font shadows it (its log: `a RomFS mod replaces Font2/…External…`,
+  `the game's button font was not found in memory`, `in use: nintendo`). Our HUD button textures and the pause legend do
+  not need it. The Reinstall / Apply settings button rewrites the mod folder without the font.
 - **Merged mods.** A mod merger joins the ExeFS patches of every mod into one IPS inside the mod folder. Rekarina's converter (`tools/exefs_patches.py`) takes a patch file whole: one record it cannot lift (for example a code change that alters the CPU flags differently from the game, as `young-link-rides-epona`'s patch at `main+0x482DFC` does) makes it reject the file, and our hooks go with it (`rekarina_patch_failed`). Before the conversion the app moves every record that is not ours (our sites are the ones of the payload's `ours.ips`) into `exefs/<id>-other-mods.ips`, which the converter classifies as *other* and skips. Our file is byte for byte the payload's. The other mod's romfs part keeps working; its code patch cannot run on Rekarina anyway.
 - **Uninstall** restores `Rekarina.exe`, the old module, the moved mod code, the status files and the mod order,
   then deletes `<game>/.shb-rekarina`.

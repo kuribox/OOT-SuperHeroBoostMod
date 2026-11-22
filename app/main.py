@@ -1597,6 +1597,19 @@ def gui() -> None:
         ui["combat"] = check(body, L("combat_only"), combat)
         ui["combat"].pack(anchor="w", pady=(6, 0))
 
+        body = card(parent, L("sprint_speed"))
+        row = UI.Frame(body, bg=PANEL)
+        row.pack(fill="x")
+        label(row, L("sprint_speed") + ":", size=10, bg=PANEL).pack(side="left", padx=(0, 8))
+        values = [L("speed_van")] + ["×%g" % (v / 100) for v in SPEEDS[1:]]
+        svar = tk.StringVar(value=values[SPEEDS.index(speed.get())])
+        ui["sprint_var"] = svar
+        ui["sprint_values"] = values
+        cb = combo(row, values, svar, width=14)
+        cb.pack(side="left")
+        cb.bind("<<ComboboxSelected>>", lambda e: speed.set(SPEEDS[cb.current()]))
+        ui["sprint"] = cb
+
     def build_difficulty(parent):
         body = card(parent, L("difficulty_title"), L("difficulty_desc"))
         row = UI.Frame(body, bg=PANEL)

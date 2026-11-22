@@ -519,12 +519,12 @@ def install_romfs(game: Path, s: I.Settings) -> int:
         shutil.rmtree(target.parent)
     copied = 0
 
-    def copy(src: Path) -> bool:
+    def copy(src: Path, skip: tuple = ()) -> bool:
         nonlocal copied
         if not src.exists():
             return False
         for f in src.rglob("*"):
-            if f.is_file():
+            if f.is_file() and f.relative_to(src).parts[0] not in skip:
                 dst = target / f.relative_to(src)
                 dst.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(f, dst)
@@ -532,7 +532,11 @@ def install_romfs(game: Path, s: I.Settings) -> int:
         return True
 
     if s.button_mapping:
-        copy(pay / "button_romfs" / style)
+        # Not the style's External font (Font2/): Rekarina draws the game's prompts (and the song screen's note
+        # buttons) in PlayStation / Xbox by switching its own font while the game runs, and a mod file for that
+        # font shadows it: its log says "the game's button font was not found in memory". Our HUD buttons are
+        # textures of their own and the pause legend uses whatever font the game has, so nothing is lost.
+        copy(pay / "button_romfs" / style, skip=("Font2",))
         copy(pay / "button_romfs" / "common")
     if gamecube_art is not None:
         copy(gamecube_art)
