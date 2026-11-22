@@ -56,8 +56,8 @@ python -I nx2/make_game.py --update "F:\Switch2\Longshot" --work "F:\Switch2\tem
 
 `tools/install_longshot.py` automates all of it (backups, patched exefs, configuration, romfs mod folder and the
 builder with its own Python). The companion app has the same procedure in its **Hookshot / Longshot** target, with a
-progress bar; its **Install** applies the profile and romfs once the game is built, and **Rebuild game** runs this
-update again.
+progress bar; its **Install** applies the profile and romfs once the game is built, **Recompile** runs this
+update again without copying anything, and **Reinstall and recompile** starts from a clean game.
 
 ```bash
 # reuse the profile and the romfs files of an existing emulator install

@@ -1635,6 +1635,84 @@ _RECOMP2 = {
 for _lang, _txt in _RECOMP2.items():
     T[_lang].update(_txt)
 
+# Recompiled games: Recompile only runs the builder, Reinstall and recompile starts from a clean game
+_BUTTONS = {
+    "en": dict(
+        recomp_recompile="Recompile", recomp_reinstall="Reinstall and recompile",
+        recomp_recompile_title="Recompile the game?",
+        recomp_recompile_confirm="Only the builder runs (about {a} minutes). Nothing of the mod is copied or changed, so whatever you edited by hand in the game folder is what gets compiled. Continue?",
+        recomp_reinstall_title="Reinstall the mod and recompile?",
+        recomp_reinstall_confirm="The mod is removed first (every original file comes back), then everything is copied again with the chosen options and the game is compiled (about {a} minutes). Hand changes in the game folder are lost. Continue?",
+        recomp_built="The game already has the mod. Apply settings applies the profile and the romfs files; Recompile only rebuilds the code; Reinstall and recompile starts again from a clean game.",
+        rekarina_built="The game already has the mod. Apply settings patches the module and the romfs; Recompile only rebuilds; Reinstall and recompile starts again from a clean game.",
+        e_recomp_needs_install="The game has no mod yet: press Install first.",
+        e_rekarina_needs_install="The game has no mod yet: press Install first."),
+    "es": dict(
+        recomp_recompile="Recompilar", recomp_reinstall="Reinstalar y recompilar",
+        recomp_recompile_title="¿Recompilar el juego?",
+        recomp_recompile_confirm="Solo se ejecuta el builder (unos {a} minutos). No se copia ni se cambia nada del mod, así que se compila lo que hayas editado a mano en la carpeta del juego. ¿Continuar?",
+        recomp_reinstall_title="¿Reinstalar el mod y recompilar?",
+        recomp_reinstall_confirm="Primero se quita el mod (vuelven todos los archivos originales), luego se copia todo otra vez con las opciones elegidas y se compila el juego (unos {a} minutos). Se pierden los cambios a mano en la carpeta del juego. ¿Continuar?",
+        recomp_built="El juego ya tiene el mod. Aplicar ajustes aplica el perfil y los archivos romfs; Recompilar solo reconstruye el código; Reinstalar y recompilar empieza de nuevo desde un juego limpio.",
+        rekarina_built="El juego ya tiene el mod. Aplicar ajustes parchea el módulo y el romfs; Recompilar solo reconstruye; Reinstalar y recompilar empieza de nuevo desde un juego limpio.",
+        e_recomp_needs_install="El juego aún no tiene el mod: pulsa Instalar primero.",
+        e_rekarina_needs_install="El juego aún no tiene el mod: pulsa Instalar primero."),
+    "pt": dict(
+        recomp_recompile="Recompilar", recomp_reinstall="Reinstalar e recompilar",
+        recomp_recompile_title="Recompilar o jogo?",
+        recomp_recompile_confirm="Só o builder é executado (cerca de {a} minutos). Nada do mod é copiado ou alterado, então o que você editou à mão na pasta do jogo é o que será compilado. Continuar?",
+        recomp_reinstall_title="Reinstalar o mod e recompilar?",
+        recomp_reinstall_confirm="O mod é removido primeiro (todos os arquivos originais voltam), depois tudo é copiado de novo com as opções escolhidas e o jogo é compilado (cerca de {a} minutos). As alterações à mão na pasta do jogo são perdidas. Continuar?",
+        recomp_built="O jogo já tem o mod. Aplicar ajustes aplica o perfil e os arquivos romfs; Recompilar só reconstrói o código; Reinstalar e recompilar recomeça de um jogo limpo.",
+        rekarina_built="O jogo já tem o mod. Aplicar ajustes altera o módulo e o romfs; Recompilar só reconstrói; Reinstalar e recompilar recomeça de um jogo limpo.",
+        e_recomp_needs_install="O jogo ainda não tem o mod: pressione Instalar primeiro.",
+        e_rekarina_needs_install="O jogo ainda não tem o mod: pressione Instalar primeiro."),
+    "fr": dict(
+        recomp_recompile="Recompiler", recomp_reinstall="Réinstaller et recompiler",
+        recomp_recompile_title="Recompiler le jeu ?",
+        recomp_recompile_confirm="Seul le builder est lancé (environ {a} minutes). Rien du mod n'est copié ni modifié : ce que vous avez édité à la main dans le dossier du jeu est ce qui est compilé. Continuer ?",
+        recomp_reinstall_title="Réinstaller le mod et recompiler ?",
+        recomp_reinstall_confirm="Le mod est d'abord retiré (tous les fichiers d'origine reviennent), puis tout est copié de nouveau avec les options choisies et le jeu est compilé (environ {a} minutes). Les modifications manuelles du dossier du jeu sont perdues. Continuer ?",
+        recomp_built="Le jeu a déjà le mod. Appliquer les réglages applique le profil et les fichiers romfs ; Recompiler ne reconstruit que le code ; Réinstaller et recompiler repart d'un jeu propre.",
+        rekarina_built="Le jeu a déjà le mod. Appliquer les réglages modifie le module et le romfs ; Recompiler ne fait que reconstruire ; Réinstaller et recompiler repart d'un jeu propre.",
+        e_recomp_needs_install="Le jeu n'a pas encore le mod : appuyez d'abord sur Installer.",
+        e_rekarina_needs_install="Le jeu n'a pas encore le mod : appuyez d'abord sur Installer."),
+    "de": dict(
+        recomp_recompile="Neu kompilieren", recomp_reinstall="Neu installieren und kompilieren",
+        recomp_recompile_title="Spiel neu kompilieren?",
+        recomp_recompile_confirm="Es läuft nur der Builder (etwa {a} Minuten). Vom Mod wird nichts kopiert oder geändert; kompiliert wird, was du von Hand im Spielordner bearbeitet hast. Fortfahren?",
+        recomp_reinstall_title="Mod neu installieren und kompilieren?",
+        recomp_reinstall_confirm="Zuerst wird der Mod entfernt (alle Originaldateien kommen zurück), dann wird alles mit den gewählten Optionen neu kopiert und das Spiel kompiliert (etwa {a} Minuten). Handänderungen im Spielordner gehen verloren. Fortfahren?",
+        recomp_built="Das Spiel hat den Mod bereits. Einstellungen anwenden übernimmt Profil und romfs-Dateien; Neu kompilieren baut nur den Code neu; Neu installieren und kompilieren beginnt mit einem sauberen Spiel.",
+        rekarina_built="Das Spiel hat den Mod bereits. Einstellungen anwenden ändert Modul und romfs; Neu kompilieren baut nur neu; Neu installieren und kompilieren beginnt mit einem sauberen Spiel.",
+        e_recomp_needs_install="Das Spiel hat noch keinen Mod: zuerst Installieren drücken.",
+        e_rekarina_needs_install="Das Spiel hat noch keinen Mod: zuerst Installieren drücken."),
+    "it": dict(
+        recomp_recompile="Ricompila", recomp_reinstall="Reinstalla e ricompila",
+        recomp_recompile_title="Ricompilare il gioco?",
+        recomp_recompile_confirm="Viene eseguito solo il builder (circa {a} minuti). Niente del mod viene copiato o cambiato: si compila ciò che hai modificato a mano nella cartella del gioco. Continuare?",
+        recomp_reinstall_title="Reinstallare il mod e ricompilare?",
+        recomp_reinstall_confirm="Prima il mod viene rimosso (tornano tutti i file originali), poi tutto viene copiato di nuovo con le opzioni scelte e il gioco viene compilato (circa {a} minuti). Le modifiche manuali nella cartella del gioco vanno perse. Continuare?",
+        recomp_built="Il gioco ha già il mod. Applica impostazioni applica il profilo e i file romfs; Ricompila ricostruisce solo il codice; Reinstalla e ricompila riparte da un gioco pulito.",
+        rekarina_built="Il gioco ha già il mod. Applica impostazioni modifica il modulo e il romfs; Ricompila ricostruisce soltanto; Reinstalla e ricompila riparte da un gioco pulito.",
+        e_recomp_needs_install="Il gioco non ha ancora il mod: premi prima Installa.",
+        e_rekarina_needs_install="Il gioco non ha ancora il mod: premi prima Installa."),
+}
+for _lang, _txt in _BUTTONS.items():
+    T[_lang].update(_txt)
+
+# Rekarina's converter takes an ExeFS patch file whole: say which record it could not lift
+_PATCHWHY = {
+    "en": "Rekarina's ExeFS patch converter rejected the mod's IPS. The rebuild was stopped.\n{a}",
+    "es": "El conversor de parches ExeFS de Rekarina rechazó el IPS del mod. Se detuvo la recompilación.\n{a}",
+    "pt": "O conversor de patches ExeFS da Rekarina rejeitou o IPS do mod. A recompilação foi parada.\n{a}",
+    "fr": "Le convertisseur de patches ExeFS de Rekarina a refusé l'IPS du mod. La recompilation a été arrêtée.\n{a}",
+    "de": "Rekarinas ExeFS-Patch-Konverter hat das IPS des Mods abgelehnt. Der Neubau wurde gestoppt.\n{a}",
+    "it": "Il convertitore di patch ExeFS di Rekarina ha rifiutato l'IPS del mod. La ricompilazione è stata fermata.\n{a}",
+}
+for _lang, _txt in _PATCHWHY.items():
+    T[_lang]["e_rekarina_patch_failed"] = _txt
+
 
 # game-wide controller layout: the PlayStation / Xbox archives are downloaded once from GameBanana
 _LAYOUT = {
