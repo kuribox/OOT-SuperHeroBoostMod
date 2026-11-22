@@ -399,6 +399,8 @@ Thanks to:
 - [HaseoSora](https://github.com/HaseoSora) for the **Switch GameCube** preset with its button artwork and
   controller diagram, and for grouping the HUD panes so the clusters keep their alignment under widescreen
   ("screen's edges") layouts.
+- [PixelSage / Hyrule Armory](https://gamebanana.com/mods/740938) for the original **Armory**: the sword and shield
+  quick select that this mod's Armory role reimplements (its own code and drawer hooks, nothing bundled).
 - [Kabosune / oot-remake-modding](https://github.com/Kabosune/oot-remake-modding) for the modding documentation
   and help.
 - [platinumagpie / oot-remake-devtool](https://github.com/platinumagpie/oot-remake-devtool) for the development tools
