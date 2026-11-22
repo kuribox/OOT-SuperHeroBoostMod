@@ -1,4 +1,4 @@
-# Companion app (SuperHeroBoostConfig)
+# Companion app (SHB-OcarinaTweaks)
 
 The app does **not** compile anything. The mod ships precompiled as the standalone variant (`app/payload/standalone`)
 and reads a small config block (`core/config.h`, magic `SHBCFG01`) when the game loads.
@@ -31,7 +31,7 @@ The app only:
 | `app/paths.py` | portable/per-user settings paths (Windows, macOS, Linux) |
 | `app/i18n.py` | texts in en / es / pt / fr / de / it |
 
-Settings are remembered in `SuperHeroBoostConfig.json` next to the program; if that folder is read-only, in the
+Settings are remembered in `SHB-OcarinaTweaks.json` next to the program; if that folder is read-only, in the
 per-user configuration folder (see the README). The app never needs administrator rights.
 
 ## Game profiles
@@ -160,15 +160,15 @@ On startup the app asks GitHub for the latest release of
 the tag is newer than `app/version.py`, a bar appears under the header with **Download / Later**; it is also
 available as **Check for updates** in *About*.
 
-- The download is the release asset for the platform (`SuperHeroBoostConfig.exe` on Windows,
-  `SuperHeroBoostConfig-linux` on Linux, `SuperHeroBoostConfig-macos.dmg` on macOS; the older asset names are
+- The download is the release asset for the platform (`SHB-OcarinaTweaks.exe` on Windows,
+  `SHB-OcarinaTweaks-linux` on Linux, `SHB-OcarinaTweaks-macos.dmg` on macOS; the older asset names are
   still accepted). It is written to a
   `.part` file, its SHA-256 is checked against the asset digest from the GitHub API (when present), and only then
   renamed.
 - A frozen Windows build in a writable folder replaces itself: a small detached PowerShell script waits for the app
   to exit, copies the new executable over the old one and starts it again. If the folder is read-only (for example
   `Program Files`), or the app runs from source, the file is saved to
-  `%LOCALAPPDATA%\SuperHeroBoostConfig\updates` and the app shows its path.
+  `%LOCALAPPDATA%\SHB-OcarinaTweaks\updates` and the app shows its path.
 - A network error or a rate limit never blocks the window: the automatic check is silent, and only the manual
   **Check for updates** shows a message.
 
@@ -197,7 +197,7 @@ Run this on each target OS:
 
 ```
 python tools/make_release.py     # module + button textures + optional romfs options
-python tools/build_app.py        # release/SuperHeroBoostConfig[.exe|.app]
+python tools/build_app.py        # release/SHB-OcarinaTweaks[.exe|.app]
 ```
 
 `build_app.py` uses the platform's separator for `--add-data` and writes the platform's native output. macOS needs
@@ -214,7 +214,7 @@ The app itself is plain Python + Tkinter and builds on Linux:
 ```
 sudo apt install python3 python3-tk
 python3 -m pip install --user pyinstaller
-python3 tools/build_app.py          # release/SuperHeroBoostConfig
+python3 tools/build_app.py          # release/SHB-OcarinaTweaks
 ```
 
 `make_release.py` (the mod payload) is a separate step: it needs the LLVM toolchain and the game dump, so the usual

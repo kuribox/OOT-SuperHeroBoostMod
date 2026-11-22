@@ -17,6 +17,7 @@ release/
 dist/
 app/__pycache__/
 app/SuperHeroBoostConfig.json
+app/SHB-OcarinaTweaks.json
 
 # Game dump / extracted game data: never commit these
 romfs/

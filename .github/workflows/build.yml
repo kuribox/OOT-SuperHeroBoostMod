@@ -33,7 +33,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: app-windows
-          path: release/SuperHeroBoostConfig.exe
+          path: release/SHB-OcarinaTweaks.exe
           if-no-files-found: error
 
   linux:
@@ -51,13 +51,13 @@ jobs:
       - name: Build
         run: python3 tools/build_app.py
       - name: Name the binary
-        run: mv release/SuperHeroBoostConfig release/SuperHeroBoostConfig-linux
+        run: mv release/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-linux
       - name: Check the binary
-        run: test -x release/SuperHeroBoostConfig-linux
+        run: test -x release/SHB-OcarinaTweaks-linux
       - uses: actions/upload-artifact@v4
         with:
           name: app-linux
-          path: release/SuperHeroBoostConfig-linux
+          path: release/SHB-OcarinaTweaks-linux
           if-no-files-found: error
 
   macos:
@@ -77,21 +77,21 @@ jobs:
       - name: Package the app (dmg, or zip if the bundle is missing)
         run: |
           set -e
-          if [ -d release/SuperHeroBoostConfig.app ]; then
+          if [ -d release/SHB-OcarinaTweaks.app ]; then
             mkdir -p build/dmg
-            cp -R release/SuperHeroBoostConfig.app build/dmg/
+            cp -R release/SHB-OcarinaTweaks.app build/dmg/
             ln -s /Applications build/dmg/Applications
-            hdiutil create -volname "Super Hero Boost" -srcfolder build/dmg -ov \
-              -format UDZO release/SuperHeroBoostConfig-macos.dmg
+            hdiutil create -volname "SHB-OcarinaTweaks" -srcfolder build/dmg -ov \
+              -format UDZO release/SHB-OcarinaTweaks-macos.dmg
           else
-            ditto -c -k release/SuperHeroBoostConfig release/SuperHeroBoostConfig-macos.zip
+            ditto -c -k release/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-macos.zip
           fi
       - uses: actions/upload-artifact@v4
         with:
           name: app-macos
           path: |
-            release/SuperHeroBoostConfig-macos.dmg
-            release/SuperHeroBoostConfig-macos.zip
+            release/SHB-OcarinaTweaks-macos.dmg
+            release/SHB-OcarinaTweaks-macos.zip
           if-no-files-found: error
 
   presets:

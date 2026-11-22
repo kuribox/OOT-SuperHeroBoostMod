@@ -23,7 +23,7 @@ The mod is two pieces loaded next to the game by the emulator:
 | `exefs/<BuildID>.ips` | IPS32 patch over `main`: each hook site jumps into our module | `tools/build_core.py` |
 | `romfs/...` (optional) | Modified game data (for example "no heart drops") | `tools/make_romfs_opts.py` |
 
-The **app** (`release/SuperHeroBoostConfig` on Windows/macOS/Linux) compiles nothing: it carries the prebuilt module,
+The **app** (`release/SHB-OcarinaTweaks` on Windows/macOS/Linux) compiles nothing: it carries the prebuilt module,
 writes the user's options into a configuration block inside `subsdk9` and copies everything into the mod folder
 (`zz-Super-Hero-Boost`).
 
