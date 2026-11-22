@@ -1,214 +1,89 @@
-LONGSHOT / HOOKSHOT - 0.8.0 NOTICE
-There has been a lot of feedback about Longshot problems since 0.4.0: crashes while loading a save or an area,
-a rebuild that stopped near 90% with "Longshot is still running from this folder", DLSS disappearing after a
-rebuild, and the app choosing a ReLink or Hookshot builder for a Longshot game. 0.5.0 fixed those and 0.8.0 includes
-every fix, the ReLink support, the new targeting and the item button work. The module changed, so rebuild the game
-once with 0.8.0. If a crash remains, attach logs/longshot_log.txt and the new file in bug-reports/.
+SHB-OcarinaTweaks 0.9.0 - REBUILD ONCE
+The module changed: reinstall the profile (emulator) or rebuild the game once with 0.9.0 (Longshot / Hookshot / ReLink / Rekarina). If a crash remains, attach logs/longshot_log.txt (or the Rekarina log) and the new file in bug-reports/.
 
-Super Hero Boost is a gameplay and HUD module for the Ocarina of Time remake (update v131072).
+SHB-OcarinaTweaks (Super Hero Boost) is a gameplay and HUD module for the Ocarina of Time remake (update v131072): stamina, difficulty, an extended HUD, a full button remap, item buttons, quick select and more. Everything is a switch in the companion app, SHB-OcarinaTweaks, and the installer patches the module with the profile you pick: no recompiling, no manual file editing.
 
 WHAT YOU ARE DOWNLOADING
-The file in the Files tab is SuperHeroBoost-0.8.0-presets.zip: the mod itself, with all 14 named profiles of the companion app ready to install in an emulator. Every profile includes the boots/mask quick select. It contains no executable. The configuration app is a separate download (see "Installation app" below); it is not in the Files tab.
+The file in the Files tab is SuperHeroBoost-0.9.0-presets.zip: the mod itself, with all 15 named profiles of the app ready to install in an emulator. It contains no executable. The configuration app is a separate download (see "Emulator - custom settings" below); it is not in the Files tab.
 
-NEW IN 0.8.0
-- Item quantities: the B / L / R / ZR buttons show how many you have of the consumables (sticks, nuts, bombs, seeds,
-  bombchus, beans and arrows). Unique items show no number.
-- ZR is always the game's own item (R selector, pause menu A, the save). A B / L / R item is used through the item box,
-  which goes back to the ZR item once Link stands or walks again (not while aiming, so a bow on R shoots its own
-  arrow); assigning ZR to a button, or a button's item to ZR, swaps them for real.
-- With an item on B, A while standing still puts the sword or the item in hand away (B's own function); A still talks,
-  opens and rolls as usual.
-- Menus fixed: the mod's HUD buttons kept the game's item-box "focusable" flag and the cursor went onto them. In shops,
-  dialogues, the game-over screen, Farore's Wind and past the Megaton Hammer on the Items page you had to press up /
-  down a few times first. They are no longer focusable; the songbook no longer reads the ocarina while it is closed.
-- New HUD option: hide the corner minimap while playing (the map screen still works).
-- New Difficulty option: dropped magic jars become green rupees, like the heart option. Both can be on together.
-- Boss speed (beta): bosses and minibosses, left out of the enemy speed, get their own movement and animation
-  multipliers. Some bosses move by script, so animation is what speeds them up.
-- L3 sprint as a toggle: one press starts the sprint and the next stops it; it also stops when stamina runs out, when
-  you press A and in dialogues.
-- 0.7.0's souls-like targeting, Souls controls profiles and HUD labels in the game's language remain.
+NEW IN 0.9.0 (everything since 0.8.0)
+CONTROLS
+- Button remap: every button (L, R, ZL, ZR, X, Y, A, B, L3, R3) gets the role you choose: Jump, Sword, Action, Target, Item B / L / R, the game's own item, Center camera, Sprint, Shield, Item selector, Armory or nothing. The HUD, the pause menu legend and the assign buttons follow. The app has a remap editor with previews and five control presets (Classic, Action at the bottom, Manual shield, Souls, Switch GameCube).
+- A remapped button only does its role while you play; menus, dialogues and shops keep the real buttons.
+- Armory: hold a button with that role to open the game's item drawer with your swords and shields and equip one. A Shield role shows the equipped shield on the HUD.
+- Quick mask returns from the Lens of Truth to the last mask you wore.
+- Item buttons fixed: the ZR item follows Child / Adult, the Deku stick stays in hand, assigned items are not undone under the pause menu, and the L3 sprint toggle works on Rekarina.
+HUD
+- Three layouts: Wide (native plates), Simple (the four counters on a soft translucent bar) and Plain (the same row, no bar).
+- Size sliders for the controls cluster and the counter row.
+- Widescreen: the HUD groups move together with Longshot's "Screen's edges" setting (thanks HaseoSora). New Switch GameCube preset (HaseoSora).
+- The area counter (Skulltulas and heart pieces) copies the save's key set and counts world heart pieces.
+DIFFICULTY AND ENEMIES
+- Enemy aggression: alert radius and an aggression level (Normal / Aggressive / Maximum). Bosses are not changed.
+- Duplicated enemies: wall and ceiling enemies are no longer cloned.
+- Enemy health is scaled exactly once.
+- Recommended is now the author's own setup and the other profiles follow it.
+REKARINA AND APP
+- Rekarina is supported as a target (the app lifts and rebuilds with Rekarina's own tools; nothing in its folder is edited). Changing options afterwards takes seconds.
+- The app is now called SHB-OcarinaTweaks, with a new interface (presets page, inline help, remap editor).
 
-NEW IN 0.7.0
-- Souls-like targeting: while locked on, tap the target button (ZL, or R3 with the ZL/R3 swap) to move the lock to the
-  enemy the game marks in red; hold it about 0.3 s to drop the target. With no target the button locks on as usual.
-  It works through the game's own attention list, so the camera, the lock triangles and the red marker follow by
-  themselves. Its own option in Controls; set System > Options > Targeting Type to Toggle.
-- Next target when the locked enemy dies: its own option in Controls, independent of the manual shield. It follows the
-  game's real lock and acts only when the locked enemy dies; walking up to enemies, the battle stance or a target you
-  drop yourself no longer lock on by themselves. Needs Targeting Type on Toggle.
-- Manual shield: the target button always reaches the game. It used to be re-created from the player's action names,
-  which also show up near enemies without a target, so with ZL targeting the game locked on by itself. "Targeting" is
-  the game's own lock, and R3 still cancels when the ZL/R3 swap is off.
-- Profiles: two new Souls controls profiles (vanilla and Hero Mode) and every combat profile with the manual shield
-  now also enables the switch target and the next target.
-- The labels the mod draws itself (Jump / Attack / Roll and the pause menu's Assign:) follow the game's language, read
-  from the emulator settings or language.txt; the app's language is the fallback and --lang forces one. The presets
-  pack installs them in English.
-- Enemy duplication: Stalchildren now double too (the spawn zones' own group sizes and the scene cap), and spawns the
-  game keeps off stay off.
-- 0.6.0's ReLink fix, button positions and game prompts remain.
-
-NEW IN 0.6.0
-- ReLink: every feature works. ReLink's translator writes each function in address order and starts at its lowest; a
-  backward tail call made its caller's start unreachable, so the input dispatcher ran only the quick select (stamina
-  never drained, the manual shield's L, the button mapping and R3/L3 did nothing). The module is now built without tail
-  calls and the build fails if one appears. Rebuild the game once with 0.6.0.
-- Manual shield: with Hold targeting only the held target button counts as a target (the lock-on state lingers); with
-  no target L keeps its default game function.
-- Button positions: Nintendo (default), A-B swapped or Xbox (A/B and X/Y swapped), to match Longshot or ReLink; the HUD
-  and the pause menu draw each face button where it is, and Swap Jump Controls still applies on top.
-- Game button prompts are now a separate, optional choice in the HUD section: None / PlayStation / Xbox (None by
-  default). The button style only picks the button mapping's own pictures; Longshot and ReLink ship their own prompts.
-- App: Play button, themed scrollbars, a red "Requires rebuild" tag on a recompiled game, and --bm-layout / --game-layout.
-- The mod folder is zz-Super-Hero-Boost so its resource size table wins over other mods (the loader lets the mod whose
-  path sorts last win each file); the other mods' tables are merged into ours.
-- 0.5.1's enemy speed and controls and the 0.5.0 fixes remain.
-
-NEW IN 0.5.1
-- Enemy speed reworked: movement scales every base and attack speed together, with separate
-  animation, attack cadence and projectile speed. The beta profiles set all four components to x2.
-- Controls: target with R3 (swaps ZL and R3; set System > Options > Targeting Type to Toggle) and hold L3 to sprint
-  with the game's sprint animation, without rolling.
-- Manual shield: L stays reserved during hit reactions and hit-stop; R3 cancels unless the target-on-R3 swap is on.
-- App: Controls section, enemy Projectiles selector and --enemy-proj / --target-r3 / --sprint-l3.
-- 0.5.0's Longshot crash fixes, DLSS/FSR and ReLink support remain.
-
-NEW IN 0.5.0
-- Longshot 0.4.0 crashes fixed: the module was built with -Oz, whose machine outliner moved the pointer guards into
-  helpers that return with the condition flags; Longshot's recompiler does not keep them, so a null pointer reached
-  the HUD (guest 0x38 / 0x80). The module is now built without the outliner. Rebuild the game once.
-- DLSS and FSR are kept when rebuilding: the app reads the launcher's settings, points the builder at the DLSS SDK
-  and passes --fsr when the game had it. If DLSS was on and the SDK is missing, it stops instead of removing DLSS.
-- ReLink support, plus the right builder for each game (Longshot / Hookshot / ReLink) on Windows, Linux and macOS.
-- The app closes a running copy of the game before and during the build instead of stopping near 90%.
-- Manual shield: ZL follows the game's Targeting Type, hold L to guard while targeting, R3 cancels; while it is
-  enabled, the L item slot is removed from buttonMapping.
-- Button mapping follows Swap Jump Controls (the B item slot moves to X and the Jump label moves to B).
-- Quick select: removed the debug clock text; the clock always shows the time.
-- Backup and uninstall record every file the install and the rebuild touch and restore exactly that (including
-  ReLink files); generated caches are deleted, not copied.
-- 0.4.0 brought the three HUD layouts, the exact bottle icons and the enemy speed/duplication options; they remain.
-
-Every feature in this mod is optional. The installation app sets up the module once, and each system below has its own on/off switch, so you can use only what you want — with everything off, the game plays like vanilla. The Recommended profile turns everything on; change any option and the profile switches to Custom. Options take effect when you press Install again: for emulators nothing is recompiled and no file is edited by hand. (Longshot is different; see the Longshot section.)
-
-STAMINA (optional)
-- Can be turned off completely: no costs, no ring, no locks.
-- Four styles: Hardcore (every action costs), Combat only, Sprint only, or Advanced (choose which actions cost).
-- Exhaustion and regeneration, with individual costs for rolling, jumping, attacking, shooting, sprinting and shield blocking.
-- Stamina ring next to Link, drawn with the game's own textures, or an optional compact segmented bar at the bottom.
-
-DIFFICULTY (optional)
-- Enemy health and damage taken multipliers from x1 to x3 (x1 is vanilla).
-- No heart drops: dropped hearts become green rupees. Installed as a separate optional file; if it is not available, the app installs everything else and shows a note.
-
-MOVEMENT (optional)
-- Configurable sprint speed (+25% by default).
-
-HUD (optional, one switch per element)
-- Always-visible rupee counter and clock (off / 12 h / 24 h) with the game's native plate look.
-- Per-area counter for Gold Skulltulas and heart pieces, for example SKULL 3/8  COR 0/2. It reads the save's persistent key set, so the count survives leaving and re-entering an area.
-- Three layouts: Wide (four plates), Simple (the four counters at the bottom, no background) and Minimal (rupees and time above the minimap, heart pieces next to the native Skulltula counter on the Minus map).
-
-BUTTONS (optional)
-- B, L, R and ZR item buttons on the HUD, assignable from the pause menu's Items tab with X / L / R / A.
-- The buttons show the exact bottle content for potions, blue fire, fish, bug, fairy, milk, half milk, letter, Poe, Big Poe and empty bottles.
-- Switch, PlayStation and Xbox button styles, applied to the HUD and to the game's own prompts. PlayStation and Xbox
-  download their archive once (~70 MB) from the GameBanana controller-UI mod; Switch needs nothing.
-- Extended layout (B, L, R, ZR, X, Y, A and the sword) or simple layout (only the assignable buttons, with B centred).
-- L as an item button or as the game's own item selector.
-- Songbook autoplay: select a learned song in the native songbook (ZL) and Link plays it with its effect. Learned songs only, not the Scarecrow's Song.
-
-CONTROLS (optional, personal)
-- Target with R3: swaps ZL and R3, so R3 targets and ZL resets the camera. Set System > Options > Targeting Type to Toggle (the switch and next target need it).
-- Switch target: while locked on, tap the target button to move the lock to the enemy the game marks in red; hold it about 0.3 s to drop the target. With no target the button locks on as usual.
-- Next target: when the locked enemy dies, the target moves to the next enemy. Its own option, independent of the manual shield.
-- Hold L3 to sprint with the game's sprint animation, without pressing A and without rolling.
-- Manual shield: the target button always reaches the game; L stays reserved during hit reactions and hit-stop; R3 cancels unless the target-on-R3 swap is on.
-
+FEATURES
+STAMINA
+- Four styles: hardcore (every action costs), combat only, sprint only, or advanced (choose which actions cost). Exhaustion and regeneration, with individual costs for rolling, jumping, attacking, shooting, sprinting and blocking.
+- A ring next to Link, or a segmented bar under the magic gauge (yellow, red while recharging).
+DIFFICULTY
+- Enemy health and damage taken multipliers (x1 to x3). No heart drops and no magic jar drops: they become green rupees.
+- Configurable sprint speed.
+HUD
+- Always-visible rupee counter and clock (off / 12 h / 24 h). Per-area Skulltula and heart-piece counter. Option to hide the corner minimap.
+CONTROLS
+- B, L, R and ZR item buttons on the HUD with the quantity of consumables, assignable from the pause menu's Items tab.
+- Switch, PlayStation and Xbox button styles; Nintendo, A/B swapped, Xbox and Switch GameCube positions; extended or simple layout. PlayStation and Xbox prompts download their archive once (~70 MB) from the GameBanana controller-UI mod; Switch needs nothing.
+- Target with R3 (swaps ZL and R3), switch target, next target when the locked enemy dies, hold or toggle L3 to sprint, manual shield.
+- Songbook autoplay: select a learned song in the native songbook (ZL) and Link plays it with its effect.
 QUICK SELECT
-- Hold D-pad Down to switch between the Iron Boots and Hover Boots; hold D-pad Up to switch between the Lens of Truth and the mask you were wearing.
-- Only items in your inventory are used, and the game's equipment is applied immediately.
-- Included in every named profile and in every preset of this download.
-
-WORLD CHANGES (optional, each with its own switch)
-- The three Great Fairy magic rewards are reordered: Hyrule Castle (child) gives Nayru's Love, Death Mountain Crater gives the magic spin attack and Desert Colossus gives double magic.
-- Farore's Wind warp points can be placed outdoors.
-- Known bug: press up and down a couple of times before the teleport menu responds.
-
-PROFILES (optional shortcuts)
-- Recommended, Souls controls, Souls controls + Hero Mode, Base, Manual Shield, Hero Mode, Hero + Stamina, Hero Explorer, Super Hero, Ultra Hero, Survival, World changes and two beta combinations, plus a fully custom setup.
-
+- Hold D-pad Down for the Iron / Hover Boots; hold D-pad Up for the Lens of Truth / your mask.
+WORLD CHANGES (optional)
+- The three Great Fairy magic rewards are reordered. Farore's Wind warp points can be placed outdoors.
 BETA (optional, experimental, off unless you turn them on)
-- Enemy duplication (Option A): clones every eligible generic enemy placement and shares the original resources, so the extra enemies actually appear and behave. Bosses, minibosses and scripted enemies are excluded.
-- Enemy speed: four independent components (movement, animation playback, attack cadence and projectile speed), each with eleven multipliers from x0.5 to x6 (plus off). Movement scales all base and attack speeds together, so enemies do not slide or overshoot. The beta profiles set all four to x2.
-- They install extra romfs files and can break puzzles, quests or performance. Back up your save and test one at a time.
+- Enemy duplication, and enemy speed in four components (movement, animation, attack cadence, projectiles) from x0.5 to x6, with their own boss speed. They install extra romfs files and can break puzzles, quests or performance. Back up your save and test one at a time.
 
 REQUIREMENTS
 - The game on update v131072.
-- An emulator that loads mods from its user/load folder, or a Longshot installation.
+- An emulator that loads mods from its user/load folder, or a Longshot / Hookshot / ReLink / Rekarina installation.
 - Back up your saves. On Windows the app closes a running game before installing and during a rebuild; save first.
 
 EMULATOR - QUICK INSTALL (PRESETS ZIP)
-1. Download SuperHeroBoost-0.8.0-presets.zip from the Files tab and extract it.
-2. Open the folder of the profile you want (01 Recommended, 02 Souls controls, 03 Souls controls + Hero Mode, ...).
+1. Download SuperHeroBoost-0.9.0-presets.zip from the Files tab and extract it.
+2. Open the folder of the profile you want (01 Recommended, 02 Recommended (no beta enemies), ...).
 3. Copy its zz-Super-Hero-Boost folder into user/load/0400486024DEC000 (merge it if that folder already exists).
 4. Start the game.
 Only one profile can be installed at a time: they all use the same folder name, so replace the previous one.
 
 EMULATOR - CUSTOM SETTINGS (APP)
-1. Download SuperHeroBoostConfig.exe from GitHub Releases:
-   https://github.com/kuribox/OOT-SuperHeroBoostMod/releases
-   It is also published in the Tools section of this game. The module is bundled inside the app: you do not need Python.
-2. Save your progress. On Windows the app closes the game for you before installing / building.
-3. On the game profile, choose a preset (Recommended turns everything on) or adjust each section by hand: Stamina, Difficulty, HUD, Modifications.
-4. Choose your emulator folder: the one that contains "user" (the app also detects a custom load_directory).
-5. Press Install. It creates zz-Super-Hero-Boost inside user/load/0400486024DEC000 and patches the configuration you selected.
-6. Start the game.
+1. Download SHB-OcarinaTweaks.exe from GitHub Releases: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/tag/v0.9.0 (Linux and macOS builds are there too). The module is bundled inside the app: you do not need Python.
+2. Save your progress. On Windows the app closes the game for you before installing.
+3. Pick a profile or adjust each section: Gameplay, Difficulty, Controls, HUD.
+4. Choose your emulator folder (the one that contains "user") and press Install.
+5. Start the game. Settings only reach the game after pressing Install again.
 
-LONGSHOT, HOOKSHOT AND RELINK (use the app)
-The presets zip is for emulators only. Static recompilations ignore exefs mods by design, so the module has to be
-built into the game. Use the installation app from GitHub Releases:
-https://github.com/kuribox/OOT-SuperHeroBoostMod/releases
-
-1. Download and run SuperHeroBoostConfig.exe (or the Linux / macOS build).
-2. Select the Longshot, Hookshot or ReLink target. The app detects the .longshot_exefs / .hookshot_exefs /
-   .relink_exefs and the builder of that game (LongshotBuilder / HookshotBuilder / ReLink); the builder path is
-   optional and can be changed if it is not detected.
-3. Point it at your game folder, choose the profile / options and press Rebuild game.
-4. The first build takes 25-45 minutes. Later code changes are incremental (about 5 minutes); profile, HUD and romfs
-   changes need no rebuild.
-5. 0.5.0 keeps DLSS / FSR and closes a running copy of the game on Windows so the final swap is not blocked.
-6. Uninstall restores the original bin/longshot.exe, image.bin and exefs/main (and the ReLink files).
-
-0.8.0 includes the 0.5.0 Longshot crash fixes and every ReLink feature; rebuild the game once with 0.8.0.
+LONGSHOT, HOOKSHOT, RELINK AND REKARINA (use the app)
+The presets zip is for emulators only. Static recompilations ignore exefs mods, so the module has to be built into the game. Use the app from GitHub Releases: select the target, point it at your game folder, choose the profile and press Rebuild game. The first build takes 25-45 minutes on Longshot and 10-20 on Rekarina; later settings changes need no rebuild. Uninstall restores the original files.
 
 IN GAME
-- Item buttons: pause menu -> Items tab, highlight an item and press X to put it on B, L on L and R on R. The game's own ZR box still works with A.
-- Targeting: with the switch target option on, tap the target button to change the enemy and hold it to release the target; when the locked enemy dies the next one is locked on.
-- Songbook: pick a learned song in the native songbook (ZL) and Link plays it with its effect.
-- HUD: rupees and clock stay visible; under them you get the Gold Skulltula and heart-piece counter of the current area.
-- Stamina: the ring next to Link shows what is left; it refills when you stop.
-- Quick select: hold D-pad Down for boots or Up for masks; release/tap normally keeps the game's behaviour.
+- Item buttons: pause menu -> Items tab, highlight an item and press the button of its slot. The game's own ZR box still works with A.
+- Armory: hold the Armory button, move with the stick or D-pad and let go to equip.
+- Stamina: the ring (or bar) shows what is left; it refills when you stop.
 - To remove the mod, press Uninstall in the app (or delete the zz-Super-Hero-Boost folder).
-
-INSTALLATION APP
-- Prebuilt apps for Windows, Linux (x86_64) and macOS (Apple Silicon); also GUI and command-line modes from source (Python 3.10+ with Tkinter).
-- Profiles, per-section settings, install and uninstall. A Play button opens the emulator or the recompiled game's launcher; the scrollbars follow the theme; on a recompiled game the main switch of each feature shows when it needs a rebuild.
-- Quick select card: boots and mask switching from the D-pad.
-- Translations: Spanish, English, Portuguese, French, German and Italian.
-- From 0.2.1 the app checks GitHub Releases on startup and offers to download a newer version. On Windows it can replace itself and restart; if the folder is read-only, it shows where the new file was saved.
-- The app saves your settings automatically, but changes only reach the game after pressing Install again.
 
 COMPATIBILITY
 - Emulators: tested and working on lichii and Fritchii.
-- Longshot: supported and tested. 0.8.0 includes the 0.5.0 crash fixes and every ReLink feature; rebuild the game once with 0.8.0.
-- Hookshot: expected to work, not tested yet (same builder and make_game.py --update).
-- ReLink: supported and tested. Every feature works (the module is built without tail calls); rebuild the game once with 0.8.0. Do not keep a separate controller-UI mod installed: the app installs the game's own prompts and warns if another mod replaces the button font or the UI atlas.
+- Longshot: supported and tested. Hookshot: expected to work, not tested yet. ReLink: supported. Rekarina: supported (new in 0.9.0).
 - Real hardware: not tested.
 
 CREDITS
-- Kuribox - creator: module, HUD, stamina system, item buttons and companion app.
+- Kuribox - creator: module, HUD, stamina system, button remap and companion app.
+- HaseoSora - Switch GameCube preset and widescreen HUD groups.
 - Anthropic (Claude) - AI software used as an assistant for coding, reverse engineering and testing.
 - DeepSeek - AI software used as an assistant for coding, reverse engineering and testing.
 - Kabosune / oot-remake-modding - modding documentation and help.
