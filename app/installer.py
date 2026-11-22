@@ -32,18 +32,21 @@ L_MODE_VALUES = {"assign": 0, "selector": 2}
 # (the config bytes bm_role[0..7]); ROLES is the byte value order. Four item roles, each on one button at most, so
 # at most four buttons hold an item. "item_main" is the game's own item box (picked with A in the pause menu or the
 # item selector); item1 / item2 / item3 are the mod's slots (classically B, L and R).
-REMAP_BUTTONS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL", "L3", "R3")
+REMAP_BUTTONS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL", "L3", "R3", "DR")
+# "DR" is the D-pad's right arrow: a short press stays the game's Navi call, the role is its LONG press (the config
+# byte bm_role_dr, appended at the end of the block). Roles that need no HUD button only.
 ROLES = ("none", "jump", "sword", "action", "target", "item1", "item2", "item3", "item_main",
          "camera", "sprint", "shield", "selector", "armory")   # byte value = index (core/remap.h ROLE_*)
 ITEM_ROLES = ("item1", "item2", "item3", "item_main")
 # Roles limited to some buttons (everything else goes anywhere)
 _NO_STICKS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL")
-ROLE_BUTTONS = {"selector": ("L", "R"), "target": ("ZL", "ZR", "L3", "R3"),
+_DR_ROLES = ("jump", "sword", "camera", "sprint", "shield", "selector", "armory")
+ROLE_BUTTONS = {"selector": ("L", "R", "DR"), "target": ("ZL", "ZR", "L3", "R3"),
                 # action: a face button only (the game's context prompt draws one of A / B / X / Y)
                 "action": ("A", "B", "X", "Y"),
                 **{r: _NO_STICKS for r in ("item1", "item2", "item3", "item_main")}}   # items: no sticks (no HUD art)
 CLASSIC_ROLES = {"L": "item2", "X": "jump", "R": "item3", "Y": "sword", "A": "action", "ZR": "item_main",
-                 "B": "item1", "ZL": "target", "L3": "none", "R3": "camera"}
+                 "B": "item1", "ZL": "target", "L3": "none", "R3": "camera", "DR": "none"}
 # Ready-made tables (the app's preset list). Options (toggle sprint, switch target...) are kept apart.
 REMAP_PRESETS = {
     "classic": dict(CLASSIC_ROLES),
@@ -56,6 +59,8 @@ REMAP_PRESET_KEYS = ("classic", "action_down", "shield", "souls")
 
 
 def role_allowed(role: str, button: str) -> bool:
+    if button == "DR":
+        return role == "none" or role in _DR_ROLES
     return role in ROLES and (role not in ROLE_BUTTONS or button in ROLE_BUTTONS[role])
 
 
@@ -598,8 +603,10 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                         roles = {k: ("none" if v in ("item1", "item2", "item3", "selector") else v)
                                  for k, v in roles.items()}
                     b[f + 63] = 1                                            # struct 79: bm_remap
-                    for k, btn in enumerate(REMAP_BUTTONS):                  # struct 80..89: bm_role[]
+                    for k, btn in enumerate(REMAP_BUTTONS[:10]):             # struct 80..89: bm_role[]
                         b[f + 64 + k] = ROLES.index(roles[btn])
+                    if size >= 0x5D:                                         # struct 92: bm_role_dr (long press)
+                        b[f + 76] = ROLES.index(roles["DR"])
                     # the options the table implies (they used to be separate switches)
                     fl = roles_flags(roles)
                     if s.bm_layout != "gamecube":                             # preserve prior custom-remap geometry

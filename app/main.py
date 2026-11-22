@@ -1693,7 +1693,7 @@ def gui() -> None:
                 btn.set_active(key == current)
 
         def apply_preset(key):
-            table = I.REMAP_PRESETS["classic" if key == "gamecube" else key]
+            table = dict(I.REMAP_PRESETS["classic" if key == "gamecube" else key], DR=broles["DR"].get())
             if key == "gamecube":
                 bplace.set("gamecube")
                 bstyle.set("switch")

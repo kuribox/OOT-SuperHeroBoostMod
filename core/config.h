@@ -70,6 +70,9 @@ typedef struct {
      * older app leaves them 0. The groups keep their screen corner: controls top right, counters bottom left. */
     unsigned char hud_ctrl_scale;   /* the button cluster (N_ShbActions_00) */
     unsigned char hud_count_scale;  /* the counter row: rupees, clock, collectibles (N_ShbCounters_00) */
+    /* D-pad right, held (core/remap.h PB_DR): the role of its long press. A short press stays the game's own (Navi).
+     * 0 = none. Appended after the HUD scales: an older app leaves it 0. */
+    unsigned char bm_role_dr;
 } ShbConfig;
 
 extern volatile ShbConfig g_shbcfg;

@@ -220,18 +220,30 @@ for _lang, (_n, _h) in {'en': ('Armory', 'Hold it to open the item drawer with t
         T[_lang]['role_armory'] = _n
         T[_lang]['role_armory_help'] = _h
 
+# D-pad right: its short press is the game's Navi call, the role is the long press
+for _lang, _t in {
+    'en': 'D-pad right: a short press still calls Navi; this is its long press.',
+    'es': 'Cruceta derecha: pulsación corta sigue llamando a Navi; esto es la pulsación larga.',
+    'pt': 'Direcional direito: um toque curto continua chamando a Navi; isto é o toque longo.',
+    'fr': "Croix droite : un appui court appelle toujours Navi ; ceci est l'appui long.",
+    'de': 'Steuerkreuz rechts: kurzer Druck ruft weiter Navi; das hier ist der lange Druck.',
+    'it': 'Croce destra: la pressione breve chiama ancora Navi; questa è la pressione lunga.',
+}.items():
+    if _lang in T:
+        T[_lang]['dr_note'] = _t
+
 # ---------------------------------------------------------------- model
 # The order the editor lists the buttons in (face buttons, shoulders, sticks). The module's order is I.REMAP_BUTTONS.
-ROW_ORDER = ("X", "Y", "A", "B", "L", "R", "ZL", "ZR", "L3", "R3")
+ROW_ORDER = ("X", "Y", "A", "B", "L", "R", "ZL", "ZR", "L3", "R3", "DR")
 FACE = ("A", "B", "X", "Y")
 STICKS = ("L3", "R3")
 # glyph drawn for each game button per button style (tools/make_buttons.py GLYPHS)
 GLYPHS = {
-    "switch": {b: b for b in I.REMAP_BUTTONS},
+    "switch": {b: ("▶" if b == "DR" else b) for b in I.REMAP_BUTTONS},
     "xbox": {"A": "B", "B": "A", "X": "Y", "Y": "X", "L": "LB", "R": "RB", "ZL": "LT", "ZR": "RT",
-             "L3": "LS", "R3": "RS"},
+             "L3": "LS", "R3": "RS", "DR": "▶"},
     "playstation": {"A": "circle", "B": "cross", "X": "triangle", "Y": "square",
-                    "L": "L1", "R": "R1", "ZL": "L2", "ZR": "R2", "L3": "L3", "R3": "R3"},
+                    "L": "L1", "R": "R1", "ZL": "L2", "ZR": "R2", "L3": "L3", "R3": "R3", "DR": "▶"},
 }
 PS_COLORS = {"circle": "#e0605a", "cross": "#7aa6e8", "triangle": "#5fc7a0", "square": "#d98cc8"}
 PS_TEXT = {"circle": "○", "cross": "✕", "triangle": "△", "square": "□"}
@@ -266,9 +278,10 @@ def set_roles(rvars: dict, roles: dict) -> None:
 
 
 def preset_of(roles: dict) -> str:
-    roles = I.normalize_roles(roles)
+    """The preset a table is (the D-pad right long press is no part of a preset: it keeps its own role)."""
+    roles = dict(I.normalize_roles(roles), DR="none")
     for k in I.REMAP_PRESET_KEYS:
-        if I.normalize_roles(I.REMAP_PRESETS[k]) == roles:
+        if dict(I.normalize_roles(I.REMAP_PRESETS[k]), DR="none") == roles:
             return k
     return "custom"
 
@@ -446,6 +459,12 @@ class RemapEditor:
             help_icon(line, self.L(key + "_help"), self.c, self.fam).pack(side="left", padx=(4, 0))
         if role in ROLE_HELP:
             help_icon(help_slot, self.L(ROLE_HELP[role]), self.c, self.fam).pack(side="left")
+        if btn == "DR":   # the arrow is Navi's call: only the long press is the role
+            line = UI.Frame(f, bg=bg)
+            line.pack(anchor="w", pady=1)
+            UI.Label(line, text=self.L("dr_note"), bg=bg, fg=self.c["DIM"], font=(self.fam, 9), justify="left",
+                     anchor="w", wraplength=330).pack(side="left")
+            items = items or [None]
         if items:   # options appear on their own line under the select
             if not f.winfo_manager():
                 f.pack(anchor="w", padx=(56, 0), pady=(2, 0))
@@ -498,6 +517,9 @@ class RemapEditor:
         g = GLYPHS[self._style()][btn]
         if btn in FACE:
             cv.create_oval(x - r, y - r, x + r, y + r, fill="#101012", outline="#5b5b60", width=1)
+        elif btn == "DR":   # the D-pad's right arrow: a small rounded key
+            cv.create_rectangle(x - r * 0.85, y - r * 0.85, x + r * 0.85, y + r * 0.85, fill="#101012",
+                                outline="#5b5b60", width=1)
         elif btn in STICKS:
             cv.create_oval(x - r * 1.1, y - r * 1.1, x + r * 1.1, y + r * 1.1, fill="#0f1813", outline="#7a8a80",
                            width=2)
@@ -532,10 +554,11 @@ class RemapEditor:
                           24, 130, fill="#1b2a22", outline=self.c["BORDER"], smooth=True, width=2)
         cx, cy, d = 296, 112, 25
         spot = {"Y": (cx - d, cy), "A": (cx + d, cy), "X": (cx, cy - d), "B": (cx, cy + d),
-                "ZL": (56, 18), "L": (56, 44), "R": (344, 44), "ZR": (344, 18), "L3": (92, 110), "R3": (236, 160)}
+                "ZL": (56, 18), "L": (56, 44), "R": (344, 44), "ZR": (344, 18), "L3": (92, 110), "R3": (236, 160), "DR": (56, 168)}
         label_at = {"X": (cx, cy - d - 14, "s"), "B": (cx, cy + d + 14, "n"), "Y": (cx - d - 15, cy, "e"),
                     "A": (cx + d + 15, cy, "w"), "ZL": (80, 18, "w"), "L": (80, 44, "w"),
-                    "R": (320, 44, "e"), "ZR": (320, 18, "e"), "L3": (92, 136, "n"), "R3": (210, 160, "e")}
+                    "R": (320, 44, "e"), "ZR": (320, 18, "e"), "L3": (92, 136, "n"), "R3": (210, 160, "e"),
+                    "DR": (76, 168, "w")}
         for btn in I.REMAP_BUTTONS:
             x, y = spot[btn]
             self._chip(cv, x, y, btn, 12, clear=False)
@@ -562,7 +585,7 @@ class RemapEditor:
             hud_roles.append("shield")   # core/hud.c parts 12 / 13: the shield button and the equipped shield
         for role in hud_roles:
             btn = phys.get(role)
-            if btn is None or btn in STICKS:
+            if btn is None or btn in STICKS or btn == "DR":
                 continue                                    # no HUD art for the sticks
             if simple and role in ("jump", "sword", "action", "shield"):
                 continue

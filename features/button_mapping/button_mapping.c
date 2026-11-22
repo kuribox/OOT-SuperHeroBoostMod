@@ -232,6 +232,9 @@ static void dbg_tick(void);   /* diagnostic dump (below, beside the save code) *
  * game's own prompts there name them. The game fills the samples again on every read, so this is done once per read. */
 u32 g_remap_dbg[3];   /* reads remapped, reads left alone, last physical -> virtual (low bits) */
 u32 g_remap_live;     /* the last read was remapped: the HUD prompts name the roles' buttons (core/hud.c) */
+static u32 dr_since, dr_pulse;   /* D-pad right long press: frame it went down, replay reads left */
+static unsigned char dr_fired;
+u32 g_remap_dr[2];   /* diagnostics: short presses replayed, long presses that fired the role */
 void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     (void)a2;
     if (site != 3 || !a0) return;
@@ -255,13 +258,39 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
     if (!playing || covered || g_songbook_active || player_dead() || player_state_starts("Evt")) {
         g_remap_dbg[1]++;
         g_remap_live = 0;
+        dr_since = dr_pulse = 0;
+        dr_fired = 0;
         return;
     }
     g_remap_live = 1;
     HidView view = {a0, count, 0};
+    /* D-pad right: short press = Navi (the game's), long press = the role in bm_role_dr. The press is held back
+     * until it is known which: released early it is replayed as a short pulse, held it never reaches the game. */
+    u64 dr_add = 0, dr_clear = 0;
+    u32 dr_role = remap_role_of(PB_DR);
+    if (dr_role != ROLE_NONE && dr_role < ROLE_N) {
+        u64 all = 0;
+        for (u32 i = 0; i < count; i++) all |= hid_get_buttons(&view, i);
+        if (all & REMAP_BIT[PB_DR]) {
+            if (!dr_since) { dr_since = now ? now : 1; dr_fired = 0; dr_pulse = 0; }
+            if (now - dr_since >= REMAP_DR_HOLD) {
+                if (!dr_fired) g_remap_dr[1]++;
+                dr_fired = 1;
+                dr_add = remap_role_virt(dr_role);
+            }
+            dr_clear = REMAP_BIT[PB_DR];
+        } else {
+            if (dr_since && !dr_fired) { dr_pulse = 3; g_remap_dr[0]++; }   /* a short press: let the game see it now, for three reads */
+            dr_since = 0;
+            dr_fired = 0;
+        }
+        if (dr_pulse && !(all & REMAP_BIT[PB_DR])) { dr_add |= REMAP_BIT[PB_DR]; dr_pulse--; }
+    } else {
+        dr_since = 0; dr_fired = 0; dr_pulse = 0;
+    }
     for (u32 i = 0; i < count; i++) {
         u64 b = hid_get_buttons(&view, i);
-        u64 v = remap_apply(b);
+        u64 v = (remap_apply(b) & ~dr_clear) | dr_add;
         if (v != b) hid_set_buttons(&view, i, v);
         if (i == 0) g_remap_dbg[2] = (u32)(b & 0x3FF) | ((u32)(v & 0x3FF) << 16);
     }
