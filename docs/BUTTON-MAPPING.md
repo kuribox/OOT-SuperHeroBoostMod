@@ -77,7 +77,7 @@ held), listing the swords and shields Link owns and can use at his age (child: K
 adult: the other swords, Hylian and Mirror Shield) instead of items: the same window, blur and slowed game. The cells
 form two rows, swords above and shields below; the stick moves in a row or between the rows, and letting the button go
 equips the gear under the cursor, the way the pause menu does (nothing changes when the cursor did not move). The
-cursor reopens on the gear chosen last. A clone of the community mod Hyrule Armory Sync (drawer on L), reimplemented in
+cursor reopens on the gear chosen last. The idea is credited in the README (PixelSage / Hyrule Armory); it is implemented here from scratch in
 features/quick_select/armory_drawer.c with call-replacement hooks (`BL_SITES` in tools/hook_sites.py, wrappers in
 armory.S) on the drawer and list-build code, plus the drawer's per-frame update (`hook_ad_update`). The sort header
 ("By type / Sort") still shows: its panes are not found by name after the drawer is built.

@@ -217,8 +217,7 @@ the speed argument.
 - Three extra mid-function sites in `tools/hook_sites.py` (`EXTRA_SITES`, only patched when the feature is built):
   the AS Bool setter (`main+0x37BA100`) and the two target-guard flag stores (`main+0x972E18`, `main+0x97320C`). Their
   wrappers are in `manual_shield.S`; the resume addresses are linker symbols in `core/link.ld`.
-- The base guard/target behaviour comes from REXCRAFT88's Manual Shield 0.1.7 for the same build; Super Hero Boost
-  makes ZL follow the game's Hold/Toggle option and gates the L guard with the target camera.
+- ZL follows the game's Hold/Toggle option and the L guard is gated with the target camera.
 
 ### 4.5.1 Controls (`features/controls/`)
 - Optional input remaps; it runs **before** `manual_shield` and `stamina` (the feature list order is

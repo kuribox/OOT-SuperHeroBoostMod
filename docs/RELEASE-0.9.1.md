@@ -38,5 +38,8 @@ module changed.
 Credits: the Armory role reimplements the idea of **PixelSage / Hyrule Armory** (https://gamebanana.com/mods/740938),
 the original sword and shield quick select; no code of it is bundled.
 
+The optional PlayStation / Xbox *Game button prompts* the app downloads come from **DoctorTwitch's**
+*Dualsense/XBOX/Steamdeck UI* (https://gamebanana.com/mods/737074); they are not bundled.
+
 Known gaps: the D-pad right long press, the free selector and the Rekarina prompts were checked in the emulator and
 in the logs, not yet on the three recompilations. The long-press delay is a fixed 20 HUD frames.

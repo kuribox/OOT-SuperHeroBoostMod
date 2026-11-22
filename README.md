@@ -90,7 +90,7 @@ module changed.
   native action through. The context prompt follows the button that holds the Action role.
 - **Armory.** A button with the Armory role opens the game's own item drawer while it is held, with the swords and
   shields Link owns and can use at his age; the stick or D-pad moves the cursor and letting go equips it. It is a
-  reimplementation of what the community mod Hyrule Armory Sync does. A button with the **Shield** role shows the
+  implementation of the Armory idea credited below. A button with the **Shield** role shows the
   equipped shield on the HUD.
 - **Quick mask** goes back from the Lens of Truth to the last mask you wore.
 - **Item buttons fixed.** The ZR item follows the game's item set (Child / Adult), so it no longer shows a stale icon;
@@ -401,6 +401,9 @@ Thanks to:
   ("screen's edges") layouts.
 - [PixelSage / Hyrule Armory](https://gamebanana.com/mods/740938) for the original **Armory**: the sword and shield
   quick select that this mod's Armory role reimplements (its own code and drawer hooks, nothing bundled).
+- [DoctorTwitch / Dualsense/XBOX/Steamdeck UI](https://gamebanana.com/mods/737074) for the PlayStation and Xbox
+  button layouts that the app can download on request (the optional *Game button prompts*). They are not bundled:
+  the app fetches them from GameBanana the first time you choose them.
 - [Kabosune / oot-remake-modding](https://github.com/Kabosune/oot-remake-modding) for the modding documentation
   and help.
 - [platinumagpie / oot-remake-devtool](https://github.com/platinumagpie/oot-remake-devtool) for the development tools
