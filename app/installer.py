@@ -55,8 +55,11 @@ REMAP_PRESETS = {
     "shield": dict(CLASSIC_ROLES, L="shield", L3="sprint"),   # item 2 gives L to the shield
     "souls": {"L": "shield", "X": "jump", "R": "item2", "Y": "sword", "A": "action", "ZR": "item_main",
               "B": "item1", "ZL": "item3", "L3": "sprint", "R3": "target"},
+    # The author's own table: items on the triggers (R, ZL and ZR), the item selector on B, the shield on L
+    "triggers": {"L": "shield", "X": "jump", "R": "item1", "Y": "sword", "A": "action", "ZR": "item_main",
+                 "B": "selector", "ZL": "item2", "L3": "sprint", "R3": "target"},
 }
-REMAP_PRESET_KEYS = ("classic", "action_down", "shield", "souls")
+REMAP_PRESET_KEYS = ("classic", "action_down", "shield", "souls", "triggers")
 
 
 def roles_with_armory(roles) -> dict:

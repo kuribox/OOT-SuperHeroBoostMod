@@ -24,7 +24,7 @@ project.
 ## Button remap (0.9.0)
 
 The player chooses what each of the ten buttons X, Y, A, B, L, R, ZL, ZR, L3 and R3 does (app: Controls > Controller
-buttons, with presets: classic, action at the bottom, manual shield, souls). Roles: jump, sword, action, target,
+buttons, with presets: classic, action at the bottom, manual shield, souls, triggers: items on the triggers and the item selector on B). Roles: jump, sword, action, target,
 center camera, sprint, shield, item selector, item 1 / 2 / 3, the main item (the game's own item box) or nothing.
 Each role is on one button at most, so at most **four** buttons hold an item. Limits: items never on L3 / R3 (they
 have no HUD art), the item selector on any button but the sticks (it is the virtual L whichever button holds it), target only on ZL, ZR, L3 or R3, action only on A, B, X or Y
