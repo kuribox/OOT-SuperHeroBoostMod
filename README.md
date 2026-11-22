@@ -8,10 +8,14 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.9.0**. It adds **Rekarina** as a target, a **button remap** where every button gets the role you
-choose (including L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD layouts with size
-sliders, the **Switch GameCube** preset, enemy aggression options and a new app that is now called
-**SHB-OcarinaTweaks**.
+Current release: **0.9.1**. It makes the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
+selector...), lets the **item selector** sit on any button next to Item 2, adds the **Triggers** control preset
+(used by the Recommended profiles), brings back the sprint speed in the app, new drop-down lists, **Recompile** and
+**Reinstall and recompile** buttons, and fixes for merged mods and the prompts on Rekarina.
+
+0.9.0 added **Rekarina** as a target, a **button remap** where every button gets the role you choose (including
+L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD layouts with size sliders, the
+**Switch GameCube** preset, enemy aggression options and a new app that is now called **SHB-OcarinaTweaks**.
 
 ## Screenshots
 
@@ -27,6 +31,46 @@ sliders, the **Switch GameCube** preset, enemy aggression options and a new app 
 The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.9.1
+
+Everything since 0.9.0. Install 0.9.1 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina: the
+module changed.
+
+**Controls**
+
+- **D-pad right is a button too (long press).** A short press still calls **Navi**, as in the game. Holding the arrow
+  does the role you give it: Jump, Sword, Center camera, Sprint, Shield, **Item selector** or **Armory**. The app lists
+  it as the last row of Controls. It is not part of the control presets: picking one keeps the arrow's role.
+- **The item selector goes on any button but the sticks, and no longer takes Item 2 away.** It has its own virtual
+  button now, so Item 2 and the selector can be on the table at once (before, setting one dropped the other).
+- **New control preset: Triggers.** Items on the triggers (R, ZL and ZR), the item selector on B, the shield on L,
+  sprint on L3, target on R3. The profiles built on the tuned controls (**Recommended**, Recommended without beta
+  enemies, **Super Hero**, **Ultra Hero** and **Beta All**) bring this table.
+- **Armory on the held D-pad right in the profiles.** Every profile that has the pack's buttons (all but Manual Shield)
+  puts the Armory on the arrow and takes it off any other button. The rest of your table stays yours.
+- **Sprint ×1.25 in every profile.** (It was ×1.5 in the named profiles.)
+
+**App**
+
+- **Sprint speed is back in the Gameplay page.** The option had disappeared from the window; the module always had it.
+- **New drop-down lists.** The selects open their own list: the wheel scrolls the list and never the page, a click
+  outside only closes it, the arrows and Enter work, and it closes when the page scrolls under it. No more white edge.
+- **Recompile and Reinstall and recompile** for Longshot, Hookshot, ReLink and Rekarina, shown only while the mod is in
+  the game. *Recompile* only runs the builder: it copies and patches nothing, so what you did by hand stays. *Reinstall
+  and recompile* uninstalls, copies everything again and builds.
+
+**Rekarina**
+
+- **Merged mods.** A mod merger puts every mod's ExeFS patches in one IPS; Rekarina's converter takes a patch file
+  whole, so one record it cannot lift made it drop our hooks (`rekarina_patch_failed`). The app now moves the other
+  mods' records to `exefs/<id>-other-mods.ips` before it converts, and says which record was rejected.
+- **PlayStation / Xbox prompts, the song screen included.** The app no longer installs its own copy of the game's
+  button font on Rekarina: a mod file for that font stopped Rekarina from switching the prompts while the game runs
+  (the ocarina's six note buttons stayed on the Switch ones). Apply the settings once to remove it.
+
+Known gaps: the D-pad right long press, the free selector and the Rekarina prompts were checked in the emulator and
+in the logs, not yet on the three recompilations. The long-press delay is a fixed 20 HUD frames.
 
 ## What's new in 0.9.0
 
@@ -195,6 +239,9 @@ module changed.
   Needs Targeting Type on **Toggle**.
 - **Next target when it dies**: when the locked enemy dies, the next one is locked on automatically (nothing happens
   when there is none, or when you dropped the target yourself). Needs Targeting Type on **Toggle**.
+- **D-pad right, long press**: a short press still calls Navi; holding it does the role you choose (Armory, item
+  selector, Jump, Sword, camera, sprint or shield). The Armory is on it in the profiles. The item selector has its own
+  button in the table, so it can sit on any button next to Item 2.
 - The manual shield and button mapping are described above and below. Target with R3 and L3 sprint are personal
   preferences (only the Souls profiles turn R3 on); the switch and next target come with the combat profiles. With
   the button remap they are the Target, Sprint and Shield roles of the table.
