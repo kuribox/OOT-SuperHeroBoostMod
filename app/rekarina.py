@@ -785,7 +785,7 @@ def _build_wrapper(work: Path, setup: Path) -> Path:
 
 
 def build(game: Path, setup: Path, s: I.Settings, progress=None, log=None, mods_root: Path | None = None,
-          work: Path | None = None, status_dir: Path | None = None) -> Path:
+          work: Path | None = None, status_dir: Path | None = None, module: bytes | None = None) -> Path:
     """Lift and compile the game with our module; returns the new exe. Only writes under `work` and the status
     files (the game's `build-cache`), never into the setup."""
     global _proc
@@ -825,7 +825,8 @@ def build(game: Path, setup: Path, s: I.Settings, progress=None, log=None, mods_
         if log:
             log(msg)
 
-    module = _payload_module()
+    if module is None:
+        module = _payload_module()
     _check_exefs(game, setup, module)
     set_stage("read")
     report("staging the ExeFS")
@@ -1148,6 +1149,58 @@ def install(game_path, s: I.Settings, rebuild: bool = True, builder_path=None, w
     if progress:
         progress(1.0, "done", "done")
     return Result(game, True, [])
+
+
+def is_installed(game_path) -> bool:
+    """The game folder holds our module (it was installed, whether or not it was compiled yet)."""
+    game = find_game(game_path)
+    return bool(game) and (game / "exefs" / MODULE).is_file()
+
+
+def recompile(game_path, s: I.Settings | None = None, progress=None, log=None, work=None) -> Result:
+    """Lift and compile again with whatever is in the game folder: the module that is installed there (not the
+    payload), the mods' romfs and their code files. Nothing of the mod is copied, patched or rewritten; only the new
+    exe replaces the old one and the status files say what it was built from."""
+    game = find_game(game_path)
+    if game is None:
+        raise I.InstallError("rekarina_no_game", str(game_path))
+    setup = find_setup(game)
+    if setup is None:
+        raise I.InstallError("rekarina_no_setup", str(game.parent / "setup"))
+    if not is_installed(game):
+        raise I.InstallError("rekarina_needs_install", str(game))
+    _kill_running(game, log)
+    if game_running(game):
+        raise I.InstallError("recomp_running", str(game))
+    module = (game / "exefs" / MODULE).read_bytes()
+    exe = build(game, setup, s or I.Settings(), progress=progress, log=log, mods_root=game / "mods",
+                work=Path(work).expanduser() if work else None, module=module)
+    _kill_running(game, log)
+    if game_running(game):
+        raise I.InstallError("recomp_running", str(game))
+    dest = game / EXE_NAME
+    _copy_atomic(exe, dest)
+    _write_built(game)
+    _write_state(game, _sha256(dest), _sha256_bytes(module), setup, True)   # (the IPS hash of the install stays)
+    if progress:
+        progress(1.0, "done", "done")
+    return Result(game, True, [])
+
+
+def reinstall(game_path, s: I.Settings, builder_path=None, work=None, progress=None, log=None) -> Result:
+    """Uninstall (every original file back), then copy everything again and compile."""
+    game = find_game(game_path)
+    if game is None:
+        raise I.InstallError("rekarina_no_game", str(game_path))
+    _kill_running(game, log)
+    if game_running(game):
+        raise I.InstallError("recomp_running", str(game))
+    if log:
+        log("Removing the mod and restoring the original files")
+    uninstall(game)
+    if log:
+        log("Installing the mod again")
+    return install(game, s, rebuild=True, builder_path=builder_path, work=work, progress=progress, log=log)
 
 
 def _write_built(game: Path) -> None:

@@ -238,15 +238,24 @@ do not need a dump. If the file is missing, the app installs everything else and
 The app can install into a static recompilation too. Pick **Hookshot / Longshot** in the **Install** section of the
 sidebar and choose the game folder (the one with `bin/longshot.exe` and `.longshot_exefs`).
 
-- The first install (or **Rebuild game**) runs the builder's update with a progress bar: 25–45 minutes, the game must
+- The first **Install** runs the builder's update with a progress bar: 25–45 minutes, the game must
   be closed. The builder is detected from the launcher; pick its folder (the one with `tools/nx2/make_game.py`) if it
   is not.
 - Once the game is built, **Install** only applies the profile, the configuration block and the selected romfs files
-  (seconds, no rebuild). Use **Rebuild game** after an app/mod update.
+  (seconds, no rebuild). Use **Reinstall and recompile** after an app/mod update.
 - If the builder cannot find the Vulkan/VMA headers, the app points `RX_CPM` at its packaged `tools/cpm`; if they are
   still missing, it reuses the game's existing `bin/longshot_vk.dll` / `.so` through `LONGSHOT_VK_PREBUILT`.
-- The actions are in the bottom bar: **Install / Apply settings**, **Rebuild game** and **Uninstall**. The Install
-  section shows the game folder, the detected builder (a **Builder…** button appears only if it is not found) and the
+- The actions are in the bottom bar:
+  - **Install / Apply settings**: **Install** copies the mod and compiles the game; once the mod is in the game it
+    becomes **Apply settings** (the profile, the configuration block and the romfs files only).
+  - **Recompile** (only while the mod is in the game): runs the builder and nothing else. No mod file is copied,
+    patched or rewritten, so what you changed by hand in the game folder is what gets compiled.
+  - **Reinstall and recompile** (only while the mod is in the game): the same as **Uninstall** followed by
+    **Install**: every original file comes back, then everything is copied again with the chosen options and the game
+    is compiled. Hand changes in the game folder are lost.
+  - **Uninstall**: restores every original file.
+
+  The Install section shows the game folder, the detected builder (a **Builder…** button appears only if it is not found) and the
   progress/log of a rebuild.
 - **Uninstall** restores the original executable, image and `main` from `<game>/.shb-backup` and removes the mod.
 - The builder's `exefs` patches are not applied at run time (the game is compiled ahead of time), so the module must
@@ -283,5 +292,6 @@ folder (the one with `Rekarina.exe`, `rekarina.ini` and `exefs/main`). The app f
   needed only the first time or after the module changes (10–20 minutes, ~6 GB of free space).
 - **Uninstall** restores `Rekarina.exe`, the old module, the moved mod code, the status files and the mod order,
   then deletes `<game>/.shb-rekarina`.
-- In the app, **Install / Apply settings**, **Rebuild game**, **Uninstall** and **Play** (opens `Rekarina.exe`) work
-  exactly as for Longshot.
+- In the app, **Install / Apply settings**, **Recompile**, **Reinstall and recompile**, **Uninstall** and **Play**
+  (opens `Rekarina.exe`) work exactly as for Longshot. **Recompile** lifts and compiles with the module that is in
+  `exefs/` (not the payload) and replaces `Rekarina.exe`; nothing else is touched.

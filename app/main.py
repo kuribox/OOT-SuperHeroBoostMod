@@ -862,7 +862,7 @@ def gui() -> None:
                 b.set_enabled(not on)
             except Exception:
                 pass
-        for key in ("install", "uninstall", "launch", "rebuild", "builder_btn", "builder_auto", "builder_change"):
+        for key in ("install", "uninstall", "launch", "rebuild", "reinstall", "builder_btn", "builder_auto", "builder_change"):
             w = ui.get(key)
             if w is not None:
                 w.config(state="disabled" if on else "normal")
@@ -918,14 +918,23 @@ def gui() -> None:
             messagebox.showerror(L("err_title"), str(ex))
         refresh()
 
-    def run_recomp():
+    def confirm_build(mode, minutes):
+        """The question before a build: what it will do depends on the button."""
+        if mode == "recompile":
+            return messagebox.askyesno(L("recomp_recompile_title"), L("recomp_recompile_confirm", a=minutes))
+        if mode == "reinstall":
+            return messagebox.askyesno(L("recomp_reinstall_title"), L("recomp_reinstall_confirm", a=minutes))
+        return messagebox.askyesno(L("recomp_confirm_title"), L("recomp_confirm"))
+
+    def run_recomp(mode="install"):
+        """mode: install (copy the mod and compile), recompile (only the builder), reinstall (uninstall, then install)."""
         game = ok_recomp()
         if game is None:
             messagebox.showerror(L("err_title"), L("e_recomp_no_game", a=recomp_path.get()))
             return
-        if not messagebox.askyesno(L("recomp_confirm_title"), L("recomp_confirm")):
+        if not confirm_build(mode, "25-45"):
             return
-        if not need_layout():
+        if mode != "recompile" and not need_layout():
             return
         show_section("install")
         set_busy(True)
@@ -938,21 +947,30 @@ def gui() -> None:
 
         def worker():
             try:
-                r = R.install(game, snap, rebuild=True, builder_path=builder,
-                              progress=lambda f, t, s: q.put(lambda f=f, t=t, s=s: update_progress(f, t, s)),
-                              log=lambda line: q.put(lambda line=line: append_log(line)))
+                kw = dict(builder_path=builder,
+                          progress=lambda f, t, s: q.put(lambda f=f, t=t, s=s: update_progress(f, t, s)),
+                          log=lambda line: q.put(lambda line=line: append_log(line)))
+                if mode == "recompile":
+                    r = R.recompile(game, **kw)
+                elif mode == "reinstall":
+                    r = R.reinstall(game, snap, **kw)
+                else:
+                    r = R.install(game, snap, rebuild=True, **kw)
                 q.put(lambda r=r: recomp_done(r))
             except Exception as ex:
                 q.put(lambda ex=ex: recomp_error(ex))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def run_rekarina():
+    def run_rekarina(mode="install"):
         game = ok_rekarina()
         if game is None:
             messagebox.showerror(L("err_title"), L("e_rekarina_no_game", a=rekarina_path.get()))
             return
-        if not messagebox.askyesno(L("rekarina_confirm_title"), L("rekarina_confirm")):
+        if mode == "install":
+            if not messagebox.askyesno(L("rekarina_confirm_title"), L("rekarina_confirm")):
+                return
+        elif not confirm_build(mode, "10-20"):
             return
         show_section("install")
         set_busy(True)
@@ -964,9 +982,14 @@ def gui() -> None:
 
         def worker():
             try:
-                r = RK.install(game, snap, rebuild=True,
-                               progress=lambda f, t, s: q.put(lambda f=f, t=t, s=s: update_progress(f, t, s)),
-                               log=lambda line: q.put(lambda line=line: append_log(line)))
+                kw = dict(progress=lambda f, t, s: q.put(lambda f=f, t=t, s=s: update_progress(f, t, s)),
+                          log=lambda line: q.put(lambda line=line: append_log(line)))
+                if mode == "recompile":
+                    r = RK.recompile(game, snap, **kw)
+                elif mode == "reinstall":
+                    r = RK.reinstall(game, snap, **kw)
+                else:
+                    r = RK.install(game, snap, rebuild=True, **kw)
                 q.put(lambda r=r: recomp_done(r))
             except Exception as ex:
                 q.put(lambda ex=ex: recomp_error(ex))
@@ -1186,6 +1209,20 @@ def gui() -> None:
         e = emu.get().strip()
         status.set(L("uninstalled") if e and I.uninstall(Path(e).expanduser()) else L("nothing"))
 
+    def show_build_buttons(installed):
+        """Recompile and Reinstall-and-recompile exist only while the mod is in the recompiled game: before that,
+        Install already copies everything and compiles."""
+        for key in ("rebuild", "reinstall"):
+            w = ui.get(key)
+            if w is None:
+                continue
+            if installed:
+                if not w.winfo_manager():
+                    w.pack(side="right", padx=(0, 8))
+                w.config(state="normal" if not busy["on"] else "disabled")
+            else:
+                w.pack_forget()
+
     def refresh(*_):
         if not ui["sections"]:
             return
@@ -1245,13 +1282,8 @@ def gui() -> None:
                     set_builder_visible(not builder or builder_open["on"])
             else:
                 builder = None
-            if "rebuild" in ui:
-                if game:
-                    if not ui["rebuild"].winfo_manager():
-                        ui["rebuild"].pack(side="right", padx=(0, 8))
-                    ui["rebuild"].config(state="normal" if not busy["on"] else "disabled")
-                else:
-                    ui["rebuild"].pack_forget()
+            installed = bool(game) and R.is_installed(game)
+            show_build_buttons(installed)
             if "builder_btn" in ui:
                 if game and not builder:
                     if not ui["builder_btn"].winfo_manager():
@@ -1277,13 +1309,8 @@ def gui() -> None:
                 ui["rekarina_note"].config(
                     text=L("rekarina_built") if built else (L("rekarina_not_built") if game and setup else ""),
                     fg=DIM if built else AMBER)
-            if "rebuild" in ui:
-                if game:
-                    if not ui["rebuild"].winfo_manager():
-                        ui["rebuild"].pack(side="right", padx=(0, 8))
-                    ui["rebuild"].config(state="normal" if not busy["on"] else "disabled")
-                else:
-                    ui["rebuild"].pack_forget()
+            installed = bool(game) and RK.is_installed(game)
+            show_build_buttons(installed)
             if "builder_btn" in ui:
                 ui["builder_btn"].pack_forget()
             ui["install"].config(text=L("recomp_apply") if built else L("recomp_install"),
@@ -1293,8 +1320,7 @@ def gui() -> None:
         else:
             ui["install"].config(text=L("install"),
                                  state="normal" if mods and not busy["on"] else "disabled")
-            if "rebuild" in ui:
-                ui["rebuild"].pack_forget()
+            show_build_buttons(False)
             if "builder_btn" in ui:
                 ui["builder_btn"].pack_forget()
             ui["mods"].config(text=L("mods_found", a=mods) if mods else L("mods_missing"),
@@ -2069,11 +2095,19 @@ def gui() -> None:
         ui["_scroll"] = scroll
         return scroll
 
-    def run_rebuild():
+    def run_recompile():
+        """Only recompile: the mod files are not copied (hand changes in the game folder stay)."""
         if target.get() == "rekarina":
-            run_rekarina()
+            run_rekarina("recompile")
         else:
-            run_recomp()
+            run_recomp("recompile")
+
+    def run_reinstall():
+        """Uninstall, copy everything again and recompile."""
+        if target.get() == "rekarina":
+            run_rekarina("reinstall")
+        else:
+            run_recomp("reinstall")
 
     def build_footer(shell):
         ft = UI.Frame(shell, bg=BG)
@@ -2086,7 +2120,8 @@ def gui() -> None:
         ui["launch"] = button(ft, L("launch"), do_launch)
         ui["launch"].pack(side="right", padx=(0, 8))
         # Shown only for a Hookshot/Longshot target (refresh): rebuild, builder and cancel.
-        ui["rebuild"] = button(ft, L("recomp_rebuild"), run_rebuild)
+        ui["rebuild"] = button(ft, L("recomp_recompile"), run_recompile)
+        ui["reinstall"] = button(ft, L("recomp_reinstall"), run_reinstall)
         ui["builder_btn"] = button(ft, L("recomp_builder_btn"), browse_builder)
         ui["cancel"] = button(ft, L("recomp_cancel"), lambda: (R.cancel(), RK.cancel()))
 

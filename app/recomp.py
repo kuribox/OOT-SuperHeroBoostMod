@@ -1180,6 +1180,62 @@ def install(game_path, s: I.Settings, rebuild: bool = True, builder_path=None, w
     return Result(game, rebuild, notes)
 
 
+def is_installed(game_path) -> bool:
+    """The game folder holds our module (it was installed, whether or not it was compiled yet)."""
+    game = find_game(game_path)
+    if game is None:
+        return False
+    try:
+        return (exefs_of(game) / "subsdk9").is_file()
+    except I.InstallError:
+        return False
+
+
+def recompile(game_path, builder_path=None, work=None, progress=None, log=None) -> Result:
+    """Run only the builder: nothing of the mod is copied, patched or rewritten, so whatever was changed by hand in
+    the game folder (the module, the romfs, the exefs) is what gets compiled."""
+    game = find_game(game_path)
+    if game is None:
+        raise I.InstallError("recomp_no_game", str(game_path))
+    if not is_installed(game):
+        raise I.InstallError("recomp_needs_install", str(game))
+    _kill_game_copies(game, log)
+    if _game_processes(game):
+        raise I.InstallError("recomp_running", str(game))
+    builder = Path(builder_path).expanduser() if builder_path else find_builder(game)
+    if not builder or not (Path(builder) / "tools" / "nx2" / "make_game.py").exists():
+        raise I.InstallError("recomp_no_builder", str(builder_path or ""))
+    w = Path(work).expanduser() if work else find_work(game)
+    build(game, Path(builder), w, progress=progress, log=log)
+    # The lift wrote a new image.bin from the module in the exefs folder; it must carry the configuration block.
+    # (It is not rewritten here: it already holds what that module held.)
+    img = game / "image.bin"
+    try:
+        with open(img, "rb") as f:
+            ok = f.read().find(CONFIG_MAGIC) >= 0
+    except OSError:
+        ok = False
+    if not ok:
+        raise I.InstallError("recomp_needs_build", str(game))
+    return Result(game, True, [])
+
+
+def reinstall(game_path, s: I.Settings, builder_path=None, work=None, progress=None, log=None) -> Result:
+    """Uninstall (every original file back), then copy everything again and compile."""
+    game = find_game(game_path)
+    if game is None:
+        raise I.InstallError("recomp_no_game", str(game_path))
+    _kill_game_copies(game, log)
+    if _game_processes(game):
+        raise I.InstallError("recomp_running", str(game))
+    if log:
+        log("Removing the mod and restoring the original files")
+    uninstall(game)
+    if log:
+        log("Installing the mod again")
+    return install(game, s, rebuild=True, builder_path=builder_path, work=work, progress=progress, log=log)
+
+
 def apply_settings(game_path, s: I.Settings) -> Result:
     """Configuration and romfs only: no rebuild (the code is already in the executable)."""
     game = find_game(game_path)
