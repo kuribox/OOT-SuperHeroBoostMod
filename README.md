@@ -1,156 +1,111 @@
 # Super Hero Boost
 
-Gameplay module for the console remake (update **v131072**) and its cross-platform configuration app
-**SuperHeroBoostConfig**.
+![SHB-OcarinaTweaks: HUD, Difficulty, Controls and Stamina](docs/portada.png)
 
-Current release: **0.9.0**, with a **Rekarina** target: the app installs the mod into Rekarina's game folder and
-rebuilds it with Rekarina's own tools, without editing Rekarina. The 0.8.0 item quantities, the game's own ZR item,
-A to put the sword away, no magic jar drops, boss speed and the L3 sprint toggle remain.
+Gameplay module for the console remake of *Ocarina of Time* (update **v131072**) and its cross-platform
+configuration app, **SHB-OcarinaTweaks**. The mod adds stamina, difficulty scaling, an extended HUD, a full button
+remap, extra item buttons, quick select and more, all configurable without recompiling anything. The app patches the
+prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
+work: no third-party mod is bundled or downloaded.
 
-### What's new in 0.9.0
+Current release: **0.9.0**. It adds **Rekarina** as a target, a **button remap** where every button gets the role you
+choose (including L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD layouts with size
+sliders, the **Switch GameCube** preset, enemy aggression options and a new app that is now called
+**SHB-OcarinaTweaks**.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Wide HUD](docs/capturas/hud-wide.png) | ![Simple HUD](docs/capturas/hud-simple.png) |
+| Wide HUD: the four native-style plates | Simple HUD: one translucent bar (Plain: no bar) |
+| ![Stamina ring](docs/capturas/stamina-ring-sprint.png) | ![Stamina bar](docs/capturas/stamina-bar-sprint.png) |
+| Stamina as a ring around Link | Stamina as a segmented bar under the magic gauge |
+| ![PlayStation layout](docs/capturas/controls-layout-playstation-crop.png) | ![Xbox layout](docs/capturas/controls-layout-xbox-crop.png) |
+| Controls with the PlayStation button art | Controls with the Xbox button art |
+
+The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
+[Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
+[HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.9.0
+
+Everything since 0.8.0. Install 0.9.0 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina: the
+module changed.
+
+**Controls**
+
+- **Button remap.** Every physical button (L, R, ZL, ZR, X, Y, A, B, L3 and R3) gets a role: Jump, Sword, Action,
+  Target, Item B / L / R, the game's own item (ZR), Center camera, Sprint, Shield, Item selector, Armory or nothing
+  (at most four item buttons; items never on L3 / R3, the selector only on L / R, Target only on ZL / ZR / L3 / R3).
+  The old switches (manual shield, target on R3, L3 sprint, L mode) now come from the table. The app has a remap editor
+  with a controller preview and an in-game HUD preview in the chosen button style and layout, and five control
+  presets: **Classic**, **Action at the bottom**, **Manual shield**, **Souls (target on R3)** and **Switch GameCube**.
+- **A remapped button does only its role, and only while you play.** Menus, the pause menu, dialogues and shops get
+  the real buttons, so A / B still confirm and go back; the remap stays on through hit stops, so a button never lets its
+  native action through. The context prompt follows the button that holds the Action role.
+- **Armory.** A button with the Armory role opens the game's own item drawer while it is held, with the swords and
+  shields Link owns and can use at his age; the stick or D-pad moves the cursor and letting go equips it. It is a
+  reimplementation of what the community mod Hyrule Armory Sync does. A button with the **Shield** role shows the
+  equipped shield on the HUD.
+- **Quick mask** goes back from the Lens of Truth to the last mask you wore.
+- **Item buttons fixed.** The ZR item follows the game's item set (Child / Adult), so it no longer shows a stale icon;
+  the Deku stick stays in hand; the ZR item can go on an empty slot; an item is no longer dropped right after you assign
+  it. The pause menu is detected steadily: assigned items are not undone any more, and the L3 toggle sprint and the
+  stamina lock no longer touch the input under a menu.
+- **L3 sprint on Rekarina.** The input handlers read only the samples the console call returned (Rekarina returns one),
+  so the sprint starts, stops and toggles as it does in the emulator.
+
+**HUD**
+
+- **Three layouts:** **Wide** (the native plates), **Simple** (the four counters in one row on a soft translucent bar)
+  and **Plain** (the same row with no bar). The old Minimal layout is gone; a saved Minimal becomes Plain.
+- **Size sliders** (50-200 %) for the controls cluster and for the counter row. Each keeps its screen corner (controls
+  top right, counters bottom left); the CLI has `--hud-ctrl-scale` and `--hud-count-scale`.
+- **Widescreen.** The HUD buttons with their labels, and the lower counters with their icons and plates, are grouped so
+  they move together with Longshot's "Screen's edges" setting (HaseoSora).
+- **Switch GameCube preset** with its button art and controller diagram (HaseoSora).
+- **Collectibles counter** copies the save's key set, counts the heart pieces placed in the world and looks GameData
+  up by hash, so it stays right with romfs mods that shift the tables.
+- **PlayStation / Xbox prompts.** The PlayStation button font fits the loader's size budget and the game-wide layout
+  skips the External font that does not fit. The pause menu's assign legend has no backing plate and sits higher.
+
+**Difficulty and enemies**
+
+- **Aggression options:** *Alert radius* (how far an enemy that spots you alerts the others) and an *Aggression*
+  level: Normal, Aggressive or Maximum (shorter shared pause, longer chases, fighting off screen). Bosses are not
+  changed, and the options combine with the speed multipliers instead of replacing them.
+- **Duplicated enemies:** wall and ceiling enemies (Skullwalltula, perched Keese, Jabu-Jabu's Tailpasaran) and stage
+  pieces are no longer cloned, so nothing hangs in the air or sits inside a wall.
+- **Enemy health is scaled exactly once**, however many enemies are loaded and whatever the game resets.
+- **Profiles.** **Recommended** is now the author's own setup (x2 health and damage, no heart drops, hardcore
+  stamina, beta enemy mods with aggression, the simple HUD, the manual shield with the targeting assists, R3 lock-on and
+  the L3 sprint toggle, sprint x1.5) and the other profiles follow it; *Recommended (no beta enemies)* drops the enemy
+  mods.
+
+**Rekarina**
 
 - **Rekarina supported.** Rekarina is the Switch 2 static recompilation that loads ExeFS modules and takes romfs mods.
-  Its launcher rejects code modules (`exefs/subsdk*`) and its lift only knows `main,subsdk0,sdk`. The app now:
-  adds the mod's module as `subsdk9` to the lift, compiles it with **Rekarina's own** `gen.py` and `build_game.py`,
-  converts the mod's IPS with its `tools/exefs_patches.py`, installs the romfs as
-  `mods/zz-Super-Hero-Boost/romfs`, puts the mod first in `mods_order`, and replaces `Rekarina.exe` with the new
-  build (backed up). Nothing in the Rekarina folder is edited.
-- **Settings without a rebuild.** The module's configuration lives in its own data block; applying a profile
-  patches `exefs/subsdk9` and the expected SHA-256 stored in `Rekarina.exe`, so changing options takes seconds. A
-  full rebuild (10-20 minutes) is only needed the first time or when the module itself changes.
-- **Old merged code disabled safely.** If a merged mod folder (for example the Mod Merger's `0-M`) still carries the
-  old `subsdk9`/IPS, the app moves it aside (backed up); Rekarina then stops marking the whole mod as PLUGIN and its
-  romfs loads.
-- **Uninstall** restores the exe, the module, the old mod code, the status files and the mod order.
+  The app adds the mod's module as `subsdk9` to the lift, compiles it with Rekarina's own `gen.py` and `build_game.py`,
+  converts the mod's IPS with its `tools/exefs_patches.py`, installs the romfs as `mods/zz-Super-Hero-Boost/romfs`,
+  puts the mod first in `mods_order` and replaces `Rekarina.exe` with the new build (backed up). Nothing in the Rekarina
+  folder is edited.
+- **Settings without a rebuild.** Applying a profile patches `exefs/subsdk9` and the expected SHA-256 stored in
+  `Rekarina.exe`, so changing options takes seconds; the 10-20 minute rebuild is only needed the first time or when the
+  module changes. Uninstall restores the exe, the module, the old mod code, the status files and the mod order.
+- **Old merged code disabled safely.** A merged mod folder (for example the Mod Merger's `0-M`) that still carries an old
+  `subsdk9` / IPS is moved aside (backed up), so Rekarina stops marking the whole mod as PLUGIN and its romfs loads.
+- **Module data without pointers.** The build fails on any pointer table in the module's data, the cause of crashes
+  when the module sits at Rekarina's address; the Armory skips the game call that truncates module pointers.
 
-### What was new in 0.8.0
+**App**
 
-- **Item quantities.** The B / L / R / ZR buttons show the quantity of the consumables (sticks, nuts, bombs, seeds,
-  bombchus, beans and arrows); unique items show no number.
-- **The game's ZR item.** ZR is always the item the game's own box has (R selector, pause menu A, the save). A slot item
-  is used through the box and it goes back to the ZR item once Link stands or walks again, not while aiming (a bow on R
-  shoots its own arrow). Assigning ZR to a button, or a button's item to ZR, swaps them for real.
-- **Put the sword / item away.** With an item on B, A while standing still puts the sword or the item in hand away
-  (B's own function); A still talks, opens and rolls as usual.
-- **Menus fixed.** The mod's HUD buttons kept the game's item-box "focusable" flag, so the cursor went onto them: in
-  shops, dialogues, the game-over screen, Farore's Wind and past the Megaton Hammer on the Items page you had to press
-  up / down a few times first. They are no longer focusable. The songbook no longer reads the ocarina while it is closed.
-- **Hide the corner minimap.** New HUD option: the corner map (compass included) is not drawn while you play; the map
-  screen (Minus) still works.
-- **No magic jar drops.** New Difficulty option: dropped magic jars become green rupees, like the heart option. Both
-  can be on at the same time.
-- **Boss speed (beta).** Bosses and minibosses, left out of the enemy speed, have their own movement and animation
-  multipliers in the Beta tab. Some bosses move by script, so animation is what speeds them up.
-- **L3 sprint as a toggle.** One press of L3 starts the sprint and the next stops it; it also stops when stamina runs
-  out, when you press A, and in dialogues.
-- Install 0.8.0 and **rebuild the game once** on Longshot, Hookshot or ReLink: the module changed.
-
-### What's new in 0.7.0
-
-- **Switch target.** While Link is locked on, a **tap of the target button** (ZL, or R3 with the ZL/R3 swap) moves the
-  lock to the enemy the game marks in **red** (the nearest one that is not locked); **holding it** (~0.3 s) drops the
-  target. With no target the button locks on as usual. It uses the game's own attention list (the player's candidate
-  array: the game locks element 0 and marks element 1), so the camera, the lock triangles and the marker follow by
-  themselves. Its own option in **Controls**; needs System > Options > Targeting Type on **Toggle**.
-- **Next target when the locked enemy dies.** Its own option in **Controls**, independent of the manual shield. It now
-  follows the game's real lock (the AttentionSystem's lock link) and acts only when the locked enemy dies: walking up
-  to enemies, the battle stance and a target you drop yourself no longer lock on by themselves.
-- **Manual shield.** The target button always reaches the game (it used to be re-created from the player's action
-  names, which also show up near enemies without a target: with ZL targeting the game then locked on by itself).
-  "Targeting" is the game's own lock; L is never taken while you only stand near enemies. R3 still cancels the
-  target when the ZL/R3 swap is off.
-- **Profiles.** New **Souls controls** (vanilla difficulty) and **Souls controls + Hero Mode**: hardcore stamina as a
-  bar, lock-on with R3, switch / next target and the manual shield. Every combat profile with the manual shield
-  (Recommended, Hero, Super/Ultra Hero, Survival, Beta: everything) now also turns the switch and next target on.
-- **HUD labels follow the game's language.** The labels the mod draws itself (Jump / Attack / Roll and the menu's
-  Assign:) were always in Spanish; the installer reads the game's language (ReLink/Longshot `language.txt`, the
-  emulators' settings) and the HUD uses it. `--lang` forces one.
-- Install 0.7.0 and **rebuild the game once** on Longshot, Hookshot or ReLink: the module changed.
-
-### What's new in 0.6.0
-
-- **ReLink: every feature works.** ReLink's translator writes each function in address order and starts at its lowest
-  address; a tail call to a function placed lower in the module made the caller's own start unreachable. Under
-  ReLink the input dispatcher ran only the quick select, so stamina never drained (and flashed yellow on every
-  action), the manual shield's L, the button mapping assignment and the R3/L3 controls did nothing. The module is
-  now built without tail calls and the build fails if one appears. **Rebuild the game once** for the new module.
-- **Manual shield.** With **Hold** targeting, only the held target button counts as a target (the game's lock-on
-  state lingers after release and after attacks, which raised the shield without a target). With no target, **L
-  keeps its default game function**; it is ours only while targeting or guarding, until it is released.
-- **Button positions.** New button mapping option: **Nintendo** (default), **A and B swapped** or **Xbox** (A/B and
-  X/Y swapped), to match the button layout chosen in Longshot or ReLink. The HUD and the pause menu draw each face
-  button, its item and its label where it is on the controller; the game's **Swap Jump Controls** option still
-  applies on top.
-- **Game button prompts are a separate, optional choice** in the **HUD** section (None / PlayStation / Xbox, None by
-  default). The button style now only picks the button mapping's own pictures; Longshot and ReLink already ship
-  their own prompts.
-- **App.** A **Play** button opens the emulator or the recompiled game's launcher; the scrollbars follow the app's
-  theme; on a recompiled game, the main switch of each feature shows a red **Requires rebuild** tag (sub-options do
-  not). New `--bm-layout` and `--game-layout` flags.
-
-### What's new in 0.5.1
-
-- **Enemy speed reworked.** Movement now scales every base and attack speed together (walk, run, dash, jog, strafe,
-  attack motions and the per-enemy attack speeds), so enemies no longer slide or overshoot.
-  **Animation playback**, **attack cadence** and **projectile speed** are independent, with eleven multipliers from
-  x0.5 to x6 each (plus off). Attack cadence scales the interval tables and the action timeouts; the beta enemy
-  profiles set all four components to x2.
-- **Controls section.** **Target with R3** swaps ZL and R3 (R3 targets, ZL resets the camera; set System > Options >
-  Targeting Type to **Hold**). **Hold L3** to sprint with the game's own sprint animation, without pressing A or
-  rolling. Both are personal preferences and are off by default.
-- **Manual shield.** L stays reserved while the shield is enabled, including during hit reactions and hit-stop; R3
-  cancels targeting unless the target-on-R3 swap is on.
-- **App.** New **Controls** section, an enemy **Projectiles** selector and `--enemy-proj`, `--target-r3` and
-  `--sprint-l3` flags. The beta enemy profiles include the projectile speed.
-- The 0.5.0 fixes remain: Longshot crashes, DLSS/FSR on rebuild, ReLink, builder detection on Windows, Linux and
-  macOS and closing the running game before a build. Rebuild the game once with 0.5.1 for the new module.
-
-### What's new in 0.5.0
-
-- **Longshot 0.4.0 crashes fixed.** 0.4.0 was built with `-Oz`, and LLVM's machine outliner moved the pointer guards
-  into helper functions that return with the condition flags. The Longshot recompiler does not keep those flags
-  across a call, so a null pointer reached the HUD (Longshot crashed reading guest `0x38`/`0x80` while loading a save
-  or an area). The module is now built without the outliner; **rebuild the game once** with 0.5.0 so the new module
-  is baked into `image.bin`.
-- **DLSS and FSR survive a rebuild.** The app reads the launcher's own settings (Longshot/Hookshot `settings.json`
-  and `builds.json`, ReLink `launcher.ini`), points the builder at the DLSS SDK and passes `--fsr` when the game had
-  it. If the game had DLSS and the SDK is missing, it stops with a message instead of silently removing DLSS.
-- **ReLink supported** as a third static recompilation, with its `.relink_exefs`, `bin/relink-game`, builder and
-  `RELINK_*` variables. Longshot, Hookshot and ReLink each use their own builder: the app no longer picks a ReLink or
-  Hookshot builder for a Longshot game.
-- **Builder detection on Linux and macOS** as well as Windows: `%LOCALAPPDATA%` on Windows, `$XDG_DATA_HOME` or
-  `~/.local/share` on Linux, `~/Library/Application Support` on macOS; `bin/longshot` and `bin/relink-game` without
-  `.exe`; the builder's own `tools/python/bin/python3` (or a system `python3`). The builder path is optional in the
-  app and can be changed.
-- **The app closes a running copy of the game** before installing and while the build runs (Windows), instead of
-  failing at about 90% with "Longshot is still running from this folder". It still asks you to close a copy it cannot
-  close (another user or an elevated process).
-- **Manual shield**: ZL follows the game's **Targeting Type**; hold L to guard while the target camera is active;
-  **R3** cancels targeting. While it is enabled, the L item slot is removed from buttonMapping.
-- **Button mapping**: follows the game's **Swap Jump Controls** option; the B item slot moves to X and the Jump
-  label moves to B.
-- **Quick select**: removed the debug text that replaced the clock with HOVER/HIERRO/MASCARA/LENTES; the clock always
-  shows the time.
-- **Install and uninstall**: the backup records every file the install and the rebuild touch (including ReLink files)
-  and restores exactly that; the generated shader and pipeline caches are deleted, not copied.
-
-### What's new in 0.4.0
-
-- **Three HUD layouts**: **Wide** (the four native-style plates), **Simple** (the four counters at the bottom,
-  no background) and **Minimal** (rupees + time above the minimap; the area heart-piece counter next to the native
-  Skulltula counter on the **Minus** map).
-- **Bottle icons**: B/L/R and ZR now show the assigned bottle and its exact content: red/green/blue potion, blue
-  fire, fish, bug, fairy, milk, half milk, letter, Poe, Big Poe or an empty bottle.
-- **Enemy speed**: movement, animation playback and attack cadence are independent, with eleven multipliers from
-  x0.5 to x6 (plus off); the duplicated-enemy placements also work now.
-- **Stamina bar**: optional compact segmented bar instead of the ring around Link.
-- **Longshot**: if the builder cannot find Vulkan/VMA headers, the installer reuses the installed
-  `longshot_vk.dll`/`.so` instead of failing.
-- **CI**: Windows, Linux and macOS apps and the presets pack build with GitHub Actions.
-
-The mod adds stamina, difficulty scaling, an expanded HUD, extra item buttons and boots/mask quick select, all
-configurable without recompiling anything. The app patches the prebuilt module and copies the files the game needs.
-The module, the HUD, the textures and the app are original work: no third-party mod is bundled or downloaded.
+- **Renamed to SHB-OcarinaTweaks** (the executable, the window, the settings file and the release files:
+  `SHB-OcarinaTweaks.exe`, `SHB-OcarinaTweaks-linux`, `SHB-OcarinaTweaks-macos.dmg`). Settings saved under the old name
+  are still read, and the updater still recognises the old release file names.
+- **New interface:** CustomTkinter theme, a **Presets** page, target cards, inline help and a Help section, one
+  **Controls** section with the button mapping, a stamina preview, drop-down lists that no longer click through, and
+  the two HUD size sliders.
 
 ## Features
 
@@ -178,26 +133,33 @@ The module, the HUD, the textures and the app are original work: no third-party 
   the current area (for example `SKULL 3/8  COR 0/2`). The Skulltulas are read from the save's persistent key set, so
   the count no longer resets when you leave and re-enter an area; heart pieces without a map anchor (some
   chests/minigames) are not counted yet.
-- **Three HUD layouts**: **Wide** (the four plates), **Simple** (the four counters at the bottom, no background) and **Minimal**
-  (rupees and time above the minimap, with the area heart counter next to the native Skulltula counter on the Minus
-  map).
+- **Three HUD layouts**: **Wide** (the four native-style plates), **Simple** (the four counters in one row on a soft
+  translucent bar) and **Plain** (the same row with no bar), with sliders (50-200 %) for the size of the controls
+  cluster and of the counter row. The area heart counter can also show on the Minus map.
 - **World changes**: reorders the three Great Fairy magic rewards (Hyrule Castle child gives **Nayru's Love**, Death
   Mountain Crater the **magic spin attack** and Desert Colossus **double magic**) and allows placing **Farore's Wind**
   warp points outside dungeons. Each fountain keeps her own model and dialogue; the Din fairy's overview still
   describes the original order.
-- **Own button mapping** (`buttonMapping`):
-  - **B, L, R and ZR** item buttons on the HUD, assignable from the **Items** tab of the pause menu.
-  - **Switch / PlayStation / Xbox** button pictures for the mapping HUD.
-  - **Button positions**: Nintendo, A and B swapped, or Xbox (A/B and X/Y swapped), to match the recompilers'
-    button layout. Only where the buttons are drawn changes; the game's logical buttons stay the same.
-- **Game button prompts** (HUD section, optional): replace the game's own prompts, font and controller picture with
-  PlayStation or Xbox ones, downloaded once (~70 MB) from GameBanana and cached. None by default; Longshot and
-  ReLink already include their own.
+- **Button remap and own item buttons** (`buttonMapping`):
+  - **Roles for every button:** L, R, ZL, ZR, X, Y, A, B, L3 and R3 can each be Jump, Sword, Action, Target, an item
+    button (B / L / R), the game's own item (ZR), Center camera, Sprint, Shield, Item selector, Armory or nothing. The
+    HUD, the pause menu legend and the assign buttons follow the table. Five control presets (Classic, Action at the
+    bottom, Manual shield, Souls, Switch GameCube) fill it in one click.
+  - **B, L, R and ZR** item buttons on the HUD, assignable from the **Items** tab of the pause menu, with the quantity
+    of consumables and the exact content of a bottle.
+  - **Switch / PlayStation / Xbox** button pictures for the mapping HUD, and **button positions**: Nintendo, A and B
+    swapped, Xbox (A/B and X/Y swapped) or Switch GameCube, to match the recompilers' button layout. Only where the
+    buttons are drawn changes; the game's logical buttons stay the same.
   - **Extended** layout (B, L, R, ZR, X, Y, A and the sword) or **simple** layout (only the assignable buttons, with
     B centred and L / R / ZR repositioned so there are no gaps).
   - **L button modes**: item or the game's item selector.
   - **Jump/B swap**: if the game's System > Options **Swap Jump Controls** is on, the B item slot moves to **X**
     automatically (input, icon position and menu legend); B keeps its native jump.
+  - **Armory**: hold a button with that role to open the game's item drawer with your swords and shields and equip
+    one; a **Shield** role shows the equipped shield on the HUD.
+- **Game button prompts** (HUD section, optional): replace the game's own prompts, font and controller picture with
+  PlayStation or Xbox ones, downloaded once (~70 MB) from GameBanana and cached. None by default; Longshot and
+  ReLink already include their own.
 
 ### Quick select
 
@@ -234,13 +196,14 @@ The module, the HUD, the textures and the app are original work: no third-party 
 - **Next target when it dies**: when the locked enemy dies, the next one is locked on automatically (nothing happens
   when there is none, or when you dropped the target yourself). Needs Targeting Type on **Toggle**.
 - The manual shield and button mapping are described above and below. Target with R3 and L3 sprint are personal
-  preferences (only the Souls profiles turn R3 on); the switch and next target come with the combat profiles.
+  preferences (only the Souls profiles turn R3 on); the switch and next target come with the combat profiles. With
+  the button remap they are the Target, Sprint and Shield roles of the table.
 
 ### Configuration app
 
-- GUI for Windows, macOS and Linux (Python 3.10+ with Tkinter).
-- Profiles, per-section settings, install and uninstall into the emulator's mod folder, including a
-  **Controls** section for the R3 target swap and the L3 sprint.
+- **SHB-OcarinaTweaks**: GUI for Windows, macOS and Linux (Python 3.10+ with Tkinter and CustomTkinter).
+- Profiles and control presets, per-section settings (Install, Presets, Gameplay, Difficulty, Controls, HUD,
+  Miscellaneous), install and uninstall into the emulator's mod folder, with a remap editor in **Controls**.
 - **Play** opens the emulator (or the recompiled game's launcher) directly.
 - On Longshot, Hookshot and ReLink, a red **Requires rebuild** tag marks the feature switches whose change needs the
   builder; their sub-options do not.
@@ -263,11 +226,15 @@ everything*) turn them on together with the rest of the configuration.
   every base and attack speed together, so enemies do not slide or overshoot.
   Attack cadence scales the interval tables and the action timeouts; projectiles are separate. Some
   enemies or attacks may not change or may desync.
+- **Enemy aggression**: an alert radius multiplier (how far a spotting enemy alerts the others) and an aggression level
+  (Normal / Aggressive / Maximum), patched into the enemy data at install time. They combine with the speed options;
+  bosses are not changed.
+
 ## Usage
 
 1. **Requirements**: the game on update **v131072** and an emulator that loads mods from its
    `user/load/0400486024DEC000` folder (or the path you have configured). Back up your save before installing.
-2. Open **SuperHeroBoostConfig** (or run `python app/main.py` from source).
+2. Open **SHB-OcarinaTweaks** (or run `python app/main.py` from source).
 3. Pick a profile or adjust the sections one by one.
 4. Select the emulator folder. The app finds the mods folder, including a custom `load_directory` from
    `qt-config.ini`.
@@ -283,9 +250,9 @@ you can also build the app from source with the steps below.
 
 | Your system | Download |
 |---|---|
-| Windows | `SuperHeroBoostConfig.exe` |
-| Linux (x86_64) | `SuperHeroBoostConfig-linux` — `chmod +x SuperHeroBoostConfig-linux` after downloading |
-| macOS (Apple Silicon) | `SuperHeroBoostConfig-macos.dmg` — open it and drag the app to Applications (not signed: right-click > Open the first time) |
+| Windows | `SHB-OcarinaTweaks.exe` |
+| Linux (x86_64) | `SHB-OcarinaTweaks-linux` — `chmod +x SHB-OcarinaTweaks-linux` after downloading |
+| macOS (Apple Silicon) | `SHB-OcarinaTweaks-macos.dmg` — open it and drag the app to Applications (not signed: right-click > Open the first time) |
 | Emulator, no app | `SuperHeroBoost-<version>-presets.zip` — ready-to-install mod folders |
 
 The Windows build is the only one with a `.exe` extension; the Linux one is a plain executable named with
@@ -300,15 +267,14 @@ stamina, item buttons, collectible counter) has to be built into the game.
 - **Longshot: supported and tested.** The app's **Longshot** target patches the game's `main`, copies the module to
   `.longshot_exefs`, installs the chosen romfs options and runs the builder's update with a progress bar. The first
   build takes 25-45 minutes; later code changes are incremental (~5 minutes) and profile/romfs-only changes need no
-  rebuild. It is reversible with **Uninstall**. 0.5.1 includes the 0.5.0 crash fixes; rebuild once with 0.5.1 for
-  the new controls/enemy module.
+  rebuild. It is reversible with **Uninstall**; rebuild once whenever the module changes.
 - **Hookshot: expected to work, not tested yet.** It ships the same builder and the same
   `nx2/make_game.py --update`; point the app's target (or `tools/install_longshot.py --builder`) at its
   `HookshotBuilder` folder. The procedure is otherwise identical.
 - **ReLink: supported.** Its game is `bin/relink-game`, its exefs `.relink_exefs` and its builder
   `%LOCALAPPDATA%\ReLink\versions\<version>\ReLink` (or the Linux/macOS data folder). The same install, rebuild
   and uninstall steps apply. Tested with a full ReLink 0.7.9 build: stamina, manual shield, button mapping and
-  controls work after rebuilding with the current module (see "Changes since 0.5.1").
+  controls work after rebuilding with the current module.
 - **Rekarina: supported (new in 0.9.0).** Point the target at Rekarina's game folder (the one with `Rekarina.exe`,
   `rekarina.ini` and `exefs/main`); the app finds `setup/<version>` beside it and drives Rekarina's tools. It never
   edits Rekarina: the lift runs `gen.py --modules main,subsdk0,sdk,subsdk9`, the compile runs `build_game.py`, and
@@ -330,6 +296,8 @@ See [docs/LONGSHOT.md](docs/LONGSHOT.md) for the details.
 - Pressing the same button again unassigns it; if the item was already in another slot, they are swapped.
 - If L is in **selector** mode, L cannot be assigned and its button is hidden from the HUD and from the legend.
 - In **selector** mode, L opens the game's item selector.
+- With the button remap, the assign buttons follow the roles: an item on a slot is assigned with that slot's own button
+  when the Items tab allows it, or with a free one of X / Y / L / R, and the legend shows which.
 
 ### Command line
 
@@ -358,7 +326,7 @@ game dump, LLVM (`clang`, `lld`, `llvm-objcopy`, `llvm-size`, `llvm-nm`) and the
 ```bash
 python tools/build_core.py --features stamina,songbook,button_mapping --slots --compat --base 0x4F80000
 python tools/make_release.py     # module + button textures + optional romfs files
-python tools/build_app.py        # release/SuperHeroBoostConfig[.exe|.app] + SuperHeroBoost-<version>-presets.zip
+python tools/build_app.py        # release/SHB-OcarinaTweaks[.exe|.app] + SuperHeroBoost-<version>-presets.zip
 ```
 
 `build_app.py` uses PyInstaller and does not cross-compile: run it on each target OS. It also writes
