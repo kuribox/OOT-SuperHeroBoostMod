@@ -26,7 +26,7 @@ from pathlib import Path
 GB_MOD = 737074
 GB_PROFILE = f"https://gamebanana.com/apiv11/Mod/{GB_MOD}/ProfilePage"
 GB_PAGE = f"https://gamebanana.com/mods/{GB_MOD}"
-UA = "SuperHeroBoostConfig"
+UA = "SHB-OcarinaTweaks"
 
 # style -> file name in the GameBanana submission ("standard" = Nintendo button
 # positions; the "western" variants move the confirm button, so they are skipped)
@@ -62,7 +62,7 @@ def cache_dir() -> Path:
         base = Path.home() / "Library" / "Caches"
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-    return base / "SuperHeroBoostConfig" / "layouts"
+    return base / "SHB-OcarinaTweaks" / "layouts"
 
 
 def available(style: str) -> bool:

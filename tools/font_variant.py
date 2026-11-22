@@ -34,7 +34,7 @@ KEY = 0x28501A6           # the layout's header key; the game does not verify it
 EMU = Path(os.environ.get("SHB_EMU", r"E:\Switch2\Emu\Fritchii-v4.1-Windows-x64\Fritchii-v4.1"))
 GAME = Path(os.environ.get("SHB_GAME", "game.nx"))
 DICT = ROOT / "build" / "enemy_opts_dicts" / "zs.zsdic"
-CACHE = Path(os.environ.get("LOCALAPPDATA", "")) / "SuperHeroBoostConfig" / "layouts" / "playstation"
+CACHE = Path(os.environ.get("LOCALAPPDATA", "")) / "SHB-OcarinaTweaks" / "layouts" / "playstation"
 REL = "Font2/Scalable/External.Nin_Ounce_NVN2.bfotf.zs"
 BUTTONS = [f"uniE{n:03X}" for n in range(0x040, 0x048)]
 

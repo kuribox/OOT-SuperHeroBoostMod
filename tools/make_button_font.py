@@ -39,7 +39,7 @@ LIMIT = 14640                     # hard limit of this build's loader (14636 boo
 TARGET = 14624                    # leave a little margin
 ROMFS = Path(os.environ.get("SHB_ROMFS", r"F:\Switch2\Longshot\rc\romfs"))
 DICT = Path(os.environ.get("SHB_ZSDIC", ROOT / "build" / "enemy_opts_dicts" / "zs.zsdic"))
-CACHE = Path(os.environ.get("LOCALAPPDATA", "")) / "SuperHeroBoostConfig" / "layouts"
+CACHE = Path(os.environ.get("LOCALAPPDATA", "")) / "SHB-OcarinaTweaks" / "layouts"
 OUT = ROOT / "app" / "payload" / "button_romfs"
 
 

@@ -1,4 +1,4 @@
-"""Update check and download for SuperHeroBoostConfig.
+"""Update check and download for SHB-OcarinaTweaks.
 
 The release assets are the only source: the app asks GitHub for the latest non-draft,
 non-prerelease release, compares its tag with the running version, and can download the
@@ -23,7 +23,7 @@ from pathlib import Path
 REPO = "kuribox/OOT-SuperHeroBoostMod"
 API_LATEST = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases"
-UA = "SuperHeroBoostConfig"
+UA = "SHB-OcarinaTweaks"
 
 
 class UpdaterError(Exception):
@@ -59,11 +59,13 @@ def is_newer(tag: str, current: str) -> bool:
 
 def _platform_assets() -> tuple[str, ...]:
     if sys.platform == "win32":
-        return ("SuperHeroBoostConfig.exe",)
+        return ("SHB-OcarinaTweaks.exe", "SuperHeroBoostConfig.exe")
     if sys.platform == "darwin":
-        return ("SuperHeroBoostConfig-macos.dmg", "SuperHeroBoostConfig.app.zip",
+        return ("SHB-OcarinaTweaks-macos.dmg", "SHB-OcarinaTweaks.app.zip", "SHB-OcarinaTweaks-macos.zip",
+                "SHB-OcarinaTweaks.dmg", "SHB-OcarinaTweaks",
+                "SuperHeroBoostConfig-macos.dmg", "SuperHeroBoostConfig.app.zip",    # names up to 0.8.x
                 "SuperHeroBoostConfig-macos.zip", "SuperHeroBoostConfig.dmg", "SuperHeroBoostConfig")
-    return ("SuperHeroBoostConfig-linux", "SuperHeroBoostConfig")
+    return ("SHB-OcarinaTweaks-linux", "SHB-OcarinaTweaks", "SuperHeroBoostConfig-linux", "SuperHeroBoostConfig")
 
 
 def _pick_asset(assets: list) -> dict | None:
@@ -119,12 +121,12 @@ def _updates_dir() -> Path:
         base = Path.home() / "Library" / "Application Support"
     else:
         base = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
-    return base / "SuperHeroBoostConfig" / "updates"
+    return base / "SHB-OcarinaTweaks" / "updates"
 
 
 def update_path(version: str) -> tuple[Path, bool]:
     """Where to save the new executable, and whether it can replace the running one."""
-    name = f"SuperHeroBoostConfig-{version}"
+    name = f"SHB-OcarinaTweaks-{version}"
     if getattr(sys, "frozen", False) and sys.platform == "win32":
         app_dir = Path(sys.executable).resolve().parent
         if _writable(app_dir):

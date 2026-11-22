@@ -153,4 +153,4 @@ The AI software was used as an assistant; the design, direction, integration and
 
 - Source and issues: https://github.com/kuribox/OOT-SuperHeroBoostMod
 - App downloads: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases
-- Cover art: `docs/portada.png` (1920x1080) and `docs/portada-mini.jpg` (640x480, for the listing thumbnail).
+- Cover art: `docs/portada.png` (1920x1080) and `docs/portada-mini.jpg` (640x360, 16:9, for the listing thumbnail).

@@ -12,7 +12,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-EXE = ROOT / "release" / ("SuperHeroBoostConfig.exe" if sys.platform == "win32" else "SuperHeroBoostConfig")
+EXE = ROOT / "release" / ("SHB-OcarinaTweaks.exe" if sys.platform == "win32" else "SHB-OcarinaTweaks")
 EMU = os.environ.get("SHB_EMU", "E:/Switch2/Emu/Fritchii-v4.1-Windows-x64/Fritchii-v4.1")
 OUT = ROOT / "build" / "e2e"
 KEYS = ("jump", "attack", "sprint", "block", "shoot", "roll")

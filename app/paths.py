@@ -8,7 +8,8 @@ import os
 import sys
 from pathlib import Path
 
-APP_NAME = "SuperHeroBoostConfig"
+APP_NAME = "SHB-OcarinaTweaks"
+LEGACY_APP_NAME = "SuperHeroBoostConfig"   # up to 0.8.x: its settings are still read
 
 
 def program_dir() -> Path:
@@ -31,4 +32,10 @@ def user_config_dir() -> Path:
 def settings_paths() -> tuple[Path, Path]:
     """Portable first, per-user second."""
     return program_dir() / f"{APP_NAME}.json", user_config_dir() / "settings.json"
+
+
+def legacy_settings_paths() -> tuple[Path, Path]:
+    """Where the app saved its settings before it was renamed (read only, so an update keeps them)."""
+    return (program_dir() / f"{LEGACY_APP_NAME}.json",
+            user_config_dir().with_name(LEGACY_APP_NAME) / "settings.json")
 

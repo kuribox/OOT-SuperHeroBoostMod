@@ -6,7 +6,7 @@ Hookshot/Longshot recompiled game (the latter rebuilds the game, with a progress
 bar).
 
 Headless use (tests):
-    SuperHeroBoostConfig --cli --emu <folder> [--profile hero] [--preset 2] ...
+    SHB-OcarinaTweaks --cli --emu <folder> [--profile hero] [--preset 2] ...
 """
 import argparse
 import json
@@ -37,7 +37,7 @@ from version import VERSION  # noqa: E402
 
 # ---------------------------------------------------------------- settings file
 def load_cfg() -> dict:
-    for p in paths.settings_paths():
+    for p in (*paths.settings_paths(), *paths.legacy_settings_paths()):
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
             if isinstance(data, dict):
@@ -60,7 +60,7 @@ def save_cfg(d: dict) -> str:
 
 # ---------------------------------------------------------------- command line
 def cli(argv) -> int:
-    ap = argparse.ArgumentParser(description="Super Hero Boost installer (headless mode)")
+    ap = argparse.ArgumentParser(description="SHB-OcarinaTweaks installer (headless mode)")
     ap.add_argument("--cli", action="store_true")
     ap.add_argument("--emu", help="emulator folder (the one that contains 'user')")
     ap.add_argument("--profile", choices=PROFILE_KEYS, default="custom",
@@ -305,7 +305,7 @@ def gui() -> None:
     cfg = load_cfg()
     UI.setup()
     root = ctk.CTk()
-    root.title(f"Super Hero Boost {VERSION}")
+    root.title(f"SHB-OcarinaTweaks {VERSION}")
     root.configure(fg_color=BG)
     root.geometry("1320x840")
     root.minsize(1180, 700)
@@ -1959,7 +1959,7 @@ def gui() -> None:
 
     def build_about(parent):
         body = card(parent, L("about_title"))
-        label(body, f"Super Hero Boost {VERSION}", size=10, color=ACCENT, bold=True, bg=PANEL).pack(anchor="w")
+        label(body, f"SHB-OcarinaTweaks {VERSION}", size=10, color=ACCENT, bold=True, bg=PANEL).pack(anchor="w")
         upd = UI.Label(body, text=L("update_check"), bg=PANEL, fg=ACCENT, cursor="hand2",
                        font=(FAM, 9, "underline"), anchor="w", justify="left")
         upd.pack(anchor="w", pady=(2, 0))
@@ -1987,7 +1987,7 @@ def gui() -> None:
         emblem(logo, 29, 25, 30)
         names = UI.Frame(brand, bg=BG)
         names.pack(side="left")
-        UI.Label(names, text="Super Hero Boost", bg=BG, fg=ACCENT, font=(DISPLAY, 24, "bold")).pack(anchor="w")
+        UI.Label(names, text="SHB-OcarinaTweaks", bg=BG, fg=ACCENT, font=(DISPLAY, 24, "bold")).pack(anchor="w")
         UI.Label(names, text=L("subtitle"), bg=BG, fg=DIM, font=(FAM, 10)).pack(anchor="w")
         right = UI.Frame(row, bg=BG)
         right.pack(side="right")

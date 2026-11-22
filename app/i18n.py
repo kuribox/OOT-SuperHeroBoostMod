@@ -6,7 +6,7 @@ LANGS = {"en": "English", "es": "Español", "pt": "Português", "fr": "Français
 
 T = {
     "en": {
-        "app_title": "Super Hero Boost",
+        "app_title": "SHB-OcarinaTweaks",
         "subtitle": "Gameplay, stamina, HUD and extra buttons",
         "language": "Language",
         "nav_install": "Home", "nav_stamina": "Stamina", "nav_difficulty": "Difficulty", "nav_controls": "Controls",
@@ -201,7 +201,7 @@ T = {
         "n_no_magic_drop_missing": "The “no magic drops” option is not available in this build (it needs a file generated from your game dump); everything else was installed.",
     },
     "es": {
-        "app_title": "Super Hero Boost",
+        "app_title": "SHB-OcarinaTweaks",
         "subtitle": "Gameplay, estamina, HUD y botones extra",
         "language": "Idioma",
         "nav_install": "Inicio", "nav_stamina": "Estamina", "nav_difficulty": "Dificultad", "nav_controls": "Controles",
@@ -396,7 +396,7 @@ T = {
         "n_no_magic_drop_missing": "La opción “sin drop de frascos de magia” no está disponible en esta compilación (necesita un archivo generado desde tu volcado del juego); el resto se instaló.",
     },
     "pt": {
-        "app_title": "Super Hero Boost",
+        "app_title": "SHB-OcarinaTweaks",
         "subtitle": "Gameplay, estamina, HUD e botões extras",
         "language": "Idioma",
         "nav_install": "Início", "nav_stamina": "Estamina", "nav_difficulty": "Dificuldade", "nav_controls": "Controles",
@@ -583,7 +583,7 @@ T = {
         "n_no_magic_drop_missing": "A opção “sem drop de frascos de magia” não está disponível nesta compilação (precisa de um arquivo gerado a partir do seu dump do jogo); o resto foi instalado.",
     },
     "fr": {
-        "app_title": "Super Hero Boost",
+        "app_title": "SHB-OcarinaTweaks",
         "subtitle": "Gameplay, endurance, HUD et boutons supplémentaires",
         "language": "Langue",
         "nav_install": "Accueil", "nav_stamina": "Endurance", "nav_difficulty": "Difficulté", "nav_controls": "Commandes",
@@ -770,7 +770,7 @@ T = {
         "n_no_magic_drop_missing": "L’option « pas de drop de jarres de magie » n’est pas disponible dans cette version (elle nécessite un fichier généré depuis votre dump du jeu) ; le reste a été installé.",
     },
     "de": {
-        "app_title": "Super Hero Boost",
+        "app_title": "SHB-OcarinaTweaks",
         "subtitle": "Gameplay, Ausdauer, HUD und Zusatztasten",
         "language": "Sprache",
         "nav_install": "Start", "nav_stamina": "Ausdauer", "nav_difficulty": "Schwierigkeit", "nav_controls": "Steuerung",
@@ -957,7 +957,7 @@ T = {
         "n_no_magic_drop_missing": "Die Option „Keine Magiekrug-Drops“ ist in dieser Version nicht verfügbar (sie benötigt eine aus deinem Spieldump erzeugte Datei); der Rest wurde installiert.",
     },
     "it": {
-        "app_title": "Super Hero Boost",
+        "app_title": "SHB-OcarinaTweaks",
         "subtitle": "Gameplay, resistenza, HUD e pulsanti extra",
         "language": "Lingua",
         "nav_install": "Home", "nav_stamina": "Resistenza", "nav_difficulty": "Difficoltà", "nav_controls": "Comandi",

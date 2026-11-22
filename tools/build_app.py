@@ -4,9 +4,9 @@ Works on Windows, macOS and Linux; PyInstaller must run on the target OS.
 Needs app/payload (run tools/make_release.py first).
 
 Output:
-    Windows  release/SuperHeroBoostConfig.exe
-    macOS    release/SuperHeroBoostConfig.app (and a Unix executable inside it)
-    Linux    release/SuperHeroBoostConfig
+    Windows  release/SHB-OcarinaTweaks.exe
+    macOS    release/SHB-OcarinaTweaks.app (and a Unix executable inside it)
+    Linux    release/SHB-OcarinaTweaks
     all      release/SuperHeroBoost-<version>-presets.zip (every app profile, no executables)
 """
 import os
@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-NAME = "SuperHeroBoostConfig"
+NAME = "SHB-OcarinaTweaks"
 DIST = ROOT / "release"
 WORK = ROOT / "build" / "pyi"
 if not (ROOT / "app" / "payload").exists():
