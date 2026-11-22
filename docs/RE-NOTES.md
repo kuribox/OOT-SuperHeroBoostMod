@@ -390,9 +390,13 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   `hud.c` caches the key array, binary-searches it per Skulltula and also remembers pickups seen this session,
   so a new token counts at once and still counts after the reload.
 - Heart pieces: `HeartPieceAnchor` actors with `Dynamic.HeartPieceAnchor_GameDataPath` name a Bool flag
-  (e.g. `DeathMountain_Enemy_Scrub_Business_HeartPiece_01`); 21 anchors / 16 unique flags. Several
-  `Obj_Heart_Piece` actors have anchors with no path (chest/minigame pieces), so the counter currently covers
-  only the map-anchored pieces. The rest would need the chest/scene flag source.
+  (e.g. `DeathMountain_Enemy_Scrub_Business_HeartPiece_01`); 21 anchors / 16 unique flags. World
+  `Obj_Heart_Piece` actors count by actor hash in the key set. Chests whose `Dynamic.Drop__DropActor` is
+  `Obj_Heart_Piece` (10 in the Bancs: Gerudo Fortress/Valley, Graveyard, Dampe race, Hyrule Field, Market minigame,
+  Zora's Domain) record their opening in the Bool `IsTreasureBoxOpen.<actor Hash>` (name found by hashing; 7 distinct
+  hashes exist in the Bool table). Before this they were missing from the area total, so an area whose only piece
+  was a chest read 0/0 after picking it up. Not verified in game: the table was rebuilt and the module builds, the
+  live run did not reach gameplay.
 - `tools/make_collectibles.py` scans the Bancs and writes `build/collectibles_data.h` (43 Banc names,
   135 Bool indexes + the 135 aligned 64-bit actor hashes) before the core build; `hud.c` includes it and reads
   the Bool table and the save key set live. If the dump is missing it writes an empty table and the plate stays

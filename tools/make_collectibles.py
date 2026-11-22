@@ -107,6 +107,14 @@ def main():
                 # a heart piece lying in the world: like a Skulltula, the save's "Game" key set gets its
                 # actor hash when it is picked up (it has no Bool flag)
                 hearts.setdefault(key, set()).add((NO_FLAG, int(v(a.get("Hash")))))
+            elif g.startswith(("Obj_TBox", "Obj_HrlCity_Shop_TBox")):
+                # a chest whose reward is a heart piece: its open flag is IsTreasureBoxOpen.<actor hash>
+                dyn = a.get("Dynamic")
+                drop = v(dyn.get("Drop__DropActor")) if isinstance(dyn, byml.BDict) and dyn.get("Drop__DropActor") is not None else None
+                if drop == "Obj_Heart_Piece":
+                    flag = gamedata.mmh("IsTreasureBoxOpen.%d" % int(v(a.get("Hash"))))
+                    if flag in bool_keys:
+                        hearts.setdefault(key, set()).add((flag, 0))
             elif g == "HeartPieceAnchor":
                 # map anchor of a reward (NPC, minigame, scrub ...): its GameDataPath Bool is the record.
                 # Anchors without a path only mark the world pieces above.

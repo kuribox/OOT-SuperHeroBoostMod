@@ -8,7 +8,7 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.9.1**. It makes the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
+Current release: **0.9.2**. It makes the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
 selector...), lets the **item selector** sit on any button next to Item 2, adds the **Triggers** control preset
 (used by the Recommended profiles), brings back the sprint speed in the app, new drop-down lists, **Recompile** and
 **Reinstall and recompile** buttons, and fixes for merged mods and the prompts on Rekarina.
@@ -31,6 +31,16 @@ L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD 
 The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.9.2
+
+A fix for the area counter of the HUD. Install 0.9.2 and **rebuild the game once** on Longshot, Hookshot, ReLink or
+Rekarina: the module changed.
+
+- **Heart pieces in chests count now.** The heart counter knew the pieces lying in the world and the rewards, but
+  not the chests that hold one, so an area whose only piece was a chest read 0/0 even after you opened it (found in
+  Zora's Domain). The ten chests with a heart piece (Gerudo Fortress and Valley, Graveyard, Dampe's race, Hyrule
+  Field, the Market minigame, Zora's Domain) are in the total and count once opened.
 
 ## What's new in 0.9.1
 
