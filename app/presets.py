@@ -15,7 +15,7 @@ from typing import Optional
 KEYS = ("jump", "attack", "sprint", "block", "shoot", "roll")
 STAMINA_MODES = ("hardcore", "combat", "sprint", "advanced")   # value written to the config block
 SPRINT_DEFAULT = 125     # "custom" starts here: a gentle +25 %
-SPRINT_PROFILE = 150     # every named profile: the author's tuned +50 %
+SPRINT_PROFILE = 125     # every named profile: the same +25 % (x1.25)
 
 
 @dataclass(frozen=True)
@@ -56,6 +56,7 @@ class Profile:
     target_r3: Optional[bool]    # target with R3 (ZL/R3 swap); None: a personal preference the profile keeps
     sprint_l3: Optional[bool]    # hold L3 to sprint; None: a personal preference the profile keeps
     sprint_l3_toggle: Optional[bool]  # with sprint_l3: L3 turns the sprint on / off; None: keeps the user's choice
+    armory: bool = False         # holding the D-pad's right arrow opens the armory (sword and shield drawer)
 
 
 def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 6, combat_only=False,
@@ -66,7 +67,9 @@ def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 
              enemy_alert=0, enemy_aggro=0, boss_move=0, boss_anim=0,
              great_fairy=False, farore_outdoor=False, stamina_bar=None, manual_shield=False,
              auto_target=False, switch_target=False, target_r3=None, sprint_l3=None,
-             sprint_l3_toggle=None):
+             sprint_l3_toggle=None, armory=None):
+    if armory is None:   # every profile that has the pack's buttons has the armory on the held D-pad right
+        armory = button_mapping
     return Profile(key=key, button_mapping=button_mapping, stamina=stamina, mode=mode, costs=costs,
                    combat_only=combat_only, enemy_hp=enemy_hp, damage=damage,
                    no_heart_drop=no_heart_drop, sprint_speed=sprint_speed,
@@ -79,7 +82,8 @@ def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 
                    boss_move=boss_move, boss_anim=boss_anim,
                    great_fairy=great_fairy, farore_outdoor=farore_outdoor, stamina_bar=stamina_bar,
                    manual_shield=manual_shield, auto_target=auto_target, switch_target=switch_target,
-                   target_r3=target_r3, sprint_l3=sprint_l3, sprint_l3_toggle=sprint_l3_toggle)
+                   target_r3=target_r3, sprint_l3=sprint_l3, sprint_l3_toggle=sprint_l3_toggle,
+                   armory=armory)
 
 
 # The targeting improvements every combat profile with the manual shield gets (both need the game's Targeting
@@ -172,7 +176,7 @@ def defaults() -> dict:
                 enemy_alert=0, enemy_aggro=0, boss_move=0, boss_anim=0,
                 great_fairy=False, farore_outdoor=False, stamina_bar=None, manual_shield=False,
                 auto_target=False, switch_target=False, target_r3=None, sprint_l3=None,
-                sprint_l3_toggle=None)
+                sprint_l3_toggle=None, armory=False)
 
 
 def profile_values(key: str) -> dict:
@@ -193,7 +197,7 @@ def profile_values(key: str) -> dict:
                 stamina_bar=p.stamina_bar, manual_shield=p.manual_shield,
                 auto_target=p.auto_target, switch_target=p.switch_target,
                 target_r3=p.target_r3, sprint_l3=p.sprint_l3,
-                sprint_l3_toggle=p.sprint_l3_toggle)
+                sprint_l3_toggle=p.sprint_l3_toggle, armory=p.armory)
 
 
 def settings_kwargs(key: str) -> dict:
@@ -202,9 +206,10 @@ def settings_kwargs(key: str) -> dict:
     The app window, the command line and the presets pack all build their Settings from here, so a profile
     cannot mean one thing in the window and another in the zip.
     """
+    import installer as I   # (late: the installer does not import the profiles)
     v = profile_values(key)
     costs = dict(zip(KEYS, v["costs"]))
-    return dict(button_mapping=v["button_mapping"], stamina=v["stamina"], songbook=v["songbook"],
+    return dict(bm_roles=I.roles_with_armory(I.CLASSIC_ROLES) if v["armory"] else dict(I.CLASSIC_ROLES), button_mapping=v["button_mapping"], stamina=v["stamina"], songbook=v["songbook"],
                 preset=v["mode"], combat_only=v["combat_only"], **costs,
                 enemy_hp=v["enemy_hp"], damage=v["damage"], no_heart_drop=v["no_heart_drop"],
                 sprint_speed=v["sprint_speed"], hud_rupees=v["hud_rupees"], hud_clock=v["hud_clock"],

@@ -59,6 +59,16 @@ REMAP_PRESETS = {
 REMAP_PRESET_KEYS = ("classic", "action_down", "shield", "souls")
 
 
+def roles_with_armory(roles) -> dict:
+    """The table with the armory on the held D-pad right (the profiles' setup): the armory is on no other button."""
+    r = dict(normalize_roles(roles))
+    for b, role in r.items():
+        if role == "armory":
+            r[b] = "none"
+    r["DR"] = "armory"
+    return normalize_roles(r)
+
+
 def role_allowed(role: str, button: str) -> bool:
     if button == "DR":
         return role == "none" or role in _DR_ROLES
