@@ -8,9 +8,12 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.9.2**. It makes the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
-selector...), lets the **item selector** sit on any button next to Item 2, adds the **Triggers** control preset
-(used by the Recommended profiles), brings back the sprint speed in the app, new drop-down lists, **Recompile** and
+Current release: **0.9.3**. It gives **A, B, X and Y a second action when you hold them**, with no delay on the short
+press, adds a **Back** role (the game's own B), makes the toggled sprint let go when you stop and stop throwing the
+objects you lift, and fixes the manual shield throwing lifted jars. 0.9.2 counts the **chests that hold a heart piece**
+in the area counter. 0.9.1 made the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
+selector...), let the **item selector** sit on any button next to Item 2, added the **Triggers** control preset (used
+by the Recommended profiles), brought back the sprint speed in the app, new drop-down lists, **Recompile** and
 **Reinstall and recompile** buttons, and fixes for merged mods and the prompts on Rekarina.
 
 0.9.0 added **Rekarina** as a target, a **button remap** where every button gets the role you choose (including
@@ -31,6 +34,39 @@ L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD 
 The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.9.3
+
+Everything since 0.9.2. Install 0.9.3 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina: the
+module changed.
+
+**Controls**
+
+- **Two actions on A, B, X and Y: tap and hold.** Every one of those four buttons has a second row in Controls, marked
+  with a down arrow, for what it does when you **hold** it (about a third of a second). The short press acts **at
+  once**, with no delay; when the hold fires, the short role lets go. Pick a hold role that does not mind the short one
+  having happened (Back, Armory, the selector, the camera ...). It takes jump, sword, action, camera, sprint, shield,
+  selector, armory and Back; not items or target. The presets do not touch these rows, as with the D-pad right.
+- **New role: Back (the game's B).** The game's own B: let go of a ledge, cancel, get off ... With the remap those
+  actions went with the button that held Item 1. Back works on any button and in a hold, and it is not an item use: it
+  acts while Link is busy with something else (hanging, climbing, swimming ...) or when the B slot holds no item, so
+  it never fires an item by accident.
+
+**Sprint (toggle)**
+
+- **It lets go when you stop.** The toggled sprint now ends by itself when you stop moving (a toggle pressed standing
+  still waits for your first step).
+- **No more thrown objects.** The sprint pressed A for you, and that A threw the jar you had just lifted, again on every
+  pickup while it stayed on. It no longer presses A while you lift or carry something; the sprint speed still applies,
+  so you can run with the object.
+
+**Fixes**
+
+- **The manual shield threw lifted jars by itself.** With the manual shield on, the module cleared two of the player's
+  guard flags every frame, and while Link carried something that made the game throw the object a moment after the
+  lift (found live in the emulator: with the option off the jar stayed in his hands). It leaves those flags alone
+  while Link carries something.
+- **The app opens with the stamina off.** The stamina page crashed with a `NameError` when the system was off.
 
 ## What's new in 0.9.2
 
