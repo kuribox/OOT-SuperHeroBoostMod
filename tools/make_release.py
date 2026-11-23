@@ -49,6 +49,12 @@ def stage_buttons():
                        + (["--vanilla-raw", str(raw)] if raw.exists() else []), cwd=ROOT)
     if r.returncode:
         print("WARNING: no resource size table: our HUD will not fit the stock UI budget")
+    # The game's own PlayStation prompts are glyphs of the External font: the app installs this patched font next to the
+    # layout's atlas (app/layouts.py apply). This step wipes app/payload, so the font is made here every time; without it
+    # the atlas alone changes the controller picture in the menu and the prompts everywhere else stay Switch.
+    r = subprocess.run([sys.executable, str(ROOT / "tools" / "make_button_font.py")], cwd=ROOT)
+    if r.returncode:
+        print("WARNING: no PlayStation button font: the game's own prompts stay Switch (needs the dump and the layout download)")
 
 
 def main():
