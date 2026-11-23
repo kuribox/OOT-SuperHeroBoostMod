@@ -418,6 +418,10 @@ def main() -> int:
                     help="add the synthetic function-seed table that Rekarina's lifter reads (eh_frame_hdr)")
     ap.add_argument("--slots", action="store_true",
                     help="hook the equip calls too (buttonMapping)")
+    ap.add_argument("--debug-dump", action="store_true",
+                    help="keep the diagnostic dump (save:/slot_00/shbdebug.bin, and one dump each time the game "
+                         "opens progress.sav). Test builds only: it creates files in the game's save volume from "
+                         "the input hook, which can race gmd::SaveDataMgr while it commits (fs: save: published)")
     args = ap.parse_args()
     global COMPAT, NO_LAZY, BASE, LINK_SCRIPT, SLOTS, REKARINA
     SLOTS = args.slots
@@ -472,6 +476,8 @@ def main() -> int:
             extra.append("-DBUTTON_MAPPING")   # core/hud.c draws the buttonMapping buttons
         if REKARINA:
             extra.append("-DSHB_REKARINA")     # pointer checks: guest memory starts at 4 GB there (core/hud.c vptr)
+        if args.debug_dump:
+            extra.append("-DSHB_DBG_DUMP=1")   # test builds only, see --debug-dump
         run([str(CLANG), *CFLAGS, *extra, "-I", str(OUT), "-I", str(CORE_SRC),
              "-c", str(src), "-o", str(obj)])
         objs.append(str(obj))

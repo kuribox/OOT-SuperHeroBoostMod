@@ -1,5 +1,6 @@
 #include "../../core/dispatch.h"
 #include "../../core/hid.h"
+#include "../../core/clock.h"
 #include "../../core/config.h"
 #include "../../core/remap.h"
 
@@ -377,7 +378,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
                 if (g_cur_age >= 0) for (int s = 0; s < SLOT_ZR; s++) g_set[g_cur_age][s] = g_assign[s];
                 for (int s = 0; s < SLOT_ZR; s++) g_assign[s] = g_set[age][s];
                 g_cur_age = age;
-                g_check_owned = 30;   /* a set was just taken: drop what this save does not have (a few frames) */
+                g_check_owned = shb_frames(30);   /* a set was just taken: drop what this save does not have (a few frames) */
                 /* each age has its own item box: nothing of the other age's is borrowed in it */
                 if (g_borrowed) unborrow();
                 g_phase = PH_IDLE;
@@ -667,7 +668,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
         /* only standing or walking: aiming (bow, hookshot, slingshot) is a LockOn* state too, and the item must
          * stay in the box until the shot is over (else the ZR item is drawn or shot instead) */
         g_phase_t = (player_state_is("Wait") || player_state_is("Move")) ? g_phase_t + 1 : 0;
-        if (g_phase_t >= (u32)(g_borrow_item == 3 ? GAP_BOOMERANG : GAP_TICKS)) {
+        if (g_phase_t >= shb_frames((u32)(g_borrow_item == 3 ? GAP_BOOMERANG : GAP_TICKS))) {
             box_put(g_saved);
             g_phase = PH_RESTORE;
             g_phase_t = 0;
@@ -799,7 +800,17 @@ static void save_read(const char *ours) {
     g_save_dbg[2]++;
 }
 /* ---- diagnostic dump: <slot>/shbdebug.bin. Which wrappers ran, the input calls per site, the
- * save hook's results and the config block the module reads. Changes nothing the game sees. ---- */
+ * save hook's results and the config block the module reads.
+ *
+ * It is a test tool, not a feature: it CREATES FILES IN THE GAME'S SAVE VOLUME, from the input
+ * hook, on a timer. A release build must not do that at all — a write landing while
+ * gmd::SaveDataMgr is committing its own files (fs: save: published N files) races it, and the
+ * crash it leaves is a release of a half-built object somewhere else entirely. Turn it on only
+ * for a build you are diagnosing: build_core.py --debug-dump. ---- */
+#ifndef SHB_DBG_DUMP
+#define SHB_DBG_DUMP 0
+#endif
+#if SHB_DBG_DUMP
 extern unsigned int g_wrap_entry[5], g_slot_entry[4], g_code_entry[32];
 extern u32 g_save_dbg[6];
 static u32 g_dbg_tick, g_dbg_done;
@@ -843,13 +854,16 @@ static void dbg_write_path(const char *path) {
     fs_write_file(f, 0, buf, 440, &opt);
     fs_close_file(f);
 }
+#endif   /* SHB_DBG_DUMP */
 
 static void dbg_tick(void) {
+#if SHB_DBG_DUMP
     if (++g_dbg_tick < 600) return;          /* about every 10 s of input polling */
     g_dbg_tick = 0;
     if (g_dbg_done >= 60) return;
     g_dbg_done++;
     dbg_write_path("save:/slot_00/shbdebug.bin");
+#endif
 }
 
 /* core/hud.c, hook on nn::fs::OpenFile (main+0x3C42590): any file the game opens */
@@ -859,6 +873,7 @@ void button_mapping_on_open(const char *path, int mode) {
     if (!our_path(path, ours)) return;
     if (mode & 2) save_write(ours);
     else save_read(ours);
+#if SHB_DBG_DUMP
     {   /* dump next to the save the game just opened (the save volume is mounted here) */
         char dbg[48];
         u32 n = 0, slash = 0;
@@ -868,4 +883,5 @@ void button_mapping_on_open(const char *path, int mode) {
         for (u32 j = 0; ; j++) { dbg[slash + j] = TAIL[j]; if (!TAIL[j]) break; }
         dbg_write_path(dbg);
     }
+#endif
 }
