@@ -1,0 +1,10 @@
+[package]
+name = "shb-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Super Hero Boost companion: config block patching, installer and presets"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

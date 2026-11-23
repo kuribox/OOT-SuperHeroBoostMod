@@ -105,3 +105,28 @@ request at a time: while an input sequence runs, reads wait — measure through 
 - The Longshot builder keeps its work at `%LOCALAPPDATA%\LongshotLauncher\work` (`image/`, `sa/gen/`,
   `objcache/`); the lifted C chunks appear there during a build, not in the game folder.
 - `gh` is missing: open PRs and releases through `git push` + the GitHub web UI, or install the CLI.
+
+## Rust port of the companion app (`app-rs/`)
+
+Branch `feat/rust-app`: a second implementation of the app, to learn Rust against a known-good reference. It is
+**not** what the installer ships; the Python app in `app/` is.
+
+- Layout: `crates/shb-core` (settings, `ShbConfig` offsets, remap, presets, install, IPS, path/language
+  detection), `crates/shb-cli` (`shb`), `crates/shb-gui` (egui window, English/Spanish only).
+- **Parity is the contract**: `python app-rs/tools/parity_check.py --app app --payload app/payload --mode all`
+  patches and installs with both implementations and compares bytes. On 2026-11-23: 56/56 images identical
+  (16 profiles + 40 random settings), 6/6 install trees identical. Change the Python `patch_config` and this check
+  must be rerun.
+- The offset table is `config::off`; `patch_config` never writes past the size the module reports, so old blocks
+  (0.4.x = 0x48) keep working.
+- Not ported: enemy speed/aggression packs (zstd), GameCube UI atlas, the downloadable prompt layouts + table
+  merge, the recomp/rekarina rebuild flow, the updater, four of the six UI languages.
+- Toolchain on this PC: `stable-x86_64-pc-windows-gnu` (there is no MSVC C++ workload). Two things make it work:
+  `llvm-dlltool.exe` from LLVM copied to `~/.cargo/bin/dlltool.exe` (the gnu target needs `dlltool`), and
+  `app-rs/.cargo/config.toml`, which links with `rust-lld`. GNU `ld` produced binaries that segfaulted **before
+  `main`** (access violation, no output, not even in a build with only `wgpu` linked) — `rust-lld` builds the same
+  crates correctly. Diagnose this kind of crash by writing a marker file as the first line of `main`: bare `winit`
+  and bare `egui` windows run fine under GNU `ld`, so it is the link, not the code.
+- egui 0.37 API: `eframe::App` implements `fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame)`, and
+  panels are `egui::Panel::top/bottom("id").show(ui, ...)` + `egui::CentralPanel::default().show(ui, ...)` — not
+  the older `TopBottomPanel` + `update(ctx)` shape.

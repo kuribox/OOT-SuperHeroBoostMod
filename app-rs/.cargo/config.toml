@@ -1,0 +1,6 @@
+# The GNU linker (`ld`) produces binaries that crash before `main` when `wgpu` (or `glutin`, i.e. any `eframe`
+# window) is linked in — an access violation with no Rust output at all, on this toolchain. `rust-lld`, which ships
+# with the toolchain, links the same crates correctly. Nothing here affects the default `msvc` toolchain, where the
+# section simply does not apply.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "linker=rust-lld", "-C", "link-self-contained=yes"]
