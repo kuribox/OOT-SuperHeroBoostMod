@@ -868,7 +868,13 @@ static void dbg_tick(void) {
 
 /* core/hud.c, hook on nn::fs::OpenFile (main+0x3C42590): any file the game opens */
 void button_mapping_on_open(const char *path, int mode) {
-    if (path[0] != 's' || !g_shbcfg.button_mapping) return;   /* not save: (content: is the romfs) */
+    u64 a = (u64)(unsigned long)path;
+    /* The hook sees whatever the game passes. A pointer that is not guest memory must not be read:
+     * this runs inside the game's own open call, so a bad read here is a crash somewhere else. */
+    if (a < 0x10000ull || a >= 0x60000000000ull) return;
+    if (!g_shbcfg.button_mapping) return;
+    if (path[0] != 's' || path[1] != 'a' || path[2] != 'v' || path[3] != 'e' || path[4] != ':')
+        return;                                              /* not save: (content: is the romfs) */
     char ours[48];
     if (!our_path(path, ours)) return;
     if (mode & 2) save_write(ours);

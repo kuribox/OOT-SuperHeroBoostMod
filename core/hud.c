@@ -831,20 +831,39 @@ static struct { const u8 *src; u8 *copy; u32 kind; } g_res[140];
 static u32 g_res_n;
 static struct { void *handle; u8 config[0x100]; } g_calls[64];
 static u32 g_calls_n;
+static u32 g_ui_refused;   /* layouts whose metadata did not look like one of ours: left alone */
+
+/* Before touching a layout's metadata: the two descriptor lists we index must be real, every list
+ * pointer the build reads must be a guest pointer (or null) and the counts must fit. A build that
+ * changes the format, or a half-built layout, then gets its own config back instead of a copy we
+ * fabricated from garbage. */
+static int ui_shape_ok(const u8 *r) {
+    static const u32 lists[6] = {0x20, 0x28, 0x40, 0x80, 0xC0, 0xC8};
+    if (w(r, 0x38) > 128u || w(r, 0xD8) > 128u) return 0;
+    for (u32 i = 0; i < 6; i++) {
+        u64 p = q(r, lists[i]);
+        if (p && !vptr(p)) return 0;
+    }
+    return q(r, 0x28) && q(r, 0xC8);          /* the lists build_root() indexes by name */
+}
 
 u64 g_prep_dbg[20] = {1};   /* per part: handle, config, handle+0x28, handle+0x38 */
 
 void *hud_prepare(void *handle, u8 *config) {
     g_hud_dbg[8] += 1;
+    if (!vptr((u64)config) || !vptr((u64)handle)) return config;   /* not the call we think it is */
     const u8 *r = (const u8 *)q(config, 0);
-    if (!r || w(r, 0) != 0x004C4955u) return config;   /* "UIL\0" */
+    if (!r || !vptr((u64)r) || w(r, 0) != 0x004C4955u) return config;   /* "UIL\0" */
+    if (!ui_shape_ok(r)) { g_hud_dbg[11] = MARK | ++g_ui_refused; return config; }
     const char *asset = (const char *)q(r, 0x18);
     const char *inst = (const char *)q(handle, 0x30);
+    if (!asset || !vptr((u64)asset)) return config;
+    if (inst && !vptr((u64)inst)) inst = 0;
     u32 kind = str_eq(asset, "PlayerStatus_00") ? 1 : BTNMAP && str_eq(asset, "PaItemMenu_00") ? 3 :
                BTNMAP && str_eq(asset, "PlusMenu_00") ? 4 :
                g_shbcfg.hud_map_hearts && str_eq(asset, "PaMapCollectNum_00") ? 5 : 0;
     /* one of our slot buttons: its nested Pa_ReplaceIcon_00 is built next and gets the private copy */
-    for (u32 k = 0; !kind && k < (u32)PART_TOT; k++)
+    for (u32 k = 0; inst && !kind && k < (u32)PART_TOT; k++)
         if (str_eq(inst, part_name(k))) { g_repicon_armed = 1; return config; }
     if (!kind && g_repicon_armed && str_eq(asset, "PaReplaceIcon_00")) { g_repicon_armed = 0; g_repicon_dbg[1]++; kind = 2; }
     if (!kind) return config;
@@ -2868,7 +2887,9 @@ u32 hud_frame_count(void) { return g_tick; }
 static void hud_frame(void) {
     shb_clock_tick();                                /* real frame duration: the features count frames, not time */
     g_hud_dbg[1] = MARK | ++g_tick;
-    refresh_button_swap();
+    /* The jump-swap option is read from GameData, and looking it up walks the manager's hash table:
+     * once every 4 frames is the same answer 4 times out of 4, and a quarter of the work. */
+    if ((g_tick & 3u) == 0) refresh_button_swap();
     if (g_shbcfg.hud_collectibles) kset_refresh();   /* every frame, loads too: progress.sav is in the save buffer only briefly */
     if (!g_mp || (int)(g_tick - g_ready_at) < 0) return;
     if (!vptr(g_frame_node)) g_frame_node = 0;
