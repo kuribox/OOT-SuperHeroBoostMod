@@ -208,7 +208,11 @@ static void l3_inject_a(const HidView *v, u64 buttons, u32 moving) {
         want = g_shbcfg.sprint_l3 && l3;
     }
     g_l3_prev = l3;
-    if (!want || (buttons & BTN_A) || carrying) {   /* (carrying: no A, it would throw the object) */
+    /* Standing still (stick at rest): no A either. The sprint's A only matters while running, and held on the spot next to
+     * a jar it lifted it by itself (the game takes a held A as the lift once Link is stopped against the object), so the
+     * player's own A then threw it. The toggle keeps counting its idle frames (it still lets go by itself), it just no
+     * longer holds A meanwhile. */
+    if (!want || (buttons & BTN_A) || carrying || !moving) {   /* (carrying: no A, it would throw the object) */
         g_l3_a = 0;
         g_l3_neutral = 0;
         return;
