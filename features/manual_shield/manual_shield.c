@@ -492,6 +492,11 @@ void manual_shield_on_frame(void *scheduler) {
     /* Without the manual shield the guard stays the game's own: no flags, no setter, nothing drawn. */
     if (!ms) { g_ms_held = 0; g_ms_last_allowed = 0; return; }
 
+    /* Carrying or lifting something: the guard is off anyway, and the flag writes below (clearing the player's state
+     * flag and the guard component flag every frame) made the game throw the object by itself a moment after the lift
+     * (found live: with the option off the jar stayed in his hands). Leave the game's flags alone meanwhile. */
+    if (g_ms_carrying) { g_ms_allowed = 0; g_ms_last_allowed = 0; return; }
+
     /* The option is standalone: no stamina gate (the stamina feature still
      * charges its own held/hit costs if it is enabled). */
     u32 held = g_ms_held != 0;
