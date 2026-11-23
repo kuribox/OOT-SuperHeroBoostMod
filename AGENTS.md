@@ -9,9 +9,11 @@ Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**
 
 ## Rules (non-negotiable)
 
-1. **Branch first, never commit to `main`.** Use `feat/…`, `fix/…`, `docs/…`. Merge into `main` only after
-   the user says it is good, and use `--no-ff` so the branch stays visible:
-   `git checkout main && git merge --no-ff <branch>`. Never merge on your own initiative.
+1. **Branch first, and everything lands in `development`.** Work always starts on a branch (`feat/…`,
+   `fix/…`, `docs/…`). Once the user says it is good, the branch merges into **`development`** with `--no-ff`,
+   so it stays visible: `git checkout development && git merge --no-ff <branch>`. `development` reaches `main`
+   only when a release is cut, also with `--no-ff` (`git checkout main && git merge --no-ff development`).
+   Never commit to `main` or `development` directly, and never merge on your own initiative.
 2. **Code first, tests after.** Implement and build, then prove it in the emulator or a recomp. A successful
    build is not evidence that a feature works. Report what was verified and what was only assumed.
 3. **Live tests go through the emulator's debug server** (memory reads/writes and synthetic input), not by
