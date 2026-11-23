@@ -9,17 +9,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod i18n;
+mod preview;
 mod theme;
+mod widgets;
 
 use eframe::egui;
 use i18n::{fill, lang_name, tr};
 use shb_core::find;
 use shb_core::install::{self, InstallRequest};
 use shb_core::presets::{self, PROFILE_KEYS};
-use shb_core::roles::{self, ROLE_KEYS, Role};
+use shb_core::roles::{Button, Role, Roles};
 use shb_core::settings::{BmLayout, ButtonStyle, GameLayout, HudMode, LMode, Lang, Settings};
 use shb_core::update::{self, Update};
-use shb_core::{enemy, paths, payload_root};
+use shb_core::{paths, payload_root};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -53,11 +55,12 @@ enum Page {
     Controls,
     Hud,
     Misc,
+    Help,
     About,
 }
 
 impl Page {
-    const ALL: [Page; 8] = [
+    const ALL: [Page; 9] = [
         Page::Install,
         Page::Presets,
         Page::Gameplay,
@@ -65,8 +68,36 @@ impl Page {
         Page::Controls,
         Page::Hud,
         Page::Misc,
+        Page::Help,
         Page::About,
     ];
+
+    /// The page named by `SHB_PAGE` (a development aid: screenshots, and the docs' captures).
+    fn from_env() -> Page {
+        let name = std::env::var("SHB_PAGE")
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        for page in Page::ALL {
+            if page.name() == name {
+                return page;
+            }
+        }
+        Page::Install
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Page::Install => "install",
+            Page::Presets => "presets",
+            Page::Gameplay => "gameplay",
+            Page::Difficulty => "difficulty",
+            Page::Controls => "controls",
+            Page::Hud => "hud",
+            Page::Misc => "misc",
+            Page::Help => "help",
+            Page::About => "about",
+        }
+    }
 
     fn key(self) -> &'static str {
         match self {
@@ -77,6 +108,7 @@ impl Page {
             Page::Controls => "nav_controls",
             Page::Hud => "nav_hud",
             Page::Misc => "nav_misc",
+            Page::Help => "help_title",
             Page::About => "nav_about",
         }
     }
@@ -127,6 +159,10 @@ struct App {
     logo: Option<egui::TextureHandle>,
     status: Option<String>,
     update: UpdateState,
+    /// The key of the text a "?" opened, painted as a window over the page.
+    help: Option<&'static str>,
+    /// What the user typed in the help page's search box.
+    help_search: String,
     update_rx: Option<Receiver<UpdateMsg>>,
 }
 
@@ -138,7 +174,8 @@ impl App {
         // The window speaks the system language when it is one of ours, like the Python app.
         let ui_lang = system_lang();
         let mut app = App {
-            page: Page::Install,
+            // `SHB_PAGE=difficulty` opens straight on that page: how the screenshots of this window are taken.
+            page: Page::from_env(),
             target: Target::Emulator,
             emu,
             settings,
@@ -151,6 +188,8 @@ impl App {
             logo: theme::logo(&cc.egui_ctx),
             status: None,
             update: UpdateState::Idle,
+            help: None,
+            help_search: String::new(),
             update_rx: None,
         };
         match app.payload.clone() {
@@ -437,6 +476,137 @@ impl App {
     }
 }
 
+/// The `*_d` key of a stamina style, for its "?".
+fn preset_desc_key(value: usize) -> &'static str {
+    const KEYS: [&str; 4] = ["m_hardcore_d", "m_combat_d", "m_sprint_d", "m_advanced_d"];
+    KEYS.get(value).copied().unwrap_or("m_hardcore_d")
+}
+
+/// The one-sentence description of a stamina style.
+fn preset_desc(lang: Lang, value: usize) -> &'static str {
+    widgets::short(tr(lang, preset_desc_key(value))).leak()
+}
+
+/// The name key of a remap preset.
+fn preset_name_key(key: &str) -> &'static str {
+    match key {
+        "classic" => "preset_classic",
+        "action_down" => "preset_action_down",
+        "shield" => "preset_shield",
+        "souls" => "preset_souls",
+        "triggers" => "preset_triggers",
+        _ => "preset_gamecube",
+    }
+}
+
+/// The description key of a remap preset.
+fn preset_desc_key_for(key: &str) -> &'static str {
+    match key {
+        "classic" => "ctrl_preset_classic_d",
+        "action_down" => "ctrl_preset_action_down_d",
+        "shield" => "ctrl_preset_shield_d",
+        "souls" => "ctrl_preset_souls_d",
+        "triggers" => "ctrl_preset_triggers_d",
+        _ => "ctrl_preset_gamecube_d",
+    }
+}
+
+/// The label of a row of the editor: the button's glyph, or the long press of a face button.
+fn button_label(button: Button) -> &'static str {
+    match button {
+        Button::AHold => "A ↓",
+        Button::BHold => "B ↓",
+        Button::XHold => "X ↓",
+        Button::YHold => "Y ↓",
+        Button::Dr => "▶",
+        other => other.as_str(),
+    }
+}
+
+/// A role in the window's language.
+fn into_role_name(lang: Lang, role: Role) -> String {
+    tr(lang, role_key(role)).to_string()
+}
+
+/// The text key of a role.
+fn role_key(role: Role) -> &'static str {
+    match role {
+        Role::None => "role_none",
+        Role::Jump => "role_jump",
+        Role::Sword => "role_sword",
+        Role::Action => "role_action",
+        Role::Target => "role_target",
+        Role::Item1 => "role_item1",
+        Role::Item2 => "role_item2",
+        Role::Item3 => "role_item3",
+        Role::ItemMain => "role_item_main",
+        Role::Camera => "role_camera",
+        Role::Sprint => "role_sprint",
+        Role::Shield => "role_shield",
+        Role::Selector => "role_selector",
+        Role::Armory => "role_armory",
+        Role::Back => "role_back",
+    }
+}
+
+/// The extended explanation of a role, for the ones that have one.
+fn role_help_key(role: Role) -> Option<&'static str> {
+    match role {
+        Role::Action => Some("role_action_help"),
+        Role::ItemMain => Some("role_item_main_help"),
+        Role::Armory => Some("role_armory_help"),
+        Role::Back => Some("role_back_help"),
+        Role::Target => Some("opt_switch_help"),
+        Role::Sprint => Some("opt_toggle_help"),
+        _ => None,
+    }
+}
+
+/// One role on one button: the role that was there moves to the button that had the new one, so every role stays on
+/// a single button (the module's rule, `core/remap.h`).
+fn take_role(current: &Roles, button: Button, picked: Role) -> Roles {
+    let mut table = current.clone();
+    let old = table.get(&button).copied().unwrap_or(Role::None);
+    if picked != Role::None && picked != old {
+        let holder = table
+            .iter()
+            .find(|(other, role)| **other != button && **role == picked)
+            .map(|(other, _)| *other);
+        if let Some(other) = holder {
+            let replacement = if shb_core::roles::role_allowed(old, other) {
+                old
+            } else {
+                Role::None
+            };
+            table.insert(other, replacement);
+        }
+    }
+    table.insert(button, picked);
+    shb_core::roles::normalize(&table)
+}
+
+/// The title key of a help topic.
+fn help_title_key(topic: &str) -> &'static str {
+    match topic {
+        "start" => "help_start_title",
+        "install" => "help_install_title",
+        "controls" => "help_controls_title",
+        "rekarina" => "help_rekarina_title",
+        _ => "help_problems_title",
+    }
+}
+
+/// The body key of a help topic.
+fn help_body_key(topic: &str) -> &'static str {
+    match topic {
+        "start" => "help_start_body",
+        "install" => "help_install_body",
+        "controls" => "help_controls_body",
+        "rekarina" => "help_rekarina_body",
+        _ => "help_problems_body",
+    }
+}
+
 /// The language of the window: the system's when it is one of ours, else English.
 fn system_lang() -> Lang {
     for var in ["LC_ALL", "LC_MESSAGES", "LANG"] {
@@ -449,35 +619,6 @@ fn system_lang() -> Lang {
     // Windows: GetUserDefaultUILanguage via the language index the emulators read is not available here, so the
     // app starts in English and the user picks one from the header.
     Lang::En
-}
-
-/// A checkbox that tells the caller whether the user changed it (any change means "custom").
-fn toggle(ui: &mut egui::Ui, value: &mut bool, text: &str, changed: &mut bool) {
-    if ui.checkbox(value, text).changed() {
-        *changed = true;
-    }
-}
-
-/// A row of choices, the way the Python app draws its segmented controls (`ChoiceCard`).
-fn choice_row<T: PartialEq + Copy>(
-    ui: &mut egui::Ui,
-    label: &str,
-    values: &[T],
-    current: &mut T,
-    text: impl Fn(T) -> &'static str,
-) -> bool {
-    let mut changed = false;
-    ui.horizontal_wrapped(|ui| {
-        if !label.is_empty() {
-            ui.label(label);
-        }
-        for value in values {
-            if ui.selectable_value(current, *value, text(*value)).changed() {
-                changed = true;
-            }
-        }
-    });
-    changed
 }
 
 /// The small gold pill the Python app uses for the active profile (`Chip`).
@@ -495,36 +636,6 @@ fn chip(ui: &mut egui::Ui, text: &str) {
                     .strong(),
             );
         });
-}
-
-/// One of the enemy components: an `Off`/`x1.5`/… dropdown.
-fn enemy_level(ui: &mut egui::Ui, lang: Lang, label: &str, value: &mut u8) -> bool {
-    let mut changed = false;
-    ui.horizontal(|ui| {
-        ui.label(label);
-        egui::ComboBox::from_id_salt(format!("enemy-{label}"))
-            .selected_text(match enemy::factor(*value) {
-                Some(factor) => format!("x{factor}"),
-                None => tr(lang, "enemy_off").to_string(),
-            })
-            .show_ui(ui, |ui| {
-                if ui
-                    .selectable_value(value, 0, tr(lang, "enemy_off"))
-                    .changed()
-                {
-                    changed = true;
-                }
-                for (level, factor) in enemy::LEVELS {
-                    if ui
-                        .selectable_value(value, level, format!("x{factor}"))
-                        .changed()
-                    {
-                        changed = true;
-                    }
-                }
-            });
-    });
-    changed
 }
 
 impl eframe::App for App {
@@ -657,9 +768,28 @@ impl eframe::App for App {
                         Page::Controls => changed |= self.page_controls(ui),
                         Page::Hud => changed |= self.page_hud(ui),
                         Page::Misc => changed |= self.page_misc(ui),
+                        Page::Help => self.page_help(ui),
                         Page::About => self.page_about(ui),
                     });
             });
+
+        if let Some(key) = self.help {
+            let mut open = true;
+            let text = tr(lang, key).to_string();
+            let title = text.split('.').next().unwrap_or(&text).to_string();
+            let window = egui::Window::new(title)
+                .collapsible(false)
+                .resizable(false)
+                .open(&mut open)
+                .default_width(560.0);
+            window.show(ui.ctx(), |ui| {
+                ui.set_max_width(540.0);
+                ui.label(egui::RichText::new(text).size(13.0).color(theme::TEXT));
+            });
+            if !open {
+                self.help = None;
+            }
+        }
 
         if changed && self.profile != "custom" {
             // Any option the user touches turns the profile into Custom, like the Python window.
@@ -820,199 +950,334 @@ impl App {
     fn page_gameplay(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
         let mut changed = false;
-        section(
+        let mut help = self.help;
+        theme::section(
             ui,
             tr(lang, "stamina_title"),
             Some(tr(lang, "stamina_desc")),
             |ui| {
-                toggle(
+                if widgets::check(
                     ui,
                     &mut self.settings.stamina,
                     tr(lang, "stamina_on"),
-                    &mut changed,
-                );
-                ui.label(
-                    egui::RichText::new(tr(lang, "stamina_on_desc"))
-                        .size(12.0)
-                        .color(theme::DIM),
-                );
-                ui.label(
-                    egui::RichText::new(tr(lang, "stamina_display"))
-                        .size(12.0)
-                        .color(theme::DIM),
-                );
-                changed |= choice_row(
-                    ui,
-                    "",
-                    &[false, true],
-                    &mut self.settings.stamina_bar,
-                    |bar| {
-                        if bar {
-                            tr(lang, "stamina_bar")
-                        } else {
-                            tr(lang, "stamina_ring")
+                    tr(lang, "stamina_on_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.horizontal_top(|ui| {
+                    // Left: the display and the styles, each with its own sentence. Right: the preview.
+                    ui.vertical(|ui| {
+                        ui.label(
+                            egui::RichText::new(tr(lang, "stamina_display"))
+                                .size(13.0)
+                                .strong(),
+                        );
+                        ui.horizontal(|ui| {
+                            if ui
+                                .selectable_value(
+                                    &mut self.settings.stamina_bar,
+                                    false,
+                                    tr(lang, "stamina_ring"),
+                                )
+                                .changed()
+                            {
+                                changed = true;
+                            }
+                            widgets::help_icon(ui, "stamina_ring_d", lang, &mut help);
+                            if ui
+                                .selectable_value(
+                                    &mut self.settings.stamina_bar,
+                                    true,
+                                    tr(lang, "stamina_bar"),
+                                )
+                                .changed()
+                            {
+                                changed = true;
+                            }
+                            widgets::help_icon(ui, "stamina_bar_d", lang, &mut help);
+                        });
+                        let ring = widgets::short(tr(lang, "stamina_ring_d"));
+                        widgets::desc_under(ui, &ring);
+                        let bar = widgets::short(tr(lang, "stamina_bar_d"));
+                        widgets::desc_under(ui, &bar);
+                        ui.add_space(8.0);
+                        ui.label(
+                            egui::RichText::new(tr(lang, "stamina_mode"))
+                                .size(13.0)
+                                .strong(),
+                        );
+                        for (value, key) in PRESET_KEYS.iter().enumerate() {
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .selectable_value(
+                                        &mut self.settings.preset,
+                                        value as u8,
+                                        tr(lang, key),
+                                    )
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                                let desc = format!("{key}_d");
+                                widgets::help_icon(ui, preset_desc_key(value), lang, &mut help);
+                                let _ = desc;
+                            });
+                            widgets::desc_under(ui, preset_desc(lang, value));
                         }
-                    },
-                );
-                ui.label(
-                    egui::RichText::new(tr(lang, "stamina_mode"))
-                        .size(12.0)
-                        .color(theme::DIM),
-                );
-                ui.horizontal_wrapped(|ui| {
-                    for (value, key) in PRESET_KEYS.iter().enumerate() {
-                        if ui
-                            .selectable_value(&mut self.settings.preset, value as u8, tr(lang, key))
-                            .changed()
-                        {
-                            changed = true;
-                        }
-                    }
+                    });
+                    ui.add_space(24.0);
+                    ui.vertical(|ui| {
+                        ui.label(
+                            egui::RichText::new(tr(lang, "preview"))
+                                .size(12.0)
+                                .color(theme::DIM)
+                                .strong(),
+                        );
+                        preview::stamina(ui, self.settings.stamina, self.settings.stamina_bar);
+                    });
                 });
+                if !self.settings.stamina {
+                    ui.add_space(6.0);
+                    ui.label(
+                        egui::RichText::new(tr(lang, "stamina_off_note"))
+                            .size(12.0)
+                            .color(theme::AMBER),
+                    );
+                }
             },
         );
         ui.add_space(10.0);
-        section(
+        theme::section(
             ui,
             tr(lang, "costs_title"),
             Some(tr(lang, "costs_desc")),
             |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    for (value, key) in [
-                        (&mut self.settings.jump, "a_jump"),
-                        (&mut self.settings.attack, "a_attack"),
-                        (&mut self.settings.sprint, "a_sprint"),
-                        (&mut self.settings.block, "a_block"),
-                        (&mut self.settings.shoot, "a_shoot"),
-                        (&mut self.settings.roll, "a_roll"),
-                    ] {
-                        toggle(ui, value, tr(lang, key), &mut changed);
-                    }
-                });
-                toggle(
+                egui::Grid::new("costs")
+                    .num_columns(2)
+                    .spacing([28.0, 2.0])
+                    .show(ui, |ui| {
+                        for (i, (field, key)) in [
+                            (&mut self.settings.jump, "a_jump"),
+                            (&mut self.settings.attack, "a_attack"),
+                            (&mut self.settings.sprint, "a_sprint"),
+                            (&mut self.settings.block, "a_block"),
+                            (&mut self.settings.shoot, "a_shoot"),
+                            (&mut self.settings.roll, "a_roll"),
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            if ui.checkbox(field, tr(lang, key)).changed() {
+                                changed = true;
+                            }
+                            if i % 2 == 1 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+                ui.add_space(4.0);
+                if widgets::check(
                     ui,
                     &mut self.settings.combat_only,
                     tr(lang, "combat_only"),
-                    &mut changed,
-                );
+                    "",
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
             },
         );
+        ui.add_space(10.0);
+        theme::section(ui, tr(lang, "sprint_speed"), None, |ui| {
+            if widgets::combo_row(
+                ui,
+                tr(lang, "sprint_speed"),
+                "sprint-speed",
+                &mut self.settings.sprint_speed,
+                &widgets::speed_options(lang),
+                150.0,
+            ) {
+                changed = true;
+            }
+        });
+        self.help = help;
         changed
     }
-
     fn page_difficulty(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
         let mut changed = false;
-        section(
+        let mut help = self.help;
+        theme::section(
             ui,
             tr(lang, "difficulty_title"),
             Some(tr(lang, "difficulty_desc")),
             |ui| {
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut self.settings.enemy_hp, 50..=400)
-                            .text(tr(lang, "enemy_hp")),
-                    )
-                    .changed();
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut self.settings.damage, 50..=400)
-                            .text(tr(lang, "damage")),
-                    )
-                    .changed();
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut self.settings.sprint_speed, 100..=200)
-                            .text(tr(lang, "sprint_speed")),
-                    )
-                    .changed();
-                toggle(
+                ui.horizontal_wrapped(|ui| {
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "enemy_hp"),
+                        "mult-hp",
+                        &mut self.settings.enemy_hp,
+                        &widgets::mult_options(lang),
+                        140.0,
+                    ) {
+                        changed = true;
+                    }
+                    ui.add_space(18.0);
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "damage"),
+                        "mult-damage",
+                        &mut self.settings.damage,
+                        &widgets::mult_options(lang),
+                        140.0,
+                    ) {
+                        changed = true;
+                    }
+                });
+                ui.add_space(6.0);
+                if widgets::check(
                     ui,
                     &mut self.settings.no_heart_drop,
                     tr(lang, "no_heart_drop"),
-                    &mut changed,
-                );
-                toggle(
+                    tr(lang, "no_heart_drop_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                if widgets::check(
                     ui,
                     &mut self.settings.no_magic_drop,
                     tr(lang, "no_magic_drop"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.hide_minimap,
-                    tr(lang, "hide_minimap"),
-                    &mut changed,
+                    tr(lang, "no_magic_drop_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.label(
+                    egui::RichText::new(tr(lang, "difficulty_note"))
+                        .size(12.0)
+                        .color(theme::DIM),
                 );
             },
         );
         ui.add_space(10.0);
-        section(
+        theme::section(
             ui,
             tr(lang, "enemies_title"),
             Some(tr(lang, "enemies_desc")),
             |ui| {
-                toggle(
+                if widgets::check(
                     ui,
                     &mut self.settings.enemy_double,
                     tr(lang, "enemy_double_on"),
-                    &mut changed,
+                    tr(lang, "enemy_double_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.label(
+                    egui::RichText::new(tr(lang, "enemy_beta_note"))
+                        .size(12.0)
+                        .color(theme::DIM),
                 );
-                ui.add_space(4.0);
-                ui.label(egui::RichText::new(tr(lang, "enemy_speed")).strong());
-                changed |= enemy_level(
-                    ui,
-                    lang,
-                    tr(lang, "enemy_move"),
-                    &mut self.settings.enemy_move,
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new(tr(lang, "enemy_speed"))
+                        .size(13.0)
+                        .strong(),
                 );
-                changed |= enemy_level(
-                    ui,
-                    lang,
-                    tr(lang, "enemy_anim"),
-                    &mut self.settings.enemy_anim,
+                widgets::desc(ui, tr(lang, "enemy_speed_desc"));
+                ui.add_space(2.0);
+                let options = widgets::enemy_options(lang);
+                egui::Grid::new("enemy-levels")
+                    .num_columns(2)
+                    .spacing([24.0, 4.0])
+                    .show(ui, |ui| {
+                        for (i, (field, key, help_key)) in [
+                            (&mut self.settings.enemy_move, "enemy_move", None),
+                            (&mut self.settings.enemy_anim, "enemy_anim", None),
+                            (&mut self.settings.enemy_attack, "enemy_attack", None),
+                            (&mut self.settings.enemy_proj, "enemy_proj", None),
+                            (
+                                &mut self.settings.enemy_alert,
+                                "enemy_alert",
+                                Some("enemy_alert_help"),
+                            ),
+                        ]
+                        .into_iter()
+                        .enumerate()
+                        {
+                            ui.horizontal(|ui| {
+                                if widgets::combo_row(
+                                    ui,
+                                    tr(lang, key),
+                                    key,
+                                    field,
+                                    &options,
+                                    110.0,
+                                ) {
+                                    changed = true;
+                                }
+                                if let Some(help_key) = help_key {
+                                    widgets::help_icon(ui, help_key, lang, &mut help);
+                                }
+                            });
+                            if i % 2 == 1 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+                ui.add_space(8.0);
+                ui.label(
+                    egui::RichText::new(tr(lang, "boss_speed"))
+                        .size(13.0)
+                        .strong(),
                 );
-                changed |= enemy_level(
-                    ui,
-                    lang,
-                    tr(lang, "enemy_attack"),
-                    &mut self.settings.enemy_attack,
-                );
-                changed |= enemy_level(
-                    ui,
-                    lang,
-                    tr(lang, "enemy_proj"),
-                    &mut self.settings.enemy_proj,
-                );
-                changed |= enemy_level(
-                    ui,
-                    lang,
-                    tr(lang, "enemy_alert"),
-                    &mut self.settings.enemy_alert,
-                );
-                ui.label(egui::RichText::new(tr(lang, "boss_speed")).strong());
-                changed |= enemy_level(
-                    ui,
-                    lang,
-                    tr(lang, "enemy_move"),
-                    &mut self.settings.boss_move,
-                );
-                changed |= enemy_level(
-                    ui,
-                    lang,
-                    tr(lang, "enemy_anim"),
-                    &mut self.settings.boss_anim,
-                );
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(tr(lang, "enemy_aggro"));
-                    for level in enemy::AGGRO_LEVELS {
-                        let name = match level {
-                            1 => tr(lang, "aggro_aggressive"),
-                            2 => tr(lang, "aggro_max"),
-                            _ => tr(lang, "aggro_normal"),
-                        };
+                widgets::desc(ui, tr(lang, "boss_speed_desc"));
+                ui.add_space(2.0);
+                ui.horizontal(|ui| {
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "enemy_move"),
+                        "boss-move",
+                        &mut self.settings.boss_move,
+                        &options,
+                        110.0,
+                    ) {
+                        changed = true;
+                    }
+                    ui.add_space(18.0);
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "enemy_anim"),
+                        "boss-anim",
+                        &mut self.settings.boss_anim,
+                        &options,
+                        110.0,
+                    ) {
+                        changed = true;
+                    }
+                });
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    ui.label(
+                        egui::RichText::new(tr(lang, "enemy_aggro"))
+                            .size(13.0)
+                            .strong(),
+                    );
+                    widgets::help_icon(ui, "enemy_aggro_help", lang, &mut help);
+                });
+                ui.horizontal(|ui| {
+                    for (value, key) in [(0u8, "aggro_0"), (1, "aggro_1"), (2, "aggro_2")] {
                         if ui
-                            .selectable_value(&mut self.settings.enemy_aggro, level, name)
+                            .selectable_value(&mut self.settings.enemy_aggro, value, tr(lang, key))
                             .changed()
                         {
                             changed = true;
@@ -1021,311 +1286,748 @@ impl App {
                 });
             },
         );
+        self.help = help;
         changed
     }
-
     fn page_controls(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
         let mut changed = false;
-        section(
+        let mut help = self.help;
+
+        // The presets: one card per table, the way the Python app opens the page.
+        theme::section(
             ui,
-            tr(lang, "buttons_title"),
-            Some(tr(lang, "controls_desc")),
+            tr(lang, "ctrl_preset_title"),
+            Some(tr(lang, "ctrl_preset_desc")),
             |ui| {
-                toggle(
-                    ui,
-                    &mut self.settings.button_mapping,
-                    tr(lang, "bm_on"),
-                    &mut changed,
-                );
-                changed |= choice_row(
-                    ui,
-                    tr(lang, "variant"),
-                    ButtonStyle::ALL,
-                    &mut self.settings.button_style,
-                    |s| s.as_str(),
-                );
-                changed |= choice_row(
-                    ui,
-                    tr(lang, "bm_place"),
-                    BmLayout::ALL,
-                    &mut self.settings.bm_layout,
-                    |s| s.as_str(),
-                );
-                changed |= choice_row(
-                    ui,
-                    tr(lang, "bm_l"),
-                    LMode::ALL,
-                    &mut self.settings.bm_l_mode,
-                    |m| match m {
-                        LMode::Assign => tr(lang, "bm_l_assign"),
-                        LMode::Selector => tr(lang, "bm_l_selector"),
-                    },
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.bm_simple,
-                    tr(lang, "bm_simple"),
-                    &mut changed,
-                );
-            },
-        );
-        ui.add_space(10.0);
-        section(
-            ui,
-            tr(lang, "controls_title"),
-            Some(tr(lang, "ms_note")),
-            |ui| {
-                toggle(
-                    ui,
-                    &mut self.settings.manual_shield,
-                    tr(lang, "ms_on"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.target_r3,
-                    tr(lang, "target_r3_on"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.sprint_l3,
-                    tr(lang, "sprint_l3_on"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.sprint_l3_toggle,
-                    tr(lang, "sprint_l3_toggle_on"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.auto_target,
-                    tr(lang, "auto_target_on"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.switch_target,
-                    tr(lang, "switch_target_on"),
-                    &mut changed,
-                );
-            },
-        );
-        ui.add_space(10.0);
-        section(
-            ui,
-            tr(lang, "songbook_title"),
-            Some(tr(lang, "songbook_desc")),
-            |ui| {
-                toggle(
-                    ui,
-                    &mut self.settings.songbook,
-                    tr(lang, "songbook_on"),
-                    &mut changed,
-                );
-            },
-        );
-        ui.add_space(10.0);
-        section(
-            ui,
-            tr(lang, "quick_title"),
-            Some(tr(lang, "quick_desc")),
-            |ui| {
-                toggle(
-                    ui,
-                    &mut self.settings.quick_boots,
-                    tr(lang, "quick_boots_on"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.quick_mask,
-                    tr(lang, "quick_mask_on"),
-                    &mut changed,
-                );
-            },
-        );
-        ui.add_space(10.0);
-        section(ui, tr(lang, "bm_on"), None, |ui| {
-            ui.horizontal_wrapped(|ui| {
-                ui.label(tr(lang, "recomp_log"));
-                for key in roles::REMAP_PRESET_KEYS {
-                    if ghost_button(ui, key).clicked()
-                        && let Some(table) = roles::remap_preset(key)
-                    {
-                        self.settings.bm_roles = table;
-                        changed = true;
-                    }
-                }
-            });
-            egui::Grid::new("remap-grid")
-                .num_columns(2)
-                .spacing([12.0, 4.0])
-                .show(ui, |ui| {
-                    for button in ROLE_KEYS {
-                        ui.label(button.as_str());
-                        let current = self
-                            .settings
-                            .bm_roles
-                            .get(&button)
-                            .copied()
-                            .unwrap_or(Role::None);
-                        egui::ComboBox::from_id_salt(format!("role-{}", button.as_str()))
-                            .selected_text(current.as_str())
-                            .width(160.0)
-                            .show_ui(ui, |ui| {
-                                let entry =
-                                    self.settings.bm_roles.entry(button).or_insert(Role::None);
-                                for role in Role::ALL {
-                                    if !roles::role_allowed(*role, button) {
-                                        continue;
+                egui::Grid::new("remap-presets")
+                    .num_columns(2)
+                    .spacing([10.0, 8.0])
+                    .show(ui, |ui| {
+                        for (i, key) in [
+                            "classic",
+                            "action_down",
+                            "shield",
+                            "souls",
+                            "triggers",
+                            "gamecube",
+                        ]
+                        .iter()
+                        .enumerate()
+                        {
+                            let name = tr(lang, preset_name_key(key));
+                            let desc = tr(lang, preset_desc_key_for(key));
+                            let selected = shb_core::roles::remap_preset(key)
+                                .map(|table| {
+                                    shb_core::roles::keep_holds(&table, &self.settings.bm_roles)
+                                        == self.settings.bm_roles
+                                })
+                                .unwrap_or(false);
+                            let width = (ui.available_width() * 0.5 - 14.0).clamp(220.0, 420.0);
+                            ui.vertical(|ui| {
+                                let button = egui::Button::new(
+                                    egui::RichText::new(name)
+                                        .color(if selected {
+                                            theme::ON_ACCENT
+                                        } else {
+                                            theme::TEXT
+                                        })
+                                        .strong(),
+                                )
+                                .fill(if selected {
+                                    theme::ACCENT
+                                } else {
+                                    theme::PANEL2
+                                })
+                                .stroke(egui::Stroke::new(1.0, theme::BORDER))
+                                .corner_radius(egui::CornerRadius::same(10))
+                                .min_size(egui::vec2(width, 0.0));
+                                if ui.add(button).clicked() {
+                                    if *key == "gamecube" {
+                                        self.settings.bm_layout = BmLayout::Gamecube;
+                                        self.settings.button_style = ButtonStyle::Switch;
+                                        self.settings.bm_simple = false;
+                                        self.settings.button_mapping = true;
+                                    } else if self.settings.bm_layout == BmLayout::Gamecube {
+                                        self.settings.bm_layout = BmLayout::Nintendo;
                                     }
-                                    if ui.selectable_value(entry, *role, role.as_str()).changed() {
+                                    let table_key =
+                                        if *key == "gamecube" { "classic" } else { key };
+                                    if let Some(table) = shb_core::roles::remap_preset(table_key) {
+                                        let table = shb_core::roles::keep_holds(
+                                            &table,
+                                            &self.settings.bm_roles,
+                                        );
+                                        if table.values().any(|r| *r == Role::Shield) {
+                                            self.settings.manual_shield = true;
+                                        }
+                                        self.settings.bm_roles = table;
                                         changed = true;
                                     }
                                 }
+                                ui.add_space(2.0);
+                                ui.horizontal_wrapped(|ui| {
+                                    ui.set_max_width(width);
+                                    ui.label(
+                                        egui::RichText::new(desc).size(12.0).color(theme::DIM),
+                                    );
+                                });
                             });
-                        ui.end_row();
+                            if i % 2 == 1 {
+                                ui.end_row();
+                            }
+                        }
+                    });
+                ui.horizontal(|ui| {
+                    widgets::help_icon(ui, "rm_help", lang, &mut help);
+                    ui.label(
+                        egui::RichText::new(widgets::short(tr(lang, "rm_help")))
+                            .size(12.0)
+                            .color(theme::DIM),
+                    );
+                });
+            },
+        );
+
+        // The buttons themselves: on/off, the pictures, the face-button positions.
+        ui.add_space(10.0);
+        theme::section(
+            ui,
+            tr(lang, "buttons_title"),
+            Some(tr(lang, "ctrl_advanced_desc")),
+            |ui| {
+                if widgets::check(
+                    ui,
+                    &mut self.settings.button_mapping,
+                    tr(lang, "bm_on"),
+                    tr(lang, "bm_on_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.add_space(4.0);
+                // The pictures of the HUD buttons: Switch, PlayStation or Xbox.
+                ui.horizontal(|ui| {
+                    let styles = vec![
+                        (ButtonStyle::Switch, tr(lang, "g_default").to_string()),
+                        (
+                            ButtonStyle::PlayStation,
+                            tr(lang, "g_playstation").to_string(),
+                        ),
+                        (ButtonStyle::Xbox, tr(lang, "g_xbox").to_string()),
+                    ];
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "variant"),
+                        "variant",
+                        &mut self.settings.button_style,
+                        &styles,
+                        150.0,
+                    ) {
+                        changed = true;
+                    }
+                    widgets::help_icon(ui, "variant_d", lang, &mut help);
+                });
+                ui.add_space(4.0);
+                // How many buttons the mod draws: the assignable ones only, or the extended set.
+                ui.horizontal(|ui| {
+                    ui.label(egui::RichText::new(tr(lang, "bm_layout")).size(13.0));
+                    if ui
+                        .selectable_value(&mut self.settings.bm_simple, false, tr(lang, "bm_ext"))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    widgets::help_icon(ui, "bm_ext_d", lang, &mut help);
+                    if ui
+                        .selectable_value(&mut self.settings.bm_simple, true, tr(lang, "bm_simple"))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    widgets::help_icon(ui, "bm_simple_d", lang, &mut help);
+                });
+                ui.add_space(4.0);
+                // The face-button positions, the same scheme as the recompiled games (GameCube included).
+                ui.horizontal(|ui| {
+                    let places = vec![
+                        (
+                            BmLayout::Nintendo,
+                            tr(lang, "bm_place_nintendo").to_string(),
+                        ),
+                        (BmLayout::Ab, tr(lang, "bm_place_ab").to_string()),
+                        (BmLayout::Xbox, tr(lang, "bm_place_xbox").to_string()),
+                        (
+                            BmLayout::Gamecube,
+                            tr(lang, "bm_place_gamecube").to_string(),
+                        ),
+                    ];
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "bm_place"),
+                        "bm-place",
+                        &mut self.settings.bm_layout,
+                        &places,
+                        230.0,
+                    ) {
+                        changed = true;
+                    }
+                    widgets::help_icon(ui, "bm_place_d", lang, &mut help);
+                });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    let lmodes = vec![
+                        (LMode::Assign, tr(lang, "bm_l_assign").to_string()),
+                        (LMode::Selector, tr(lang, "bm_l_selector").to_string()),
+                    ];
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "bm_l"),
+                        "bm-l",
+                        &mut self.settings.bm_l_mode,
+                        &lmodes,
+                        190.0,
+                    ) {
+                        changed = true;
                     }
                 });
+                ui.add_space(4.0);
+                ui.horizontal(|ui| {
+                    if widgets::percent_slider(
+                        ui,
+                        tr(lang, "hud_ctrl_scale"),
+                        &mut self.settings.hud_ctrl_scale,
+                        50,
+                        200,
+                        5,
+                    ) {
+                        changed = true;
+                    }
+                    widgets::help_icon(ui, "hud_ctrl_scale_desc", lang, &mut help);
+                });
+            },
+        );
+
+        // The editor: one row per button, its roles, and the two previews.
+        ui.add_space(10.0);
+        theme::section(ui, tr(lang, "rm_title"), Some(tr(lang, "rm_help")), |ui| {
+            ui.horizontal_top(|ui| {
+                ui.vertical(|ui| {
+                    let items = self
+                        .settings
+                        .bm_roles
+                        .values()
+                        .filter(|r| {
+                            matches!(r, Role::Item1 | Role::Item2 | Role::Item3 | Role::ItemMain)
+                        })
+                        .count();
+                    ui.label(
+                        egui::RichText::new(fill(
+                            tr(lang, "rm_items"),
+                            &[("n", &items.to_string())],
+                        ))
+                        .size(12.0)
+                        .color(theme::DIM),
+                    );
+                    let rows: [Button; 15] = [
+                        Button::X,
+                        Button::XHold,
+                        Button::Y,
+                        Button::YHold,
+                        Button::A,
+                        Button::AHold,
+                        Button::B,
+                        Button::BHold,
+                        Button::L,
+                        Button::R,
+                        Button::Zl,
+                        Button::Zr,
+                        Button::L3,
+                        Button::R3,
+                        Button::Dr,
+                    ];
+                    for button in rows {
+                        ui.horizontal(|ui| {
+                            ui.label(
+                                egui::RichText::new(button_label(button))
+                                    .size(12.0)
+                                    .strong()
+                                    .color(theme::ACCENT),
+                            );
+                            ui.add_space(4.0);
+                            let current = self
+                                .settings
+                                .bm_roles
+                                .get(&button)
+                                .copied()
+                                .unwrap_or(Role::None);
+                            let mut picked = current;
+                            let choices: Vec<(Role, String)> = Role::ALL
+                                .iter()
+                                .copied()
+                                .filter(|role| shb_core::roles::role_allowed(*role, button))
+                                .map(|role| (role, into_role_name(lang, role)))
+                                .collect();
+                            if widgets::combo_row(
+                                ui,
+                                "",
+                                &format!("role-{button:?}"),
+                                &mut picked,
+                                &choices,
+                                190.0,
+                            ) {
+                                self.settings.bm_roles =
+                                    take_role(&self.settings.bm_roles, button, picked);
+                                changed = true;
+                            }
+                            if let Some(key) = role_help_key(picked) {
+                                widgets::help_icon(ui, key, lang, &mut help);
+                            }
+                        });
+                        // The options of the role, on its own line (target: shield, next one; sprint: toggle).
+                        if self.settings.bm_roles.get(&button) == Some(&Role::Target) {
+                            ui.horizontal(|ui| {
+                                ui.add_space(34.0);
+                                if widgets::check(
+                                    ui,
+                                    &mut self.settings.manual_shield,
+                                    tr(lang, "opt_shield"),
+                                    "",
+                                    Some("opt_shield_help"),
+                                    &mut help,
+                                ) {
+                                    changed = true;
+                                }
+                                if widgets::check(
+                                    ui,
+                                    &mut self.settings.switch_target,
+                                    tr(lang, "opt_switch"),
+                                    "",
+                                    Some("opt_switch_help"),
+                                    &mut help,
+                                ) {
+                                    changed = true;
+                                }
+                                if widgets::check(
+                                    ui,
+                                    &mut self.settings.auto_target,
+                                    tr(lang, "opt_auto"),
+                                    "",
+                                    Some("opt_auto_help"),
+                                    &mut help,
+                                ) {
+                                    changed = true;
+                                }
+                            });
+                        } else if self.settings.bm_roles.get(&button) == Some(&Role::Sprint) {
+                            ui.horizontal(|ui| {
+                                ui.add_space(34.0);
+                                if widgets::check(
+                                    ui,
+                                    &mut self.settings.sprint_l3_toggle,
+                                    tr(lang, "opt_toggle"),
+                                    "",
+                                    Some("opt_toggle_help"),
+                                    &mut help,
+                                ) {
+                                    changed = true;
+                                }
+                            });
+                        }
+                    }
+                    let missing: Vec<String> =
+                        shb_core::roles::roles_missing(&self.settings.bm_roles)
+                            .iter()
+                            .map(|role| into_role_name(lang, *role))
+                            .collect();
+                    if !missing.is_empty() {
+                        ui.label(
+                            egui::RichText::new(fill(
+                                tr(lang, "rm_missing"),
+                                &[("a", &missing.join(", "))],
+                            ))
+                            .size(12.0)
+                            .color(theme::AMBER),
+                        );
+                    }
+                    if self.settings.manual_shield
+                        && !self.settings.bm_roles.values().any(|r| *r == Role::Shield)
+                    {
+                        ui.label(
+                            egui::RichText::new(tr(lang, "rm_no_shield"))
+                                .size(12.0)
+                                .color(theme::AMBER),
+                        );
+                    }
+                });
+                ui.add_space(20.0);
+                ui.vertical(|ui| {
+                    ui.label(
+                        egui::RichText::new(tr(lang, "rm_pad"))
+                            .size(12.0)
+                            .color(theme::DIM)
+                            .strong(),
+                    );
+                    preview::pad(
+                        ui,
+                        &self.settings.bm_roles,
+                        self.settings.button_style,
+                        |role| into_role_name(lang, role),
+                    );
+                    ui.horizontal(|ui| {
+                        ui.label(
+                            egui::RichText::new(tr(lang, "rm_hud"))
+                                .size(12.0)
+                                .color(theme::DIM)
+                                .strong(),
+                        );
+                        widgets::help_icon(ui, "rm_hud_help", lang, &mut help);
+                    });
+                    preview::hud(
+                        ui,
+                        &self.settings.bm_roles,
+                        self.settings.button_style,
+                        self.settings.bm_simple,
+                        self.settings.bm_layout == BmLayout::Gamecube,
+                        |role| into_role_name(lang, role),
+                    );
+                });
+            });
         });
+        self.help = help;
         changed
     }
 
+    fn page_help(&mut self, ui: &mut egui::Ui) {
+        let lang = self.ui_lang;
+        theme::section(
+            ui,
+            tr(lang, "help_title"),
+            Some(tr(lang, "help_desc")),
+            |ui| {
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.help_search)
+                        .hint_text(tr(lang, "help_search"))
+                        .desired_width(ui.available_width().min(420.0)),
+                );
+                ui.add_space(6.0);
+                let topics: [&str; 5] = ["start", "install", "controls", "rekarina", "problems"];
+                let query = self.help_search.trim().to_lowercase();
+                let mut shown = 0;
+                for topic in topics {
+                    let title = tr(lang, help_title_key(topic));
+                    let body = tr(lang, help_body_key(topic));
+                    if !query.is_empty()
+                        && !title.to_lowercase().contains(&query)
+                        && !body.to_lowercase().contains(&query)
+                    {
+                        continue;
+                    }
+                    shown += 1;
+                    ui.add_space(8.0);
+                    ui.label(
+                        egui::RichText::new(title)
+                            .size(15.0)
+                            .strong()
+                            .color(theme::ACCENT),
+                    );
+                    for line in body.split('\n') {
+                        ui.label(egui::RichText::new(line).size(13.0));
+                    }
+                }
+                if shown == 0 {
+                    ui.label(egui::RichText::new(tr(lang, "help_no_results")).color(theme::AMBER));
+                }
+            },
+        );
+    }
     fn page_hud(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
         let mut changed = false;
-        section(
+        let mut help = self.help;
+        theme::section(
             ui,
             tr(lang, "hud_title"),
             Some(tr(lang, "hud_desc")),
             |ui| {
-                ui.label(
-                    egui::RichText::new(tr(lang, "hud_mode"))
-                        .size(12.0)
-                        .color(theme::DIM),
-                );
-                ui.horizontal_wrapped(|ui| {
-                    for mode in HudMode::ALL {
-                        let name = match mode {
-                            HudMode::Wide => tr(lang, "hud_mode_wide"),
-                            HudMode::Simple => tr(lang, "hud_mode_simple"),
-                            HudMode::Plain => tr(lang, "hud_mode_plain"),
-                        };
-                        if ui
-                            .selectable_value(&mut self.settings.hud_mode, *mode, name)
-                            .changed()
-                        {
-                            changed = true;
-                        }
+                let modes = [
+                    (HudMode::Wide, "hud_mode_wide", "hud_mode_wide_desc"),
+                    (HudMode::Simple, "hud_mode_simple", "hud_mode_simple_desc"),
+                    (HudMode::Plain, "hud_mode_plain", "hud_mode_plain_desc"),
+                ];
+                let options: Vec<(HudMode, String)> = modes
+                    .iter()
+                    .map(|(m, key, _)| (*m, tr(lang, key).to_string()))
+                    .collect();
+                if widgets::combo_row(
+                    ui,
+                    tr(lang, "hud_mode"),
+                    "hud-mode",
+                    &mut self.settings.hud_mode,
+                    &options,
+                    220.0,
+                ) {
+                    changed = true;
+                }
+                for (_, _, key) in modes {
+                    widgets::desc_under(ui, tr(lang, key));
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .checkbox(&mut self.settings.hud_rupees, tr(lang, "hud_rupees"))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                    ui.add_space(18.0);
+                    // The clock: off, 12 hours or 24 hours (two flags in the config block).
+                    let mut clock = if !self.settings.hud_clock {
+                        0u8
+                    } else if self.settings.clock_24h {
+                        2
+                    } else {
+                        1
+                    };
+                    let options = vec![
+                        (0u8, tr(lang, "clock_off").to_string()),
+                        (1, tr(lang, "clock_12").to_string()),
+                        (2, tr(lang, "clock_24").to_string()),
+                    ];
+                    if widgets::combo_row(
+                        ui,
+                        tr(lang, "clock_mode"),
+                        "clock-mode",
+                        &mut clock,
+                        &options,
+                        130.0,
+                    ) {
+                        self.settings.hud_clock = clock > 0;
+                        self.settings.clock_24h = clock == 2;
+                        changed = true;
                     }
                 });
-                ui.label(
-                    egui::RichText::new(tr(lang, "hud_mode_desc"))
-                        .size(12.0)
-                        .color(theme::DIM),
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.hud_rupees,
-                    tr(lang, "hud_rupees"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.hud_clock,
-                    tr(lang, "hud_clock"),
-                    &mut changed,
-                );
-                toggle(
-                    ui,
-                    &mut self.settings.clock_24h,
-                    tr(lang, "clock_24"),
-                    &mut changed,
-                );
-                toggle(
+                ui.add_space(8.0);
+                if widgets::check(
                     ui,
                     &mut self.settings.hud_collectibles,
                     tr(lang, "hud_collectibles"),
-                    &mut changed,
-                );
-                toggle(
+                    tr(lang, "hud_collectibles_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                if widgets::check(
                     ui,
-                    &mut self.settings.stamina_bar,
-                    tr(lang, "stamina_bar"),
-                    &mut changed,
+                    &mut self.settings.hide_minimap,
+                    tr(lang, "hide_minimap"),
+                    tr(lang, "hide_minimap_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.add_space(6.0);
+                ui.horizontal(|ui| {
+                    if widgets::percent_slider(
+                        ui,
+                        tr(lang, "hud_count_scale"),
+                        &mut self.settings.hud_count_scale,
+                        50,
+                        200,
+                        5,
+                    ) {
+                        changed = true;
+                    }
+                    widgets::help_icon(ui, "hud_count_scale_desc", lang, &mut help);
+                });
+                ui.label(
+                    egui::RichText::new(tr(lang, "hud_note"))
+                        .size(12.0)
+                        .color(theme::DIM),
                 );
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut self.settings.hud_ctrl_scale, 50..=200)
-                            .step_by(5.0)
-                            .text(tr(lang, "hud_ctrl_scale")),
-                    )
-                    .changed();
-                changed |= ui
-                    .add(
-                        egui::Slider::new(&mut self.settings.hud_count_scale, 50..=200)
-                            .step_by(5.0)
-                            .text(tr(lang, "hud_count_scale")),
-                    )
-                    .changed();
             },
         );
+        ui.add_space(10.0);
+        theme::section(
+            ui,
+            tr(lang, "game_layout"),
+            Some(tr(lang, "game_layout_d")),
+            |ui| {
+                let options = vec![
+                    (GameLayout::None, tr(lang, "game_layout_none").to_string()),
+                    (
+                        GameLayout::PlayStation,
+                        tr(lang, "g_playstation").to_string(),
+                    ),
+                    (GameLayout::Xbox, tr(lang, "g_xbox").to_string()),
+                ];
+                let gamecube = self.settings.bm_layout == BmLayout::Gamecube;
+                ui.add_enabled_ui(!gamecube, |ui| {
+                    if widgets::combo_row(
+                        ui,
+                        "",
+                        "game-layout",
+                        &mut self.settings.game_layout,
+                        &options,
+                        180.0,
+                    ) {
+                        changed = true;
+                    }
+                });
+                ui.add_space(4.0);
+                if gamecube {
+                    ui.label(
+                        egui::RichText::new(tr(lang, "bm_place_gamecube_help"))
+                            .size(12.0)
+                            .color(theme::DIM),
+                    );
+                } else {
+                    match self.settings.game_layout {
+                        GameLayout::None => {
+                            ui.label(
+                                egui::RichText::new(tr(lang, "layout_note_none"))
+                                    .size(12.0)
+                                    .color(theme::DIM),
+                            );
+                        }
+                        style => {
+                            let name = if style == GameLayout::PlayStation {
+                                tr(lang, "g_playstation")
+                            } else {
+                                tr(lang, "g_xbox")
+                            };
+                            if shb_core::layouts::available(style.as_str()) {
+                                ui.label(
+                                    egui::RichText::new(fill(
+                                        tr(lang, "layout_note_ready"),
+                                        &[("a", name)],
+                                    ))
+                                    .size(12.0)
+                                    .color(theme::ACCENT),
+                                );
+                            } else {
+                                ui.label(
+                                    egui::RichText::new(fill(
+                                        tr(lang, "layout_note_missing"),
+                                        &[("a", name)],
+                                    ))
+                                    .size(12.0)
+                                    .color(theme::AMBER),
+                                );
+                            }
+                        }
+                    }
+                }
+            },
+        );
+        self.help = help;
         changed
     }
-
     fn page_misc(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
         let mut changed = false;
-        section(
+        let mut help = self.help;
+        theme::section(
             ui,
             tr(lang, "misc_title"),
             Some(tr(lang, "misc_desc")),
             |ui| {
-                toggle(
-                    ui,
-                    &mut self.settings.great_fairy,
-                    tr(lang, "great_fairy_on"),
-                    &mut changed,
+                ui.label(
+                    egui::RichText::new(tr(lang, "songbook_title"))
+                        .size(13.0)
+                        .strong()
+                        .color(theme::ACCENT),
                 );
-                toggle(
+                if widgets::check(
                     ui,
-                    &mut self.settings.farore_outdoor,
-                    tr(lang, "farore_on"),
-                    &mut changed,
+                    &mut self.settings.songbook,
+                    tr(lang, "songbook_on"),
+                    tr(lang, "songbook_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.label(
+                    egui::RichText::new(tr(lang, "songbook_note"))
+                        .size(12.0)
+                        .color(theme::AMBER),
                 );
-                ui.horizontal_wrapped(|ui| {
-                    ui.label(tr(lang, "layout_title"));
-                    for layout in GameLayout::ALL {
-                        if ui
-                            .selectable_value(
-                                &mut self.settings.game_layout,
-                                *layout,
-                                layout.as_str(),
-                            )
-                            .changed()
-                        {
-                            changed = true;
-                        }
-                    }
-                });
+                ui.add_space(8.0);
+                if widgets::check(
+                    ui,
+                    &mut self.settings.quick_boots,
+                    tr(lang, "quick_boots_on"),
+                    tr(lang, "quick_boots_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                if widgets::check(
+                    ui,
+                    &mut self.settings.quick_mask,
+                    tr(lang, "quick_mask_on"),
+                    tr(lang, "quick_mask_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.label(
+                    egui::RichText::new(tr(lang, "quick_note"))
+                        .size(12.0)
+                        .color(theme::DIM),
+                );
             },
         );
         ui.add_space(10.0);
-        section(ui, tr(lang, "language"), None, |ui| {
-            changed |= choice_row(ui, "", Lang::ALL, &mut self.settings.lang, |c| c.as_str());
-            ui.label(
-                egui::RichText::new(tr(lang, "rust_note"))
-                    .size(12.0)
-                    .color(theme::DIM),
-            );
-        });
+        theme::section(
+            ui,
+            tr(lang, "world_beta_title"),
+            Some(tr(lang, "world_beta_desc")),
+            |ui| {
+                ui.label(
+                    egui::RichText::new(tr(lang, "great_fairy"))
+                        .size(13.0)
+                        .strong()
+                        .color(theme::ACCENT),
+                );
+                if widgets::check(
+                    ui,
+                    &mut self.settings.great_fairy,
+                    tr(lang, "great_fairy_on"),
+                    tr(lang, "great_fairy_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.add_space(6.0);
+                ui.label(
+                    egui::RichText::new(tr(lang, "farore"))
+                        .size(13.0)
+                        .strong()
+                        .color(theme::ACCENT),
+                );
+                if widgets::check(
+                    ui,
+                    &mut self.settings.farore_outdoor,
+                    tr(lang, "farore_on"),
+                    tr(lang, "farore_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+            },
+        );
+        self.help = help;
         changed
     }
-
     fn page_about(&mut self, ui: &mut egui::Ui) {
         let lang = self.ui_lang;
         let mut action: Option<Update> = None;
@@ -1439,8 +2141,16 @@ fn main() -> eframe::Result {
         println!("shb-gui {}", shb_core::VERSION);
         return Ok(());
     }
+    // `SHB_WINDOW=1400x1800` opens a window that tall: how the whole of a page is captured for the docs.
+    let size = std::env::var("SHB_WINDOW")
+        .ok()
+        .and_then(|text| {
+            let (w, h) = text.split_once('x')?;
+            Some([w.trim().parse().ok()?, h.trim().parse().ok()?])
+        })
+        .unwrap_or([1060.0, 820.0]);
     let mut viewport = egui::ViewportBuilder::default()
-        .with_inner_size([1060.0, 820.0])
+        .with_inner_size(size)
         .with_min_inner_size([800.0, 560.0])
         .with_title("SHB-OcarinaTweaks");
     if let Some(icon) = theme::icon() {

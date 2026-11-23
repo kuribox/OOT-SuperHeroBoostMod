@@ -35,6 +35,8 @@ jobs:
         run: python app-rs/tools/gen_i18n.py --check
       - name: The GameCube artwork matches app/gamecube_textures.py
         run: python app-rs/tools/gen_gamecube.py --check
+      - name: Every text the window asks for exists
+        run: python app-rs/tools/check_gui_keys.py
       - name: Build
         run: cargo build --manifest-path app-rs/Cargo.toml --release
 

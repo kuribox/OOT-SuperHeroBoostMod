@@ -26,7 +26,25 @@ def rust_string(text: str) -> str:
 
 def build(app: Path) -> str:
     sys.path.insert(0, str(app))
+    # Some pages keep their texts in their own module and merge them into `T` on import (`remap_ui`, the enemy
+    # aggression options): the window needs those too, so they are imported before the table is read. tkinter and
+    # zstandard are stubbed, since neither is needed to read a dict.
+    for name in ("tkinter", "tkinter.ttk", "tkinter.font", "zstandard"):
+        if name not in sys.modules:
+            try:
+                __import__(name)
+            except Exception:  # noqa: BLE001 - a missing optional module must not stop the generator
+                import types
+
+                stub = types.ModuleType(name)
+                stub.__getattr__ = lambda attr: type(attr, (), {})  # type: ignore[assignment]
+                sys.modules[name] = stub
     i18n = __import__("i18n")
+    for module in ("texts_enemies", "remap_ui"):
+        try:
+            __import__(module)
+        except Exception as exc:  # noqa: BLE001 - say which one, and keep the table usable
+            print(f"warning: {module} did not import ({exc}); its texts are missing", file=sys.stderr)
     texts = i18n.T
     keys = sorted(texts["en"])
     lines = [
