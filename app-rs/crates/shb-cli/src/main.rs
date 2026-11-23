@@ -51,6 +51,7 @@ Install options (they override the profile):
   --manual-shield  --target-r3  --sprint-l3  --sprint-l3-toggle  --auto-target  --switch-target
   --preset <0..3>  --combat-only  --off <jump,attack,...>
   --button-style <switch|xbox|playstation>  --bm-layout <nintendo|ab|xbox|gamecube>  --bm-simple
+  --game-layout <none|playstation|xbox>   the game's own prompts (downloaded once, ~70 MB)
   --bm-l <assign|selector>  --controls <classic|action_down|shield|souls|triggers>
   --hud-ctrl-scale <pct>  --hud-count-scale <pct>
   --lang <en|es|pt|fr|de|it>  (default: the game's language when it can be read)
@@ -84,6 +85,7 @@ struct Options {
     controls: Option<String>,
     button_style: Option<String>,
     bm_layout: Option<String>,
+    game_layout: Option<String>,
     bm_l: Option<String>,
     enemy_hp: Option<u16>,
     damage: Option<u16>,
@@ -158,6 +160,7 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
             "--controls" => o.controls = Some(value_of(&mut it, "--controls")?),
             "--button-style" => o.button_style = Some(value_of(&mut it, "--button-style")?),
             "--bm-layout" => o.bm_layout = Some(value_of(&mut it, "--bm-layout")?),
+            "--game-layout" => o.game_layout = Some(value_of(&mut it, "--game-layout")?),
             "--bm-l" => o.bm_l = Some(value_of(&mut it, "--bm-l")?),
             "--off" => o.off = Some(value_of(&mut it, "--off")?),
             "--enemy-hp" => o.enemy_hp = Some(number(&value_of(&mut it, "--enemy-hp")?)?),
@@ -296,6 +299,14 @@ fn settings_from(o: &Options) -> Result<Settings> {
             "xbox" => shb_core::settings::BmLayout::Xbox,
             "gamecube" => shb_core::settings::BmLayout::Gamecube,
             other => return Err(unknown("button layout", other)),
+        };
+    }
+    if let Some(layout) = &o.game_layout {
+        s.game_layout = match layout.as_str() {
+            "none" => shb_core::settings::GameLayout::None,
+            "playstation" => shb_core::settings::GameLayout::PlayStation,
+            "xbox" => shb_core::settings::GameLayout::Xbox,
+            other => return Err(unknown("game layout", other)),
         };
     }
     if let Some(l) = &o.bm_l {

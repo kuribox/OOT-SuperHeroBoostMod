@@ -16,6 +16,8 @@ app-rs/
 │   │   ├── src/presets.rs        the game profiles
 │   │   ├── src/enemy.rs         the enemy speed / aggression packs (zstd, the game's dictionary)
 │   │   ├── src/game.rs          a recompiled game (Longshot/Hookshot/ReLink): module, image.bin, romfs
+│   │   ├── src/layouts.rs       the downloadable PlayStation/Xbox prompts + the resource table merge
+│   │   ├── src/update.rs        the GitHub update check, the download and the restart
 │   │   ├── src/install.rs        install / uninstall of the mod folder
 │   │   ├── src/ips.rs            IPS32 read + merge
 │   │   ├── src/find.rs           mods folder, emulator program, game language
@@ -102,11 +104,14 @@ module, `image.bin` and the romfs; the build itself is not ported) and Rekarina 
 These are reported as notes in the install result instead of being silently skipped:
 
 - the GameCube UI diagram (`gamecube.py`: patches the game's own UI atlas, needs the dump),
-- the downloadable game-wide prompt layout and its resource-size-table merge (`layouts.py`),
 - the rebuild of a recompiled game (Longshot/Hookshot/ReLink): everything except the build is ported
   (`shb game --game <folder>`, the module, `image.bin` and the romfs), and the app says so instead of pretending;
 - Rekarina: detected, not written yet (it patches the module in place, the executable's module hash and its own
   state).
+
+The PlayStation/Xbox prompt pack (`layouts.rs`) is ported: the GameBanana download, the ZIP extract of the three
+files, the `RESTBL` parse/merge/compress and the atlas copy with the safe font from the payload. It runs last in the
+romfs install, so its resource table wins the merge.
 
 The updater is ported too: `shb update [--download|--apply] [--current <version>]` asks GitHub for the latest
 release, picks this platform's asset, verifies the SHA-256 GitHub publishes and, on Windows, replaces the running

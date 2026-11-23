@@ -33,6 +33,8 @@ pub enum Error {
     NotAGame(PathBuf),
     /// The update check or the download failed.
     Update(String),
+    /// The downloadable controller layout could not be fetched or read.
+    Layout(String),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -84,6 +86,7 @@ impl fmt::Display for Error {
                 write!(f, "{} is not a game folder this app knows", path.display())
             }
             Error::Update(what) => write!(f, "update: {what}"),
+            Error::Layout(what) => write!(f, "layout: {what}"),
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }

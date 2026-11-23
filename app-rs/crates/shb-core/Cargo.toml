@@ -16,6 +16,8 @@ structured-zstd = "0.4"
 # `ring`, whose build wants a C compiler this toolchain does not have.
 ureq = { version = "3", default-features = false, features = ["native-tls", "gzip"] }
 sha2 = "0.11"
+# The controller layout pack is a ZIP from GameBanana (pure-Rust inflate: no C compiler needed).
+zip = { version = "4", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 # The dictionary trainer, only for the tests: the payload ships a trained dictionary and the app never builds one.

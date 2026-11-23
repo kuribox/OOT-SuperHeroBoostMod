@@ -136,7 +136,10 @@ Branch `feat/rust-app`: a second implementation of the app, to learn Rust agains
 - The updater (`crates/shb-core/src/update.rs`): GitHub's latest release, this platform's asset, the SHA-256 check
   and the PowerShell restart script. `ureq` runs with `native-tls` on purpose: the rustls backend needs `ring`,
   whose build wants a C compiler this toolchain does not have.
-- Not ported: GameCube UI atlas, the downloadable prompt layouts + table merge, the recomp/Rekarina rebuild flow.
+- Not ported: the GameCube UI atlas (`gamecube.py`/`gamecube_textures.py`) and the recomp/Rekarina rebuild flow.
+- The PlayStation/Xbox prompt pack (`crates/shb-core/src/layouts.rs`) is ported: GameBanana download, ZIP extract
+  of the three files, `RESTBL` parse/merge/compress (zstd 19) and the atlas copy, with the safe font from the
+  payload. It is the last step of the romfs install, so its table wins the merge.
 - Toolchain on this PC: `stable-x86_64-pc-windows-gnu` (there is no MSVC C++ workload). Two things make it work:
   `llvm-dlltool.exe` from LLVM copied to `~/.cargo/bin/dlltool.exe` (the gnu target needs `dlltool`), and
   `app-rs/.cargo/config.toml`, which links with `rust-lld`. GNU `ld` produced binaries that segfaulted **before

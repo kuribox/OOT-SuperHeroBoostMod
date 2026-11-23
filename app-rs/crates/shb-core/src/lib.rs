@@ -19,6 +19,7 @@ pub mod find;
 pub mod game;
 pub mod install;
 pub mod ips;
+pub mod layouts;
 pub mod paths;
 pub mod presets;
 pub mod roles;

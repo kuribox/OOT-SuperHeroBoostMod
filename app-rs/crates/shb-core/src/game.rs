@@ -266,6 +266,10 @@ fn install_romfs(game: &Game, s: &Settings, payload: &Path) -> Result<()> {
         }
     }
     crate::enemy::install(&romfs, s, payload)?;
+    if s.game_layout != crate::settings::GameLayout::None {
+        // Last: the layout's resource table is merged over the mod's own.
+        crate::layouts::apply(&romfs, s.game_layout.as_str(), payload)?;
+    }
     Ok(())
 }
 

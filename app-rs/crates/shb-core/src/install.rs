@@ -150,11 +150,11 @@ pub fn install(req: &InstallRequest) -> Result<InstallResult> {
                 .to_string(),
         );
     }
+    // The game-wide prompts download: last, so its resource table is merged over the final one.
     if s.game_layout != GameLayout::None {
-        notes.push(
-            "game-wide prompts: the download is not ported to the Rust app yet, only the mod's own art was installed"
-                .to_string(),
-        );
+        let style = s.game_layout.as_str();
+        crate::layouts::apply(&romfs, style, &req.payload)?;
+        notes.push(format!("game prompts: {style} layout installed"));
     }
 
     // Conflicts: other mods that patch the executable, and the ones that fight over the button font.
