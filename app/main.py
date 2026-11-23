@@ -546,7 +546,7 @@ def gui() -> None:
                 var.set(v[key])
         mine = RM.roles_value(broles)
         if v["controls"]:   # the profile's own button table (the arrow keeps the user's role)
-            mine = dict(I.REMAP_PRESETS[v["controls"]], DR=mine["DR"])
+            mine = I.keep_holds(I.REMAP_PRESETS[v["controls"]], mine)
         table = I.roles_from_flags(mine, manual_shield=bool(v["manual_shield"]),
                                    target_r3=v["target_r3"], sprint_l3=v["sprint_l3"])
         RM.set_roles(broles, I.roles_with_armory(table) if v["armory"] else table)   # the armory on the held D-pad right
@@ -1710,7 +1710,8 @@ def gui() -> None:
                 btn.set_active(key == current)
 
         def apply_preset(key):
-            table = dict(I.REMAP_PRESETS["classic" if key == "gamecube" else key], DR=broles["DR"].get())
+            table = I.keep_holds(I.REMAP_PRESETS["classic" if key == "gamecube" else key],
+                                 {k: var.get() for k, var in broles.items()})
             if key == "gamecube":
                 bplace.set("gamecube")
                 bstyle.set("switch")
@@ -1757,10 +1758,10 @@ def gui() -> None:
                 roles = {b: ("none" if r in ("item1", "item2", "item3", "selector") else r)
                          for b, r in roles.items()}
             parts = []
-            for b in I.REMAP_BUTTONS:
+            for b in I.ROLE_KEYS:
                 role = roles.get(b, "none")
                 if role != "none":
-                    parts.append(f"{b} {L('role_' + role)}")
+                    parts.append(f"{b.replace('_hold', ' ↓')} {L('role_' + role)}")
             ui["ctrl_summary"].config(text=L("ctrl_summary") + "  " + "  ·  ".join(parts))
             paint_presets()
 

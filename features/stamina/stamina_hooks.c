@@ -159,9 +159,16 @@ static u32 g_l3_frame;     /* last rendered frame seen here */
  * runs out, when the player presses A (their own roll / sprint takes over) and in events (dialogues, shops: an
  * injected A would answer them). */
 static u32 g_l3_on, g_l3_prev;
+/* A toggled sprint also ends when the player stops moving: armed once he has moved since the toggle (so a toggle
+ * pressed standing still waits for the first step), then L3_IDLE_FRAMES rendered frames with the stick at rest. */
+#define L3_IDLE_FRAMES 12u
+static u32 g_l3_armed, g_l3_idle, g_l3_idle_frame;
+/* Link is carrying or lifting something (jar, bush, rock): the sprint's A would throw it, so none is injected. Set by
+ * features/manual_shield (its frame hook runs whatever the guard option is). */
+extern unsigned char g_ms_carrying;
 /* L3 is sprinting (held, or toggled on) */
 static u32 l3_sprint(u64 b) {
-    if (!g_shbcfg.sprint_l3) return 0;
+    if (!g_shbcfg.sprint_l3 || g_ms_carrying) return 0;
     return g_shbcfg.sprint_l3_toggle ? g_l3_on : (b & BTN_L3) != 0;
 }
 int hud_game_covered(void);   /* core/hud.c: a menu covers the game */
@@ -174,13 +181,22 @@ static void l3_inject_a(const HidView *v, u64 buttons, u32 moving) {
         return;
     }
     u32 l3 = (buttons & BTN_L3) != 0, want;
+    u32 carrying = g_ms_carrying != 0;
     if (g_shbcfg.sprint_l3 && g_shbcfg.sprint_l3_toggle) {
-        if (l3 && !g_l3_prev) g_l3_on = !g_l3_on;
-        if ((buttons & BTN_A) || g_exhausted || player_state_starts("Evt")) g_l3_on = 0;
+        if (l3 && !g_l3_prev) { g_l3_on = !g_l3_on; g_l3_armed = 0; g_l3_idle = 0; }
+        if ((buttons & BTN_A) || g_exhausted || carrying || player_state_starts("Evt")) g_l3_on = 0;
+        if (g_l3_on) {
+            u32 f = hud_frame_count();
+            if (moving) { g_l3_armed = 1; g_l3_idle = 0; }
+            else if (g_l3_armed && f != g_l3_idle_frame) {   /* stopped: the sprint lets go by itself */
+                g_l3_idle_frame = f;
+                if (++g_l3_idle >= L3_IDLE_FRAMES) g_l3_on = 0;
+            }
+        }
         want = g_l3_on;
     } else {
         g_l3_on = 0;
-        want = g_shbcfg.sprint_l3 && l3;
+        want = g_shbcfg.sprint_l3 && l3 && !carrying;
     }
     g_l3_prev = l3;
     if (!want || (buttons & BTN_A)) {

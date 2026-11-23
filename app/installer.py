@@ -36,18 +36,24 @@ REMAP_BUTTONS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL", "L3", "R3", "DR")
 # "DR" is the D-pad's right arrow: a short press stays the game's Navi call, the role is its LONG press (the config
 # byte bm_role_dr, appended at the end of the block). Roles that need no HUD button only.
 ROLES = ("none", "jump", "sword", "action", "target", "item1", "item2", "item3", "item_main",
-         "camera", "sprint", "shield", "selector", "armory")   # byte value = index (core/remap.h ROLE_*)
+         "camera", "sprint", "shield", "selector", "armory", "back")   # byte value = index (core/remap.h ROLE_*)
+# A, B, X and Y can also have a role for their LONG press (config bytes bm_hold[0..3], after bm_role_dr). The table keeps
+# them under these keys, next to the buttons'; they are not buttons of the pad (no HUD art, no item roles).
+HOLD_KEYS = ("A_hold", "B_hold", "X_hold", "Y_hold")
+ROLE_KEYS = (*REMAP_BUTTONS, *HOLD_KEYS)
 ITEM_ROLES = ("item1", "item2", "item3", "item_main")
 # Roles limited to some buttons (everything else goes anywhere)
 _NO_STICKS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL")
-_DR_ROLES = ("jump", "sword", "camera", "sprint", "shield", "selector", "armory")
+_DR_ROLES = ("jump", "sword", "camera", "sprint", "shield", "selector", "armory", "back")
+_HOLD_ROLES = ("jump", "sword", "action", "camera", "sprint", "shield", "selector", "armory", "back")
 ROLE_BUTTONS = {"selector": (*_NO_STICKS, "DR"),   # any button, not the sticks
                 "target": ("ZL", "ZR", "L3", "R3"),
                 # action: a face button only (the game's context prompt draws one of A / B / X / Y)
                 "action": ("A", "B", "X", "Y"),
                 **{r: _NO_STICKS for r in ("item1", "item2", "item3", "item_main")}}   # items: no sticks (no HUD art)
 CLASSIC_ROLES = {"L": "item2", "X": "jump", "R": "item3", "Y": "sword", "A": "action", "ZR": "item_main",
-                 "B": "item1", "ZL": "target", "L3": "none", "R3": "camera", "DR": "none"}
+                 "B": "item1", "ZL": "target", "L3": "none", "R3": "camera", "DR": "none",
+                 **{k: "none" for k in HOLD_KEYS}}
 # Ready-made tables (the app's preset list). Options (toggle sprint, switch target...) are kept apart.
 REMAP_PRESETS = {
     "classic": dict(CLASSIC_ROLES),
@@ -72,7 +78,17 @@ def roles_with_armory(roles) -> dict:
     return normalize_roles(r)
 
 
+def keep_holds(table: dict, current: dict) -> dict:
+    """A preset's table with the user's long-press roles (the arrow's and A / B / X / Y's): presets never touch them."""
+    out = dict(table)
+    for k in ("DR", *HOLD_KEYS):
+        out[k] = current.get(k, "none")
+    return out
+
+
 def role_allowed(role: str, button: str) -> bool:
+    if button in HOLD_KEYS:
+        return role == "none" or role in _HOLD_ROLES
     if button == "DR":
         return role == "none" or role in _DR_ROLES
     return role in ROLES and (role not in ROLE_BUTTONS or button in ROLE_BUTTONS[role])
@@ -84,7 +100,7 @@ def normalize_roles(roles) -> dict:
     Unknown or missing buttons take their classic role when it is still free, else none."""
     src = roles if isinstance(roles, dict) else {}
     out, used = {}, set()
-    for b in REMAP_BUTTONS:
+    for b in ROLE_KEYS:
         r = src.get(b, CLASSIC_ROLES[b])
         if not role_allowed(r, b):
             r = "none"
@@ -620,6 +636,9 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                         b[f + 64 + k] = ROLES.index(roles[btn])
                     if size >= 0x5D:                                         # struct 92: bm_role_dr (long press)
                         b[f + 76] = ROLES.index(roles["DR"])
+                    if size >= 0x61:                                         # struct 93..96: bm_hold[] (A, B, X, Y long press)
+                        for k, key in enumerate(HOLD_KEYS):
+                            b[f + 77 + k] = ROLES.index(roles[key])
                     # the options the table implies (they used to be separate switches)
                     fl = roles_flags(roles)
                     if s.bm_layout != "gamecube":                             # preserve prior custom-remap geometry

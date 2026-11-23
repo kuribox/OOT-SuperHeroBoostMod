@@ -11,8 +11,13 @@ int hud_button_swap(void);   /* core/hud.c: the game's Jump/B swap option is on 
 
 int remap_on(void) { return g_shbcfg.bm_remap == 1; }
 int remap_l_selector(void) { return !remap_on() && g_shbcfg.bm_l_mode != 0; }
+/* (the HUD places its button parts by remap_role_phys, which knows the short roles only: a hold role has no HUD art) */
+static int hold_has(u32 role) {
+    for (u32 p = 0; p < PB_N; p++) if (remap_hold_role(p) == role) return 1;
+    return 0;
+}
 int remap_selector_on(void) {
-    if (remap_on()) return remap_role_phys(ROLE_SELECTOR) != PB_NONE;
+    if (remap_on()) return remap_role_phys(ROLE_SELECTOR) != PB_NONE || hold_has(ROLE_SELECTOR);
     return g_shbcfg.bm_l_mode == 2;
 }
 
@@ -42,6 +47,17 @@ u32 remap_role_of(u32 p) {
     return p < PB_DR ? g_shbcfg.bm_role[p] : ROLE_NONE;
 }
 
+u32 remap_hold_role(u32 p) {
+    switch (p) {
+    case PB_DR: return g_shbcfg.bm_role_dr;
+    case PB_A:  return g_shbcfg.bm_hold[0];
+    case PB_B:  return g_shbcfg.bm_hold[1];
+    case PB_X:  return g_shbcfg.bm_hold[2];
+    case PB_Y:  return g_shbcfg.bm_hold[3];
+    default:    return ROLE_NONE;
+    }
+}
+
 u32 remap_role_phys(u32 role) {
     if (role == ROLE_NONE || role >= ROLE_N) return PB_NONE;
     if (!remap_on()) return classic_phys(role);
@@ -65,13 +81,14 @@ u64 remap_role_virt(u32 role) {
     case ROLE_SHIELD:    return g_shbcfg.manual_shield ? (remap_on() ? VBTN_SHIELD : BTN_L) : 0;
     case ROLE_SELECTOR:  return remap_on() ? VBTN_SELECTOR : BTN_L;
     case ROLE_ARMORY:    return VBTN_ARMORY;
+    case ROLE_BACK:      return VBTN_BACK;
     default:             return 0;
     }
 }
 
 u64 remap_apply(u64 b) {
     if (!remap_on()) return b;
-    u64 out = b & ~(REMAP_ALL | VBTN_SHIELD | VBTN_ARMORY | VBTN_SELECTOR);
+    u64 out = b & ~(REMAP_ALL | VBTN_SHIELD | VBTN_ARMORY | VBTN_SELECTOR | VBTN_BACK);
     for (u32 p = 0; p < PB_DR; p++)   /* (PB_DR is the long press, button_mapping.c) */
         if (b & REMAP_BIT[p]) out |= remap_role_virt(g_shbcfg.bm_role[p]);
     return out;

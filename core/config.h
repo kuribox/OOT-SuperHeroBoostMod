@@ -73,6 +73,9 @@ typedef struct {
     /* D-pad right, held (core/remap.h PB_DR): the role of its long press. A short press stays the game's own (Navi).
      * 0 = none. Appended after the HUD scales: an older app leaves it 0. */
     unsigned char bm_role_dr;
+    /* Held face buttons (core/remap.h): the role of the long press of A, B, X and Y, in that order. 0 = none. The
+     * short press keeps its role in bm_role. Appended after bm_role_dr: an older app leaves them 0. */
+    unsigned char bm_hold[4];
 } ShbConfig;
 
 extern volatile ShbConfig g_shbcfg;
