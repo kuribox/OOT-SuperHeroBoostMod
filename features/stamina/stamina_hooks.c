@@ -182,7 +182,15 @@ static void l3_inject_a(const HidView *v, u64 buttons, u32 moving) {
         return;
     }
     u32 l3 = (buttons & BTN_L3) != 0, want;
-    u32 carrying = g_ms_carrying != 0;
+    /* Lifting or carrying: the object flag only turns on once the lift is done, so the lift states count too (their
+     * first frames are exactly when an injected A would throw the object again). The toggled sprint is dropped as the
+     * lift starts: it is what picked the object up (an injected A next to it), and left on it threw it again at once
+     * and on every new pickup. Pressing the sprint button again while carrying only gives the speed. */
+    u32 carrying = g_ms_carrying != 0 || player_state_starts("Lift") || player_state_starts("Grab") ||
+                   player_state_starts("HoldItem");
+    static u32 carry_prev;
+    if (carrying && !carry_prev) g_l3_on = 0;
+    carry_prev = carrying;
     if (g_shbcfg.sprint_l3 && g_shbcfg.sprint_l3_toggle) {
         if (l3 && !g_l3_prev) { g_l3_on = !g_l3_on; g_l3_armed = 0; g_l3_idle = 0; }
         if ((buttons & BTN_A) || g_exhausted || player_state_starts("Evt")) g_l3_on = 0;
