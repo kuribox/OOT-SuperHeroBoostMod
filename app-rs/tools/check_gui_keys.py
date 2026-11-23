@@ -36,6 +36,16 @@ DYNAMIC = {
         "role_armory", "role_back",
     ],
     "role_help_key": ["role_action_help", "role_item_main_help", "role_armory_help", "role_back_help", "opt_switch_help", "opt_toggle_help"],
+    "profile_name": [
+        "p_recommended", "p_recommended_lite", "p_souls", "p_souls_hero", "p_base", "p_manual_shield", "p_hero",
+        "p_hero_stamina", "p_hero_explorer", "p_super_hero", "p_ultra_hero", "p_survival", "p_world",
+        "p_beta_enemies", "p_beta_all", "profile_custom",
+    ],
+    "profile_desc_key": [
+        "p_recommended_d", "p_recommended_lite_d", "p_souls_d", "p_souls_hero_d", "p_base_d", "p_manual_shield_d",
+        "p_hero_d", "p_hero_stamina_d", "p_hero_explorer_d", "p_super_hero_d", "p_ultra_hero_d", "p_survival_d",
+        "p_world_d", "p_beta_enemies_d", "p_beta_all_d", "p_custom_d",
+    ],
     "help_title_key": ["help_start_title", "help_install_title", "help_controls_title", "help_rekarina_title", "help_problems_title"],
     "help_body_key": ["help_start_body", "help_install_body", "help_controls_body", "help_rekarina_body", "help_problems_body"],
 }

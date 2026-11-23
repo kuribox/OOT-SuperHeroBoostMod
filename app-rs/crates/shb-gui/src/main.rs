@@ -476,6 +476,56 @@ impl App {
     }
 }
 
+/// The name of a profile (`profile_custom` for the custom one).
+fn profile_name(lang: Lang, key: &str) -> String {
+    if key == "custom" {
+        return tr(lang, "profile_custom").to_string();
+    }
+    // The keys are static in the table, so the list is spelled out instead of built at run time.
+    let name_key = match key {
+        "recommended" => "p_recommended",
+        "recommended-lite" => "p_recommended_lite",
+        "souls" => "p_souls",
+        "souls-hero" => "p_souls_hero",
+        "base" => "p_base",
+        "manual-shield" => "p_manual_shield",
+        "hero" => "p_hero",
+        "hero-stamina" => "p_hero_stamina",
+        "hero-explorer" => "p_hero_explorer",
+        "super-hero" => "p_super_hero",
+        "ultra-hero" => "p_ultra_hero",
+        "survival" => "p_survival",
+        "world" => "p_world",
+        "beta-enemies" => "p_beta_enemies",
+        "beta-all" => "p_beta_all",
+        // The custom profile has no `p_custom`: its name is "Personalizado".
+        _ => "profile_custom",
+    };
+    tr(lang, name_key).to_string()
+}
+
+/// The description key of a profile.
+fn profile_desc_key(key: &str) -> &'static str {
+    match key {
+        "recommended" => "p_recommended_d",
+        "recommended-lite" => "p_recommended_lite_d",
+        "souls" => "p_souls_d",
+        "souls-hero" => "p_souls_hero_d",
+        "base" => "p_base_d",
+        "manual-shield" => "p_manual_shield_d",
+        "hero" => "p_hero_d",
+        "hero-stamina" => "p_hero_stamina_d",
+        "hero-explorer" => "p_hero_explorer_d",
+        "super-hero" => "p_super_hero_d",
+        "ultra-hero" => "p_ultra_hero_d",
+        "survival" => "p_survival_d",
+        "world" => "p_world_d",
+        "beta-enemies" => "p_beta_enemies_d",
+        "beta-all" => "p_beta_all_d",
+        _ => "p_custom_d",
+    }
+}
+
 /// The `*_d` key of a stamina style, for its "?".
 fn preset_desc_key(value: usize) -> &'static str {
     const KEYS: [&str; 4] = ["m_hardcore_d", "m_combat_d", "m_sprint_d", "m_advanced_d"];
@@ -901,38 +951,76 @@ impl App {
 
     fn page_presets(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
-        section(
+        let mut help = self.help;
+        theme::section(
             ui,
             tr(lang, "home_title"),
             Some(tr(lang, "home_desc")),
             |ui| {
-                egui::Grid::new("profiles")
-                    .num_columns(3)
-                    .spacing([8.0, 6.0])
-                    .show(ui, |ui| {
-                        for (i, key) in PROFILE_KEYS.iter().enumerate() {
-                            let selected = self.profile == *key;
-                            let button =
-                                egui::Button::new(egui::RichText::new(*key).color(if selected {
-                                    theme::ON_ACCENT
-                                } else {
-                                    theme::TEXT
-                                }))
-                                .fill(if selected {
-                                    theme::ACCENT
-                                } else {
-                                    theme::PANEL2
-                                })
-                                .stroke(egui::Stroke::new(1.0, theme::BORDER));
-                            if ui.add_sized([170.0, 28.0], button).clicked() {
+                // One card per profile: its name, the first sentence of what it changes, and the rest behind the "?".
+                for key in PROFILE_KEYS {
+                    let selected = self.profile == *key;
+                    let name = profile_name(lang, key);
+                    let key_desc = profile_desc_key(key);
+                    let full = tr(lang, key_desc);
+                    let shown = widgets::short(full);
+                    let width = ui.available_width();
+                    let frame = egui::Frame::NONE
+                        .fill(if selected {
+                            theme::ACCENT
+                        } else {
+                            theme::PANEL2
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            if selected {
+                                theme::ACCENT
+                            } else {
+                                theme::BORDER
+                            },
+                        ))
+                        .corner_radius(egui::CornerRadius::same(10))
+                        .inner_margin(egui::Margin::symmetric(12, 8));
+                    frame.show(ui, |ui| {
+                        ui.set_width(width - 26.0);
+                        ui.horizontal(|ui| {
+                            let text =
+                                egui::RichText::new(name)
+                                    .size(14.0)
+                                    .strong()
+                                    .color(if selected {
+                                        theme::ON_ACCENT
+                                    } else {
+                                        theme::TEXT
+                                    });
+                            if ui
+                                .add(egui::Label::new(text).sense(egui::Sense::click()))
+                                .clicked()
+                            {
                                 self.profile = (*key).to_string();
                             }
-                            if i % 3 == 2 {
-                                ui.end_row();
+                            if !shown.is_empty() && shown != full {
+                                widgets::help_icon(ui, key_desc, lang, &mut help);
                             }
-                        }
+                            if selected {
+                                ui.label(
+                                    egui::RichText::new(tr(lang, "profile_current"))
+                                        .size(12.0)
+                                        .color(theme::ON_ACCENT),
+                                );
+                            }
+                        });
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(egui::RichText::new(&shown).size(12.0).color(if selected {
+                                theme::ON_ACCENT
+                            } else {
+                                theme::DIM
+                            }));
+                        });
                     });
-                ui.add_space(6.0);
+                    ui.add_space(4.0);
+                }
+                ui.add_space(4.0);
                 if primary_button(ui, tr(lang, "reapply")).clicked() {
                     self.apply_profile();
                 }
@@ -944,9 +1032,9 @@ impl App {
                 );
             },
         );
+        self.help = help;
         false
     }
-
     fn page_gameplay(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
         let mut changed = false;

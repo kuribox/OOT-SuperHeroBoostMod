@@ -113,6 +113,9 @@ controller with each button's role, and the in-game HUD cluster at the positions
 Two environment variables help while working on the window: `SHB_PAGE=difficulty` opens straight on a page and
 `SHB_WINDOW=1300x1700` opens a window that tall, which is how the screenshots in `docs/capturas` are taken.
 
+The presets are the Python app's cards: every profile with the first sentence of what it changes, the rest behind a
+"?", the active one in gold, and the same "Volver a aplicar el perfil" button.
+
 The install page has the Python app's three targets: emulator, recompiled game and Rekarina. All three write the
 settings; the two that need a compiler (a recompiled game's rebuild and Rekarina's lift) are Rekarina's and
 Longshot's own tools, and this app does not start them.
