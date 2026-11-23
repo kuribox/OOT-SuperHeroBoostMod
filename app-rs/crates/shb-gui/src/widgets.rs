@@ -78,6 +78,50 @@ pub fn two_columns(
     }
 }
 
+/// A small five-pointed star, drawn: the fonts in this window do not all carry "★", and a profile that is only a
+/// name without its star is not the same profile to the person looking at it.
+pub fn star(ui: &mut egui::Ui, size: f32, color: egui::Color32) {
+    let (rect, _) =
+        ui.allocate_exact_size(egui::vec2(size + 2.0, size + 2.0), egui::Sense::hover());
+    let centre = rect.center();
+    let outer = size * 0.5;
+    let inner = outer * 0.45;
+    let mut points = Vec::with_capacity(10);
+    for i in 0..10 {
+        let radius = if i % 2 == 0 { outer } else { inner };
+        let angle = std::f32::consts::PI * (i as f32) / 5.0 - std::f32::consts::FRAC_PI_2;
+        points.push(centre + egui::vec2(angle.cos(), angle.sin()) * radius);
+    }
+    ui.painter().add(egui::Shape::convex_polygon(
+        points,
+        color,
+        egui::Stroke::NONE,
+    ));
+}
+
+/// One of a set of exclusive choices, drawn as a pill: gold with dark text when it is the chosen one.
+///
+/// The theme's own selectable painted cream text on gold ("the yellow buttons with white letters" in the review), so
+/// the chosen one is drawn here instead.
+pub fn pill(ui: &mut egui::Ui, selected: bool, text: &str) -> egui::Response {
+    let button = egui::Button::new(egui::RichText::new(text).size(12.5).strong().color(
+        if selected {
+            theme::ON_ACCENT
+        } else {
+            theme::TEXT
+        },
+    ))
+    .fill(if selected {
+        theme::ACCENT
+    } else {
+        theme::PANEL2
+    })
+    .stroke(egui::Stroke::new(1.0, theme::BORDER))
+    .corner_radius(egui::CornerRadius::same(8))
+    .min_size(egui::vec2(0.0, 24.0));
+    ui.add(button)
+}
+
 /// A gold "?" that opens `key`'s full text in a window (`App::help`).
 pub fn help_icon(
     ui: &mut egui::Ui,

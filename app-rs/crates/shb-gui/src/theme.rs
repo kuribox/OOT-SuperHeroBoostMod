@@ -63,6 +63,8 @@ pub fn install(ctx: &egui::Context) {
     visuals.selection.bg_fill = ACCENT;
     visuals.selection.stroke = Stroke::new(1.0, ON_ACCENT);
     visuals.hyperlink_color = ACCENT;
+    // 5 / 1: every interactive widget shows the hand, the way the Python app's buttons do.
+    visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);
     visuals.warn_fg_color = AMBER;
     visuals.error_fg_color = RED;
 
@@ -143,11 +145,29 @@ fn load_fonts(ctx: &egui::Context) {
             .or_default()
             .insert(0, "segoe".to_string());
     }
+    for family in [FontFamily::Proportional, FontFamily::Name(DISPLAY.into())] {
+        let list = fonts.families.entry(family).or_default();
+        for fallback in ["NotoEmoji-Regular", "emoji-icon-font"] {
+            if fonts.font_data.contains_key(fallback) && !list.iter().any(|f| f == fallback) {
+                list.push(fallback.to_string());
+            }
+        }
+    }
     if families.contains(&"palatino") {
-        fonts.families.insert(
-            FontFamily::Name(DISPLAY.into()),
-            vec!["palatino".to_string()],
-        );
+        // The display face, with the fonts that carry the symbols Segoe UI and Palatino lack: the star of the
+        // recommended profile ("Recomendado ★") was invisible without them.
+        let mut list = vec!["palatino".to_string()];
+        if families.contains(&"segoe") {
+            list.push("segoe".to_string());
+        }
+        for fallback in ["NotoEmoji-Regular", "emoji-icon-font"] {
+            if fonts.font_data.contains_key(fallback) {
+                list.push(fallback.to_string());
+            }
+        }
+        fonts
+            .families
+            .insert(FontFamily::Name(DISPLAY.into()), list);
     }
     ctx.set_fonts(fonts);
 }

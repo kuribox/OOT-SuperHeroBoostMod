@@ -18,7 +18,7 @@ use shb_core::config::{self, read_config};
 use shb_core::presets::{self, PROFILE_KEYS};
 use shb_core::settings::{HudMode, Lang, Settings};
 use shb_core::{Error, Result, install, payload_root};
-use shb_core::{find, game, rekarina};
+use shb_core::{find, game, rebuild, rekarina};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -150,6 +150,8 @@ struct Options {
     farore_outdoor: bool,
     save_settings: bool,
     dry_run: bool,
+    app: Option<PathBuf>,
+    no_rebuild: bool,
     current: Option<String>,
     download: bool,
     apply: bool,
@@ -169,6 +171,8 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
         match arg.as_str() {
             "--emu" => o.emu = Some(PathBuf::from(value_of(&mut it, "--emu")?)),
             "--game" => o.game = Some(PathBuf::from(value_of(&mut it, "--game")?)),
+            "--app" => o.app = Some(PathBuf::from(value_of(&mut it, "--app")?)),
+            "--no-rebuild" => o.no_rebuild = true,
             "--nso" => o.nso = Some(PathBuf::from(value_of(&mut it, "--nso")?)),
             "--out" => o.out = Some(PathBuf::from(value_of(&mut it, "--out")?)),
             "--settings" => o.settings = Some(PathBuf::from(value_of(&mut it, "--settings")?)),
@@ -591,6 +595,39 @@ fn run(args: &[String]) -> Result<()> {
                     .unwrap_or("?");
                 println!("{name}");
             }
+            Ok(())
+        }
+        "rebuild" => {
+            let path = o.game.clone().ok_or_else(|| {
+                Error::io(
+                    PathBuf::from("--game"),
+                    std::io::Error::other("the game folder is required"),
+                )
+            })?;
+            let payload = payload_root(o.payload.as_deref()).ok_or_else(|| {
+                Error::PayloadMissing(PathBuf::from("payload (set --payload or SHB_PAYLOAD)"))
+            })?;
+            let app = match &o.app {
+                Some(dir) => dir.clone(),
+                None => rebuild::app_dir(&payload)?,
+            };
+            let profile = o
+                .profile
+                .clone()
+                .unwrap_or_else(|| "recommended".to_string());
+            let request = rebuild::RebuildRequest {
+                game: path.clone(),
+                profile: profile.clone(),
+                rebuild: !o.no_rebuild,
+                app: app.clone(),
+            };
+            println!(
+                "rebuilding {} with profile {profile} (the Python app at {})",
+                path.display(),
+                app.display()
+            );
+            rebuild::run(&request, |line| println!("{line}"))?;
+            println!("done");
             Ok(())
         }
         "game" => {

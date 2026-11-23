@@ -132,6 +132,17 @@ fn ps_text(glyph: &str) -> Option<&'static str> {
     })
 }
 
+/// The button as the chosen style names it (the list of buttons uses this, not the Switch name).
+pub fn glyph_text(style: ButtonStyle, button: Button) -> &'static str {
+    match glyph(style, button) {
+        "circle" => "○",
+        "cross" => "✕",
+        "triangle" => "△",
+        "square" => "□",
+        other => other,
+    }
+}
+
 // --------------------------------------------------------------------------- the scaled painter
 
 /// A preview's box: its own unit space mapped onto the room the column gives it.

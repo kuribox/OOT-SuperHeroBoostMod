@@ -41,6 +41,8 @@ pub enum Error {
     Zstd(String),
     /// The GameCube artwork: the game's UI archive is missing or is not the one it was cut for.
     GameCube(String),
+    /// A rebuild of a recompiled game or a Rekarina install (run through the Python app) failed.
+    Rebuild(String),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -96,6 +98,7 @@ impl fmt::Display for Error {
             Error::Rekarina(what) => write!(f, "rekarina: {what}"),
             Error::Zstd(what) => write!(f, "zstd: {what}"),
             Error::GameCube(what) => write!(f, "gamecube: {what}"),
+            Error::Rebuild(what) => write!(f, "rebuild: {what}"),
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }
