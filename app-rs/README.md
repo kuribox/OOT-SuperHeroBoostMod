@@ -110,6 +110,11 @@ Every option carries the Python app's one-sentence explanation under it, and the
 full text in a window. The three previews are drawn with egui's painter: the stamina ring or bar (Gameplay), the
 controller with each button's role, and the in-game HUD cluster at the positions of `core/hud.c` (Controls).
 
+The pages adapt to the window: the stamina card, the remap editor and the presets put their second column beside the
+first when there is room for it (`widgets::two_columns`) and under it when there is not, the previews scale to the
+width they are given, and the grids that hold six or sixteen things go from two columns to one. Nothing is a fixed
+pixel width, so the window can be small without the content running out of the right edge.
+
 Two environment variables help while working on the window: `SHB_PAGE=difficulty` opens straight on a page and
 `SHB_WINDOW=1300x1700` opens a window that tall, which is how the screenshots in `docs/capturas` are taken.
 

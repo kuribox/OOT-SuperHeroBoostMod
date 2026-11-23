@@ -32,6 +32,52 @@ pub fn desc_under(ui: &mut egui::Ui, text: &str) {
     });
 }
 
+/// Which of the two columns a page is drawing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Column {
+    Left,
+    Right,
+}
+
+/// Two columns when the window is wide enough for them, one under the other when it is not.
+///
+/// The body runs once per column, so a page keeps its own borrows: `|ui, column| match column { … }`.
+/// `min_width` is where two columns still make sense; the left one keeps `share` of it, the right one the rest,
+/// never less than `right_min`.
+pub fn two_columns(
+    ui: &mut egui::Ui,
+    min_width: f32,
+    share: f32,
+    right_min: f32,
+    mut body: impl FnMut(&mut egui::Ui, Column),
+) {
+    let total = ui.available_width();
+    if total >= min_width {
+        let left_width = (total * share)
+            .min(total - right_min - 16.0)
+            .max(total * 0.4);
+        ui.horizontal_top(|ui| {
+            let mut first = true;
+            ui.allocate_ui_with_layout(
+                egui::vec2(left_width, 0.0),
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    if first {
+                        body(ui, Column::Left);
+                    }
+                    first = false;
+                },
+            );
+            ui.add_space(16.0);
+            ui.vertical(|ui| body(ui, Column::Right));
+        });
+    } else {
+        body(ui, Column::Left);
+        ui.add_space(12.0);
+        body(ui, Column::Right);
+    }
+}
+
 /// A gold "?" that opens `key`'s full text in a window (`App::help`).
 pub fn help_icon(
     ui: &mut egui::Ui,

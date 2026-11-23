@@ -537,6 +537,16 @@ fn preset_desc(lang: Lang, value: usize) -> &'static str {
     widgets::short(tr(lang, preset_desc_key(value))).leak()
 }
 
+/// The presets in the order the Python app lists them, the GameCube one last.
+const PRESETS: [&str; 6] = [
+    "classic",
+    "action_down",
+    "shield",
+    "souls",
+    "triggers",
+    "gamecube",
+];
+
 /// The name key of a remap preset.
 fn preset_name_key(key: &str) -> &'static str {
     match key {
@@ -564,10 +574,10 @@ fn preset_desc_key_for(key: &str) -> &'static str {
 /// The label of a row of the editor: the button's glyph, or the long press of a face button.
 fn button_label(button: Button) -> &'static str {
     match button {
-        Button::AHold => "A ↓",
-        Button::BHold => "B ↓",
-        Button::XHold => "X ↓",
-        Button::YHold => "Y ↓",
+        Button::AHold => "A+",
+        Button::BHold => "B+",
+        Button::XHold => "X+",
+        Button::YHold => "Y+",
         Button::Dr => "▶",
         other => other.as_str(),
     }
@@ -698,22 +708,22 @@ impl eframe::App for App {
             .frame(
                 egui::Frame::NONE
                     .fill(theme::SIDEBAR)
-                    .inner_margin(egui::Margin::symmetric(16, 10)),
+                    .inner_margin(egui::Margin::symmetric(14, 7)),
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     if let Some(logo) = &self.logo {
-                        let height = 40.0;
+                        let height = 30.0;
                         let size = logo.size_vec2();
                         let width = height * size.x / size.y.max(1.0);
                         ui.image((logo.id(), egui::vec2(width, height)));
                         ui.add_space(6.0);
                     }
                     ui.vertical(|ui| {
-                        ui.label(title(24.0, tr(lang, "app_title")));
+                        ui.label(title(19.0, tr(lang, "app_title")));
                         ui.label(
                             egui::RichText::new(tr(lang, "subtitle"))
-                                .size(12.0)
+                                .size(11.0)
                                 .color(theme::DIM),
                         );
                     });
@@ -743,7 +753,7 @@ impl eframe::App for App {
 
         egui::Panel::left("nav")
             .resizable(false)
-            .exact_size(196.0)
+            .exact_size(170.0)
             .frame(
                 egui::Frame::NONE
                     .fill(theme::SIDEBAR)
@@ -768,7 +778,7 @@ impl eframe::App for App {
                         .fill(fill)
                         .stroke(egui::Stroke::NONE)
                         .corner_radius(egui::CornerRadius::same(10));
-                    if ui.add_sized([ui.available_width(), 34.0], button).clicked() {
+                    if ui.add_sized([ui.available_width(), 29.0], button).clicked() {
                         self.page = page;
                     }
                 }
@@ -958,67 +968,20 @@ impl App {
             Some(tr(lang, "home_desc")),
             |ui| {
                 // One card per profile: its name, the first sentence of what it changes, and the rest behind the "?".
-                for key in PROFILE_KEYS {
-                    let selected = self.profile == *key;
-                    let name = profile_name(lang, key);
-                    let key_desc = profile_desc_key(key);
-                    let full = tr(lang, key_desc);
-                    let shown = widgets::short(full);
-                    let width = ui.available_width();
-                    let frame = egui::Frame::NONE
-                        .fill(if selected {
-                            theme::ACCENT
-                        } else {
-                            theme::PANEL2
-                        })
-                        .stroke(egui::Stroke::new(
-                            1.0,
-                            if selected {
-                                theme::ACCENT
-                            } else {
-                                theme::BORDER
-                            },
-                        ))
-                        .corner_radius(egui::CornerRadius::same(10))
-                        .inner_margin(egui::Margin::symmetric(12, 8));
-                    frame.show(ui, |ui| {
-                        ui.set_width(width - 26.0);
-                        ui.horizontal(|ui| {
-                            let text =
-                                egui::RichText::new(name)
-                                    .size(14.0)
-                                    .strong()
-                                    .color(if selected {
-                                        theme::ON_ACCENT
-                                    } else {
-                                        theme::TEXT
-                                    });
-                            if ui
-                                .add(egui::Label::new(text).sense(egui::Sense::click()))
-                                .clicked()
-                            {
-                                self.profile = (*key).to_string();
-                            }
-                            if !shown.is_empty() && shown != full {
-                                widgets::help_icon(ui, key_desc, lang, &mut help);
-                            }
-                            if selected {
-                                ui.label(
-                                    egui::RichText::new(tr(lang, "profile_current"))
-                                        .size(12.0)
-                                        .color(theme::ON_ACCENT),
-                                );
-                            }
-                        });
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(egui::RichText::new(&shown).size(12.0).color(if selected {
-                                theme::ON_ACCENT
-                            } else {
-                                theme::DIM
-                            }));
-                        });
+                // Two columns when the window has room for them, one when it does not.
+                let wide = ui.available_width() >= 700.0;
+                if wide {
+                    ui.columns(2, |cols| {
+                        for (i, key) in PROFILE_KEYS.iter().enumerate() {
+                            self.profile_card(&mut cols[i % 2], key, &mut help);
+                            cols[i % 2].add_space(4.0);
+                        }
                     });
-                    ui.add_space(4.0);
+                } else {
+                    for key in PROFILE_KEYS {
+                        self.profile_card(ui, key, &mut help);
+                        ui.add_space(4.0);
+                    }
                 }
                 ui.add_space(4.0);
                 if primary_button(ui, tr(lang, "reapply")).clicked() {
@@ -1027,13 +990,81 @@ impl App {
                 ui.add_space(4.0);
                 ui.label(
                     egui::RichText::new(tr(lang, "profile_shield_note"))
-                        .size(12.0)
+                        .size(11.5)
                         .color(theme::DIM),
                 );
             },
         );
         self.help = help;
         false
+    }
+
+    /// A profile: its name, the first sentence of what it changes and the rest behind the "?".
+    fn profile_card(
+        &mut self,
+        ui: &mut egui::Ui,
+        key: &'static str,
+        help: &mut Option<&'static str>,
+    ) {
+        let lang = self.ui_lang;
+        let selected = self.profile == key;
+        let name = profile_name(lang, key);
+        let key_desc = profile_desc_key(key);
+        let full = tr(lang, key_desc);
+        let shown = widgets::short(full);
+        let width = ui.available_width();
+        let frame = egui::Frame::NONE
+            .fill(if selected {
+                theme::ACCENT
+            } else {
+                theme::PANEL2
+            })
+            .stroke(egui::Stroke::new(
+                1.0,
+                if selected {
+                    theme::ACCENT
+                } else {
+                    theme::BORDER
+                },
+            ))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::symmetric(10, 6));
+        frame.show(ui, |ui| {
+            ui.set_width(width - 22.0);
+            ui.horizontal(|ui| {
+                let text = egui::RichText::new(name)
+                    .size(12.5)
+                    .strong()
+                    .color(if selected {
+                        theme::ON_ACCENT
+                    } else {
+                        theme::TEXT
+                    });
+                if ui
+                    .add(egui::Label::new(text).sense(egui::Sense::click()))
+                    .clicked()
+                {
+                    self.profile = key.to_string();
+                }
+                if shown != full {
+                    widgets::help_icon(ui, key_desc, lang, help);
+                }
+                if selected {
+                    ui.label(
+                        egui::RichText::new(tr(lang, "profile_current"))
+                            .size(11.0)
+                            .color(theme::ON_ACCENT),
+                    );
+                }
+            });
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new(&shown).size(11.0).color(if selected {
+                    theme::ON_ACCENT
+                } else {
+                    theme::DIM
+                }));
+            });
+        });
     }
     fn page_gameplay(&mut self, ui: &mut egui::Ui) -> bool {
         let lang = self.ui_lang;
@@ -1388,89 +1419,26 @@ impl App {
             tr(lang, "ctrl_preset_title"),
             Some(tr(lang, "ctrl_preset_desc")),
             |ui| {
-                egui::Grid::new("remap-presets")
-                    .num_columns(2)
-                    .spacing([10.0, 8.0])
-                    .show(ui, |ui| {
-                        for (i, key) in [
-                            "classic",
-                            "action_down",
-                            "shield",
-                            "souls",
-                            "triggers",
-                            "gamecube",
-                        ]
-                        .iter()
-                        .enumerate()
-                        {
-                            let name = tr(lang, preset_name_key(key));
-                            let desc = tr(lang, preset_desc_key_for(key));
-                            let selected = shb_core::roles::remap_preset(key)
-                                .map(|table| {
-                                    shb_core::roles::keep_holds(&table, &self.settings.bm_roles)
-                                        == self.settings.bm_roles
-                                })
-                                .unwrap_or(false);
-                            let width = (ui.available_width() * 0.5 - 14.0).clamp(220.0, 420.0);
-                            ui.vertical(|ui| {
-                                let button = egui::Button::new(
-                                    egui::RichText::new(name)
-                                        .color(if selected {
-                                            theme::ON_ACCENT
-                                        } else {
-                                            theme::TEXT
-                                        })
-                                        .strong(),
-                                )
-                                .fill(if selected {
-                                    theme::ACCENT
-                                } else {
-                                    theme::PANEL2
-                                })
-                                .stroke(egui::Stroke::new(1.0, theme::BORDER))
-                                .corner_radius(egui::CornerRadius::same(10))
-                                .min_size(egui::vec2(width, 0.0));
-                                if ui.add(button).clicked() {
-                                    if *key == "gamecube" {
-                                        self.settings.bm_layout = BmLayout::Gamecube;
-                                        self.settings.button_style = ButtonStyle::Switch;
-                                        self.settings.bm_simple = false;
-                                        self.settings.button_mapping = true;
-                                    } else if self.settings.bm_layout == BmLayout::Gamecube {
-                                        self.settings.bm_layout = BmLayout::Nintendo;
-                                    }
-                                    let table_key =
-                                        if *key == "gamecube" { "classic" } else { key };
-                                    if let Some(table) = shb_core::roles::remap_preset(table_key) {
-                                        let table = shb_core::roles::keep_holds(
-                                            &table,
-                                            &self.settings.bm_roles,
-                                        );
-                                        if table.values().any(|r| *r == Role::Shield) {
-                                            self.settings.manual_shield = true;
-                                        }
-                                        self.settings.bm_roles = table;
-                                        changed = true;
-                                    }
-                                }
-                                ui.add_space(2.0);
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.set_max_width(width);
-                                    ui.label(
-                                        egui::RichText::new(desc).size(12.0).color(theme::DIM),
-                                    );
-                                });
-                            });
-                            if i % 2 == 1 {
-                                ui.end_row();
-                            }
+                let wide = ui.available_width() >= 620.0;
+                if wide {
+                    ui.columns(2, |cols| {
+                        for (i, key) in PRESETS.iter().enumerate() {
+                            self.preset_card(&mut cols[i % 2], key, &mut changed);
+                            cols[i % 2].add_space(4.0);
                         }
                     });
+                } else {
+                    for key in PRESETS {
+                        self.preset_card(ui, key, &mut changed);
+                        ui.add_space(4.0);
+                    }
+                }
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
                     widgets::help_icon(ui, "rm_help", lang, &mut help);
                     ui.label(
                         egui::RichText::new(widgets::short(tr(lang, "rm_help")))
-                            .size(12.0)
+                            .size(11.5)
                             .color(theme::DIM),
                     );
                 });
@@ -1478,7 +1446,7 @@ impl App {
         );
 
         // The buttons themselves: on/off, the pictures, the face-button positions.
-        ui.add_space(10.0);
+        ui.add_space(8.0);
         theme::section(
             ui,
             tr(lang, "buttons_title"),
@@ -1494,93 +1462,107 @@ impl App {
                 ) {
                     changed = true;
                 }
-                ui.add_space(4.0);
-                // The pictures of the HUD buttons: Switch, PlayStation or Xbox.
-                ui.horizontal(|ui| {
-                    let styles = vec![
-                        (ButtonStyle::Switch, tr(lang, "g_default").to_string()),
-                        (
-                            ButtonStyle::PlayStation,
-                            tr(lang, "g_playstation").to_string(),
-                        ),
-                        (ButtonStyle::Xbox, tr(lang, "g_xbox").to_string()),
-                    ];
-                    if widgets::combo_row(
-                        ui,
-                        tr(lang, "variant"),
-                        "variant",
-                        &mut self.settings.button_style,
-                        &styles,
-                        150.0,
-                    ) {
-                        changed = true;
+                ui.add_space(3.0);
+                widgets::two_columns(ui, 700.0, 0.5, 260.0, |ui, column| match column {
+                    widgets::Column::Left => {
+                        ui.horizontal(|ui| {
+                            // The pictures of the HUD buttons: Switch, PlayStation or Xbox.
+                            let styles = vec![
+                                (ButtonStyle::Switch, tr(lang, "g_default").to_string()),
+                                (
+                                    ButtonStyle::PlayStation,
+                                    tr(lang, "g_playstation").to_string(),
+                                ),
+                                (ButtonStyle::Xbox, tr(lang, "g_xbox").to_string()),
+                            ];
+                            if widgets::combo_row(
+                                ui,
+                                tr(lang, "variant"),
+                                "variant",
+                                &mut self.settings.button_style,
+                                &styles,
+                                130.0,
+                            ) {
+                                changed = true;
+                            }
+                            widgets::help_icon(ui, "variant_d", lang, &mut help);
+                        });
+                        ui.add_space(2.0);
+                        // How many buttons the mod draws: the assignable ones only, or the extended set.
+                        ui.horizontal(|ui| {
+                            ui.label(egui::RichText::new(tr(lang, "bm_layout")).size(12.5));
+                            if ui
+                                .selectable_value(
+                                    &mut self.settings.bm_simple,
+                                    false,
+                                    tr(lang, "bm_ext"),
+                                )
+                                .changed()
+                            {
+                                changed = true;
+                            }
+                            widgets::help_icon(ui, "bm_ext_d", lang, &mut help);
+                            if ui
+                                .selectable_value(
+                                    &mut self.settings.bm_simple,
+                                    true,
+                                    tr(lang, "bm_simple"),
+                                )
+                                .changed()
+                            {
+                                changed = true;
+                            }
+                            widgets::help_icon(ui, "bm_simple_d", lang, &mut help);
+                        });
                     }
-                    widgets::help_icon(ui, "variant_d", lang, &mut help);
+                    widgets::Column::Right => {
+                        ui.horizontal(|ui| {
+                            // The face-button positions, the same scheme as the recompiled games.
+                            let places = vec![
+                                (
+                                    BmLayout::Nintendo,
+                                    tr(lang, "bm_place_nintendo").to_string(),
+                                ),
+                                (BmLayout::Ab, tr(lang, "bm_place_ab").to_string()),
+                                (BmLayout::Xbox, tr(lang, "bm_place_xbox").to_string()),
+                                (
+                                    BmLayout::Gamecube,
+                                    tr(lang, "bm_place_gamecube").to_string(),
+                                ),
+                            ];
+                            if widgets::combo_row(
+                                ui,
+                                tr(lang, "bm_place"),
+                                "bm-place",
+                                &mut self.settings.bm_layout,
+                                &places,
+                                200.0,
+                            ) {
+                                changed = true;
+                            }
+                            widgets::help_icon(ui, "bm_place_d", lang, &mut help);
+                        });
+                        ui.add_space(2.0);
+                        ui.horizontal(|ui| {
+                            let lmodes = vec![
+                                (LMode::Assign, tr(lang, "bm_l_assign").to_string()),
+                                (LMode::Selector, tr(lang, "bm_l_selector").to_string()),
+                            ];
+                            if widgets::combo_row(
+                                ui,
+                                tr(lang, "bm_l"),
+                                "bm-l",
+                                &mut self.settings.bm_l_mode,
+                                &lmodes,
+                                170.0,
+                            ) {
+                                changed = true;
+                            }
+                            widgets::help_icon(ui, "hud_ctrl_scale_desc", lang, &mut help);
+                        });
+                    }
                 });
-                ui.add_space(4.0);
-                // How many buttons the mod draws: the assignable ones only, or the extended set.
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(tr(lang, "bm_layout")).size(13.0));
-                    if ui
-                        .selectable_value(&mut self.settings.bm_simple, false, tr(lang, "bm_ext"))
-                        .changed()
-                    {
-                        changed = true;
-                    }
-                    widgets::help_icon(ui, "bm_ext_d", lang, &mut help);
-                    if ui
-                        .selectable_value(&mut self.settings.bm_simple, true, tr(lang, "bm_simple"))
-                        .changed()
-                    {
-                        changed = true;
-                    }
-                    widgets::help_icon(ui, "bm_simple_d", lang, &mut help);
-                });
-                ui.add_space(4.0);
-                // The face-button positions, the same scheme as the recompiled games (GameCube included).
-                ui.horizontal(|ui| {
-                    let places = vec![
-                        (
-                            BmLayout::Nintendo,
-                            tr(lang, "bm_place_nintendo").to_string(),
-                        ),
-                        (BmLayout::Ab, tr(lang, "bm_place_ab").to_string()),
-                        (BmLayout::Xbox, tr(lang, "bm_place_xbox").to_string()),
-                        (
-                            BmLayout::Gamecube,
-                            tr(lang, "bm_place_gamecube").to_string(),
-                        ),
-                    ];
-                    if widgets::combo_row(
-                        ui,
-                        tr(lang, "bm_place"),
-                        "bm-place",
-                        &mut self.settings.bm_layout,
-                        &places,
-                        230.0,
-                    ) {
-                        changed = true;
-                    }
-                    widgets::help_icon(ui, "bm_place_d", lang, &mut help);
-                });
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    let lmodes = vec![
-                        (LMode::Assign, tr(lang, "bm_l_assign").to_string()),
-                        (LMode::Selector, tr(lang, "bm_l_selector").to_string()),
-                    ];
-                    if widgets::combo_row(
-                        ui,
-                        tr(lang, "bm_l"),
-                        "bm-l",
-                        &mut self.settings.bm_l_mode,
-                        &lmodes,
-                        190.0,
-                    ) {
-                        changed = true;
-                    }
-                });
-                ui.add_space(4.0);
+                ui.add_space(3.0);
                 ui.horizontal(|ui| {
                     if widgets::percent_slider(
                         ui,
@@ -1598,195 +1580,269 @@ impl App {
         );
 
         // The editor: one row per button, its roles, and the two previews.
-        ui.add_space(10.0);
+        ui.add_space(8.0);
         theme::section(ui, tr(lang, "rm_title"), Some(tr(lang, "rm_help")), |ui| {
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    let items = self
-                        .settings
-                        .bm_roles
-                        .values()
-                        .filter(|r| {
-                            matches!(r, Role::Item1 | Role::Item2 | Role::Item3 | Role::ItemMain)
-                        })
-                        .count();
-                    ui.label(
-                        egui::RichText::new(fill(
-                            tr(lang, "rm_items"),
-                            &[("n", &items.to_string())],
-                        ))
-                        .size(12.0)
-                        .color(theme::DIM),
-                    );
-                    let rows: [Button; 15] = [
-                        Button::X,
-                        Button::XHold,
-                        Button::Y,
-                        Button::YHold,
-                        Button::A,
-                        Button::AHold,
-                        Button::B,
-                        Button::BHold,
-                        Button::L,
-                        Button::R,
-                        Button::Zl,
-                        Button::Zr,
-                        Button::L3,
-                        Button::R3,
-                        Button::Dr,
-                    ];
-                    for button in rows {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new(button_label(button))
-                                    .size(12.0)
-                                    .strong()
-                                    .color(theme::ACCENT),
-                            );
-                            ui.add_space(4.0);
-                            let current = self
-                                .settings
-                                .bm_roles
-                                .get(&button)
-                                .copied()
-                                .unwrap_or(Role::None);
-                            let mut picked = current;
-                            let choices: Vec<(Role, String)> = Role::ALL
-                                .iter()
-                                .copied()
-                                .filter(|role| shb_core::roles::role_allowed(*role, button))
-                                .map(|role| (role, into_role_name(lang, role)))
-                                .collect();
-                            if widgets::combo_row(
-                                ui,
-                                "",
-                                &format!("role-{button:?}"),
-                                &mut picked,
-                                &choices,
-                                190.0,
-                            ) {
-                                self.settings.bm_roles =
-                                    take_role(&self.settings.bm_roles, button, picked);
-                                changed = true;
-                            }
-                            if let Some(key) = role_help_key(picked) {
-                                widgets::help_icon(ui, key, lang, &mut help);
-                            }
-                        });
-                        // The options of the role, on its own line (target: shield, next one; sprint: toggle).
-                        if self.settings.bm_roles.get(&button) == Some(&Role::Target) {
-                            ui.horizontal(|ui| {
-                                ui.add_space(34.0);
-                                if widgets::check(
-                                    ui,
-                                    &mut self.settings.manual_shield,
-                                    tr(lang, "opt_shield"),
-                                    "",
-                                    Some("opt_shield_help"),
-                                    &mut help,
-                                ) {
-                                    changed = true;
-                                }
-                                if widgets::check(
-                                    ui,
-                                    &mut self.settings.switch_target,
-                                    tr(lang, "opt_switch"),
-                                    "",
-                                    Some("opt_switch_help"),
-                                    &mut help,
-                                ) {
-                                    changed = true;
-                                }
-                                if widgets::check(
-                                    ui,
-                                    &mut self.settings.auto_target,
-                                    tr(lang, "opt_auto"),
-                                    "",
-                                    Some("opt_auto_help"),
-                                    &mut help,
-                                ) {
-                                    changed = true;
-                                }
-                            });
-                        } else if self.settings.bm_roles.get(&button) == Some(&Role::Sprint) {
-                            ui.horizontal(|ui| {
-                                ui.add_space(34.0);
-                                if widgets::check(
-                                    ui,
-                                    &mut self.settings.sprint_l3_toggle,
-                                    tr(lang, "opt_toggle"),
-                                    "",
-                                    Some("opt_toggle_help"),
-                                    &mut help,
-                                ) {
-                                    changed = true;
-                                }
-                            });
-                        }
-                    }
-                    let missing: Vec<String> =
-                        shb_core::roles::roles_missing(&self.settings.bm_roles)
-                            .iter()
-                            .map(|role| into_role_name(lang, *role))
-                            .collect();
-                    if !missing.is_empty() {
-                        ui.label(
-                            egui::RichText::new(fill(
-                                tr(lang, "rm_missing"),
-                                &[("a", &missing.join(", "))],
-                            ))
-                            .size(12.0)
-                            .color(theme::AMBER),
-                        );
-                    }
-                    if self.settings.manual_shield
-                        && !self.settings.bm_roles.values().any(|r| *r == Role::Shield)
-                    {
-                        ui.label(
-                            egui::RichText::new(tr(lang, "rm_no_shield"))
-                                .size(12.0)
-                                .color(theme::AMBER),
-                        );
-                    }
-                });
-                ui.add_space(20.0);
-                ui.vertical(|ui| {
-                    ui.label(
-                        egui::RichText::new(tr(lang, "rm_pad"))
-                            .size(12.0)
-                            .color(theme::DIM)
-                            .strong(),
-                    );
-                    preview::pad(
-                        ui,
-                        &self.settings.bm_roles,
-                        self.settings.button_style,
-                        |role| into_role_name(lang, role),
-                    );
-                    ui.horizontal(|ui| {
-                        ui.label(
-                            egui::RichText::new(tr(lang, "rm_hud"))
-                                .size(12.0)
-                                .color(theme::DIM)
-                                .strong(),
-                        );
-                        widgets::help_icon(ui, "rm_hud_help", lang, &mut help);
-                    });
-                    preview::hud(
-                        ui,
-                        &self.settings.bm_roles,
-                        self.settings.button_style,
-                        self.settings.bm_simple,
-                        self.settings.bm_layout == BmLayout::Gamecube,
-                        |role| into_role_name(lang, role),
-                    );
-                });
+            widgets::two_columns(ui, 720.0, 0.58, 300.0, |ui, column| match column {
+                widgets::Column::Left => self.remap_rows(ui, lang, &mut changed, &mut help),
+                widgets::Column::Right => self.remap_previews(ui, lang, &mut help),
             });
         });
         self.help = help;
         changed
     }
 
+    /// One card of the presets: its name, the first sentence of its description, and the rest behind the "?".
+    fn preset_card(&mut self, ui: &mut egui::Ui, key: &'static str, changed: &mut bool) -> bool {
+        let lang = self.ui_lang;
+        let selected = shb_core::roles::remap_preset(key)
+            .map(|table| {
+                shb_core::roles::keep_holds(&table, &self.settings.bm_roles)
+                    == self.settings.bm_roles
+            })
+            .unwrap_or(false);
+        let name = tr(lang, preset_name_key(key));
+        let desc = tr(lang, preset_desc_key_for(key));
+        let width = ui.available_width();
+        let frame = egui::Frame::NONE
+            .fill(if selected {
+                theme::ACCENT
+            } else {
+                theme::PANEL2
+            })
+            .stroke(egui::Stroke::new(
+                1.0,
+                if selected {
+                    theme::ACCENT
+                } else {
+                    theme::BORDER
+                },
+            ))
+            .corner_radius(egui::CornerRadius::same(8))
+            .inner_margin(egui::Margin::symmetric(10, 6));
+        frame.show(ui, |ui| {
+            ui.set_width(width - 22.0);
+            let text = egui::RichText::new(name)
+                .size(12.5)
+                .strong()
+                .color(if selected {
+                    theme::ON_ACCENT
+                } else {
+                    theme::TEXT
+                });
+            if ui
+                .add(egui::Label::new(text).sense(egui::Sense::click()))
+                .clicked()
+            {
+                if key == "gamecube" {
+                    self.settings.bm_layout = BmLayout::Gamecube;
+                    self.settings.button_style = ButtonStyle::Switch;
+                    self.settings.bm_simple = false;
+                    self.settings.button_mapping = true;
+                } else if self.settings.bm_layout == BmLayout::Gamecube {
+                    self.settings.bm_layout = BmLayout::Nintendo;
+                }
+                let table_key = if key == "gamecube" { "classic" } else { key };
+                if let Some(table) = shb_core::roles::remap_preset(table_key) {
+                    let table = shb_core::roles::keep_holds(&table, &self.settings.bm_roles);
+                    if table.values().any(|r| *r == Role::Shield) {
+                        self.settings.manual_shield = true;
+                    }
+                    self.settings.bm_roles = table;
+                    *changed = true;
+                }
+            }
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new(desc).size(11.0).color(if selected {
+                    theme::ON_ACCENT
+                } else {
+                    theme::DIM
+                }));
+            });
+        });
+        selected
+    }
+
+    /// The rows of the remap editor: each physical button, its role, and the options of that role.
+    fn remap_rows(
+        &mut self,
+        ui: &mut egui::Ui,
+        lang: Lang,
+        changed: &mut bool,
+        help: &mut Option<&'static str>,
+    ) {
+        let items = self
+            .settings
+            .bm_roles
+            .values()
+            .filter(|r| matches!(r, Role::Item1 | Role::Item2 | Role::Item3 | Role::ItemMain))
+            .count();
+        ui.label(
+            egui::RichText::new(fill(tr(lang, "rm_items"), &[("n", &items.to_string())]))
+                .size(11.5)
+                .color(theme::DIM),
+        );
+        let rows: [Button; 15] = [
+            Button::X,
+            Button::XHold,
+            Button::Y,
+            Button::YHold,
+            Button::A,
+            Button::AHold,
+            Button::B,
+            Button::BHold,
+            Button::L,
+            Button::R,
+            Button::Zl,
+            Button::Zr,
+            Button::L3,
+            Button::R3,
+            Button::Dr,
+        ];
+        for button in rows {
+            ui.horizontal(|ui| {
+                ui.add_sized(
+                    [26.0, 20.0],
+                    egui::Label::new(
+                        egui::RichText::new(button_label(button))
+                            .size(11.5)
+                            .strong()
+                            .color(theme::ACCENT),
+                    ),
+                );
+                let current = self
+                    .settings
+                    .bm_roles
+                    .get(&button)
+                    .copied()
+                    .unwrap_or(Role::None);
+                let mut picked = current;
+                let choices: Vec<(Role, String)> = Role::ALL
+                    .iter()
+                    .copied()
+                    .filter(|role| shb_core::roles::role_allowed(*role, button))
+                    .map(|role| (role, into_role_name(lang, role)))
+                    .collect();
+                if widgets::combo_row(
+                    ui,
+                    "",
+                    &format!("role-{button:?}"),
+                    &mut picked,
+                    &choices,
+                    150.0,
+                ) {
+                    self.settings.bm_roles = take_role(&self.settings.bm_roles, button, picked);
+                    *changed = true;
+                }
+                if let Some(key) = role_help_key(picked) {
+                    widgets::help_icon(ui, key, lang, help);
+                }
+            });
+            // The options of the role, on its own line (target: shield, next one; sprint: toggle).
+            if self.settings.bm_roles.get(&button) == Some(&Role::Target) {
+                ui.horizontal(|ui| {
+                    ui.add_space(34.0);
+                    if widgets::check(
+                        ui,
+                        &mut self.settings.manual_shield,
+                        tr(lang, "opt_shield"),
+                        "",
+                        Some("opt_shield_help"),
+                        help,
+                    ) {
+                        *changed = true;
+                    }
+                    if widgets::check(
+                        ui,
+                        &mut self.settings.switch_target,
+                        tr(lang, "opt_switch"),
+                        "",
+                        Some("opt_switch_help"),
+                        help,
+                    ) {
+                        *changed = true;
+                    }
+                    if widgets::check(
+                        ui,
+                        &mut self.settings.auto_target,
+                        tr(lang, "opt_auto"),
+                        "",
+                        Some("opt_auto_help"),
+                        help,
+                    ) {
+                        *changed = true;
+                    }
+                });
+            } else if self.settings.bm_roles.get(&button) == Some(&Role::Sprint) {
+                ui.horizontal(|ui| {
+                    ui.add_space(34.0);
+                    if widgets::check(
+                        ui,
+                        &mut self.settings.sprint_l3_toggle,
+                        tr(lang, "opt_toggle"),
+                        "",
+                        Some("opt_toggle_help"),
+                        help,
+                    ) {
+                        *changed = true;
+                    }
+                });
+            }
+        }
+        let missing: Vec<String> = shb_core::roles::roles_missing(&self.settings.bm_roles)
+            .iter()
+            .map(|role| into_role_name(lang, *role))
+            .collect();
+        if !missing.is_empty() {
+            ui.label(
+                egui::RichText::new(fill(tr(lang, "rm_missing"), &[("a", &missing.join(", "))]))
+                    .size(11.5)
+                    .color(theme::AMBER),
+            );
+        }
+        if self.settings.manual_shield
+            && !self.settings.bm_roles.values().any(|r| *r == Role::Shield)
+        {
+            ui.label(
+                egui::RichText::new(tr(lang, "rm_no_shield"))
+                    .size(11.5)
+                    .color(theme::AMBER),
+            );
+        }
+    }
+
+    /// The controller and the in-game HUD, side by side when the column is wide and stacked when it is not.
+    fn remap_previews(&mut self, ui: &mut egui::Ui, lang: Lang, help: &mut Option<&'static str>) {
+        ui.label(
+            egui::RichText::new(tr(lang, "rm_pad"))
+                .size(11.5)
+                .color(theme::DIM)
+                .strong(),
+        );
+        preview::pad(
+            ui,
+            &self.settings.bm_roles,
+            self.settings.button_style,
+            |role| into_role_name(lang, role),
+        );
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            ui.label(
+                egui::RichText::new(tr(lang, "rm_hud"))
+                    .size(11.5)
+                    .color(theme::DIM)
+                    .strong(),
+            );
+            widgets::help_icon(ui, "rm_hud_help", lang, help);
+        });
+        preview::hud(
+            ui,
+            &self.settings.bm_roles,
+            self.settings.button_style,
+            self.settings.bm_simple,
+            self.settings.bm_layout == BmLayout::Gamecube,
+            |role| into_role_name(lang, role),
+        );
+    }
     fn page_help(&mut self, ui: &mut egui::Ui) {
         let lang = self.ui_lang;
         theme::section(

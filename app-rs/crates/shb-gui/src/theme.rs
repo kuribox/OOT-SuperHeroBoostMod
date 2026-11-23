@@ -43,7 +43,7 @@ pub fn title(size: f32, text: impl Into<String>) -> RichText {
 
 /// A small dimmed line under a title.
 pub fn hint(text: impl Into<String>) -> RichText {
-    RichText::new(text).size(12.0).color(DIM)
+    RichText::new(text).size(11.5).color(DIM)
 }
 
 /// The visual style and the fonts. Called once, when the window is created.
@@ -82,30 +82,33 @@ pub fn install(ctx: &egui::Context) {
     visuals.widgets.open = widget(ROW_HOVER, BORDER, TEXT, 8);
 
     style.visuals = visuals;
-    style.spacing.item_spacing = egui::vec2(8.0, 7.0);
-    style.spacing.button_padding = egui::vec2(12.0, 7.0);
+    style.spacing.item_spacing = egui::vec2(8.0, 5.0);
+    style.spacing.button_padding = egui::vec2(9.0, 4.0);
     style.spacing.menu_margin = Margin::same(6);
-    style.spacing.interact_size.y = 26.0;
+    style.spacing.interact_size.y = 22.0;
+    style.spacing.slider_width = 120.0;
+    style.spacing.combo_width = 110.0;
+    style.spacing.indent = 14.0;
     style.text_styles = [
         (
             egui::TextStyle::Small,
-            FontId::new(11.0, FontFamily::Proportional),
+            FontId::new(10.5, FontFamily::Proportional),
         ),
         (
             egui::TextStyle::Body,
-            FontId::new(14.0, FontFamily::Proportional),
+            FontId::new(13.0, FontFamily::Proportional),
         ),
         (
             egui::TextStyle::Button,
-            FontId::new(14.0, FontFamily::Proportional),
+            FontId::new(13.0, FontFamily::Proportional),
         ),
         (
             egui::TextStyle::Heading,
-            FontId::new(19.0, FontFamily::Name(DISPLAY.into())),
+            FontId::new(17.0, FontFamily::Name(DISPLAY.into())),
         ),
         (
             egui::TextStyle::Monospace,
-            FontId::new(12.0, FontFamily::Monospace),
+            FontId::new(11.5, FontFamily::Monospace),
         ),
     ]
     .into();
@@ -155,10 +158,10 @@ pub fn card<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
         .fill(CARD)
         .stroke(Stroke::new(1.0, BORDER))
         .corner_radius(CornerRadius::same(16))
-        .inner_margin(Margin::same(14))
+        .inner_margin(Margin::same(12))
         .show(ui, |ui| {
             let width = ui.available_width();
-            let (rule, _) = ui.allocate_exact_size(egui::vec2(width, 3.0), egui::Sense::hover());
+            let (rule, _) = ui.allocate_exact_size(egui::vec2(width, 2.0), egui::Sense::hover());
             ui.painter()
                 .rect_filled(rule, CornerRadius::same(2), ACCENT);
             ui.add_space(6.0);
@@ -175,11 +178,11 @@ pub fn section<R>(
     add: impl FnOnce(&mut egui::Ui) -> R,
 ) -> R {
     card(ui, |ui| {
-        ui.label(title(17.0, heading));
+        ui.label(title(15.0, heading));
         if let Some(text) = description {
             ui.label(hint(text));
         }
-        ui.add_space(4.0);
+        ui.add_space(3.0);
         add(ui)
     })
 }
@@ -190,7 +193,7 @@ pub fn primary_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
         .fill(ACCENT)
         .stroke(Stroke::NONE)
         .corner_radius(CornerRadius::same(10))
-        .min_size(egui::vec2(0.0, 32.0));
+        .min_size(egui::vec2(0.0, 28.0));
     ui.add(button)
 }
 
@@ -200,7 +203,7 @@ pub fn ghost_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
         .fill(PANEL2)
         .stroke(Stroke::new(1.0, BORDER))
         .corner_radius(CornerRadius::same(10))
-        .min_size(egui::vec2(0.0, 32.0));
+        .min_size(egui::vec2(0.0, 28.0));
     ui.add(button)
 }
 
