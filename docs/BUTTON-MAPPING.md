@@ -66,13 +66,14 @@ struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no rol
 
 **Hold roles.** A, B, X and Y can also have a role for their long press, in `ShbConfig.bm_hold[4]` (A, B, X, Y order,
 struct 93..96, appended after `bm_role_dr`; the struct is 0x64 bytes now, an older app leaves them 0 = none).
-`button_remap_on_input` treats them exactly like the arrow (`HOLD_PB` = DR, A, B, X, Y, `remap_hold_role()`):
+`button_remap_on_input` reads them with the arrow's code (`HOLD_PB` = DR, A, B, X, Y, `remap_hold_role()`):
 
-- A button with a hold role is held back until it is known which press it is. Released before `REMAP_DR_HOLD` (20 HUD
-  frames) its short role goes to the game as a three-read pulse (the physical bit is put back before `remap_apply`),
-  so the short action fires on release, not on press. Held longer the button is cleared and the hold role's virtual
-  button is set while it stays down. The price of an assigned hold: that button no longer repeats while held (no sword
-  charge, no A-held sprint, no held jump). It is the player's choice per button; the app says so in the "?" of the row.
+- A, B, X and Y: the short role goes through **at once**, with no delay. Held for `REMAP_DR_HOLD` (20 HUD frames) the
+  hold role's virtual button is set as well and the physical bit is cleared, so the short role lets go (no sword
+  charge or A-held sprint can run past that point); the hold role stays down while the button does. (A first version
+  held the short press back until release, like the arrow; it felt late on the sword and the jump.) The short action
+  has already happened when the hold fires: pick a hold role that does not mind it. The arrow keeps the delayed
+  behaviour, because its short press is Navi's call and must not fire on every hold.
 - Roles a hold takes (`_HOLD_ROLES`): jump, sword, action, camera, sprint, shield, selector, armory and **back**. No
   items and no target (their buttons show on the HUD or need the held state). A role is still on one button at most,
   hold rows included: picking it for a hold moves it from the button that had it.

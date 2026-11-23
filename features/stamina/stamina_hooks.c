@@ -163,12 +163,13 @@ static u32 g_l3_on, g_l3_prev;
  * pressed standing still waits for the first step), then L3_IDLE_FRAMES rendered frames with the stick at rest. */
 #define L3_IDLE_FRAMES 12u
 static u32 g_l3_armed, g_l3_idle, g_l3_idle_frame;
-/* Link is carrying or lifting something (jar, bush, rock): the sprint's A would throw it, so none is injected. Set by
- * features/manual_shield (its frame hook runs whatever the guard option is). */
+/* Link is carrying or lifting something (jar, bush, rock): the sprint's A would throw it, so none is injected; the
+ * sprint then is only the speed boost (g_sprint_a), so he runs with the object. Set by features/manual_shield (its frame
+ * hook runs whatever the guard option is). */
 extern unsigned char g_ms_carrying;
 /* L3 is sprinting (held, or toggled on) */
 static u32 l3_sprint(u64 b) {
-    if (!g_shbcfg.sprint_l3 || g_ms_carrying) return 0;
+    if (!g_shbcfg.sprint_l3) return 0;
     return g_shbcfg.sprint_l3_toggle ? g_l3_on : (b & BTN_L3) != 0;
 }
 int hud_game_covered(void);   /* core/hud.c: a menu covers the game */
@@ -184,7 +185,7 @@ static void l3_inject_a(const HidView *v, u64 buttons, u32 moving) {
     u32 carrying = g_ms_carrying != 0;
     if (g_shbcfg.sprint_l3 && g_shbcfg.sprint_l3_toggle) {
         if (l3 && !g_l3_prev) { g_l3_on = !g_l3_on; g_l3_armed = 0; g_l3_idle = 0; }
-        if ((buttons & BTN_A) || g_exhausted || carrying || player_state_starts("Evt")) g_l3_on = 0;
+        if ((buttons & BTN_A) || g_exhausted || player_state_starts("Evt")) g_l3_on = 0;
         if (g_l3_on) {
             u32 f = hud_frame_count();
             if (moving) { g_l3_armed = 1; g_l3_idle = 0; }
@@ -196,10 +197,10 @@ static void l3_inject_a(const HidView *v, u64 buttons, u32 moving) {
         want = g_l3_on;
     } else {
         g_l3_on = 0;
-        want = g_shbcfg.sprint_l3 && l3 && !carrying;
+        want = g_shbcfg.sprint_l3 && l3;
     }
     g_l3_prev = l3;
-    if (!want || (buttons & BTN_A)) {
+    if (!want || (buttons & BTN_A) || carrying) {   /* (carrying: no A, it would throw the object) */
         g_l3_a = 0;
         g_l3_neutral = 0;
         return;

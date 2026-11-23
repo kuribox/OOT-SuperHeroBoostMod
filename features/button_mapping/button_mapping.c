@@ -287,10 +287,12 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
                 if (!hold_fired[h]) { g_remap_dr[1]++; g_remap_hold[h]++; }
                 hold_fired[h] = 1;
                 add |= remap_role_virt(role);
-            }
-            clear |= bit;
+                clear |= bit;                       /* the short role lets go, the hold role takes over */
+            } else if (p == PB_DR) {
+                clear |= bit;                       /* Navi (the arrow's short press) waits to know which press it is */
+            }                                       /* A / B / X / Y: the short role goes through at once, no delay */
         } else {
-            if (hold_since[h] && !hold_fired[h]) { hold_pulse[h] = 3; g_remap_dr[0]++; }   /* a short press: let the game see it now, for three reads */
+            if (p == PB_DR && hold_since[h] && !hold_fired[h]) { hold_pulse[h] = 3; g_remap_dr[0]++; }   /* a short press of the arrow: let the game see it now, for three reads */
             hold_since[h] = 0;
             hold_fired[h] = 0;
         }

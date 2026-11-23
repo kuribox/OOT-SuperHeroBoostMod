@@ -229,9 +229,9 @@ the speed argument.
   sprint (animation included). When the A press arrives while the stick is already pushed, the stick is centred for
   two frames, which is the "hold A, then move" case: Link sprints without rolling. The toggle also ends by itself:
   `L3_IDLE_FRAMES` (12) rendered frames with the stick at rest, but only after Link has moved since the toggle (a
-  toggle pressed standing still waits for the first step). No A is injected, and a toggled sprint is dropped, while
-  Link carries or lifts something (`g_ms_carrying`, from the manual shield frame hook): the injected A threw the
-  jar, and again on every pickup while the toggle stayed on. It charges the sprint cost and
+  toggle pressed standing still waits for the first step). No A is injected while Link carries or lifts
+  something (`g_ms_carrying`, from the manual shield frame hook): the injected A threw the jar, and again on every
+  pickup while the toggle stayed on. The sprint speed boost (`g_sprint_a`) still applies, so he runs with the object. It charges the sprint cost and
   uses the same speed multiplier; gameplay only.
 - Config bytes 71 and 72 (see the runtime table above); `installer.patch_config` writes them at `f+55`/`f+56` when
   the module config size is at least 73.
