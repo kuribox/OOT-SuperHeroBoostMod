@@ -9,8 +9,9 @@ prebuilt module and copies the files the game needs. The module, the HUD, the te
 work: no third-party mod is bundled or downloaded.
 
 Current release: **0.9.3**. It gives **A, B, X and Y a second action when you hold them**, with no delay on the short
-press, adds a **Back** role (the game's own B), makes the toggled sprint let go when you stop and stop throwing the
-objects you lift, and fixes the manual shield throwing lifted jars. 0.9.2 counts the **chests that hold a heart piece**
+press, adds a **Back** role (the game's own B, on the held B in the Triggers table), makes the toggled sprint let go
+when you stop and stop throwing the objects you lift, fixes the manual shield throwing lifted jars and installs the
+PlayStation prompts in the whole game, not only in the menu. 0.9.2 counts the **chests that hold a heart piece**
 in the area counter. 0.9.1 made the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
 selector...), let the **item selector** sit on any button next to Item 2, added the **Triggers** control preset (used
 by the Recommended profiles), brought back the sprint speed in the app, new drop-down lists, **Recompile** and
@@ -46,11 +47,15 @@ module changed.
   with a down arrow, for what it does when you **hold** it (about a third of a second). The short press acts **at
   once**, with no delay; when the hold fires, the short role lets go. Pick a hold role that does not mind the short one
   having happened (Back, Armory, the selector, the camera ...). It takes jump, sword, action, camera, sprint, shield,
-  selector, armory and Back; not items or target. The presets do not touch these rows, as with the D-pad right.
+  selector, armory and Back; not items or target. A preset only sets the hold rows it names (see Back below).
 - **New role: Back (the game's B).** The game's own B: let go of a ledge, cancel, get off ... With the remap those
   actions went with the button that held Item 1. Back works on any button and in a hold, and it is not an item use: it
   acts while Link is busy with something else (hanging, climbing, swimming ...) or when the B slot holds no item, so
   it never fires an item by accident.
+- **Back is in the presets that need it.** The **Triggers** and **Action at the bottom** tables (the first one is the
+  base of Recommended, Recommended without beta enemies, Super Hero, Ultra Hero and Beta All) have no item on the B
+  button, so **holding B** is now the Back role there. Choosing a preset sets only the hold rows it names: your other
+  hold rows stay.
 
 **Sprint (toggle)**
 
@@ -67,6 +72,9 @@ module changed.
   lift (found live in the emulator: with the option off the jar stayed in his hands). It leaves those flags alone
   while Link carries something.
 - **The app opens with the stamina off.** The stamina page crashed with a `NameError` when the system was off.
+- **PlayStation button prompts in the whole game.** Installing the PlayStation layout copied the controller picture of
+  the menu but not the font that draws the button glyphs of every text and prompt, so the menu showed a DualSense and
+  the rest of the game kept the Switch buttons. The app now installs both (the font is built with the payload).
 
 ## What's new in 0.9.2
 

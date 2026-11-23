@@ -234,12 +234,12 @@ for _lang, _t in {
 
 # the author's own table: items on the triggers, the item selector on B
 for _lang, (_n, _d) in {
-    'en': ('Triggers', 'Items on the triggers (R, ZL, ZR), the item selector on B, the shield on L, target on R3.'),
-    'es': ('Gatillos', 'Objetos en los gatillos (R, ZL, ZR), selector de objetos en B, escudo en L, fijar en R3.'),
-    'pt': ('Gatilhos', 'Itens nos gatilhos (R, ZL, ZR), seletor de itens no B, escudo no L, mirar no R3.'),
-    'fr': ('Gâchettes', "Objets sur les gâchettes (R, ZL, ZR), sélecteur d'objets sur B, bouclier sur L, cibler sur R3."),
-    'de': ('Trigger', 'Items auf den Triggern (R, ZL, ZR), Item-Auswahl auf B, Schild auf L, Anvisieren auf R3.'),
-    'it': ('Grilletti', 'Oggetti sui grilletti (R, ZL, ZR), selettore oggetti su B, scudo su L, mira su R3.'),
+    'en': ('Triggers', 'Items on the triggers (R, ZL, ZR), the item selector on B, the shield on L, target on R3. Hold B: Back (the B of the game).'),
+    'es': ('Gatillos', 'Objetos en los gatillos (R, ZL, ZR), selector de objetos en B, escudo en L, fijar en R3. Mantener B: la B del juego (Atrás).'),
+    'pt': ('Gatilhos', 'Itens nos gatilhos (R, ZL, ZR), seletor de itens no B, escudo no L, mirar no R3. Segurar B: o B do jogo (Voltar).'),
+    'fr': ('Gâchettes', "Objets sur les gâchettes (R, ZL, ZR), sélecteur d'objets sur B, bouclier sur L, cibler sur R3. Maintenir B : le B du jeu (Retour)."),
+    'de': ('Trigger', 'Items auf den Triggern (R, ZL, ZR), Item-Auswahl auf B, Schild auf L, Anvisieren auf R3. B halten: das B des Spiels (Zurück).'),
+    'it': ('Grilletti', 'Oggetti sui grilletti (R, ZL, ZR), selettore oggetti su B, scudo su L, mira su R3. Tieni B: il B del gioco (Indietro).'),
 }.items():
     if _lang in T:
         T[_lang]['preset_triggers'] = _n

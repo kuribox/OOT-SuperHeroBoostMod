@@ -57,13 +57,14 @@ CLASSIC_ROLES = {"L": "item2", "X": "jump", "R": "item3", "Y": "sword", "A": "ac
 # Ready-made tables (the app's preset list). Options (toggle sprint, switch target...) are kept apart.
 REMAP_PRESETS = {
     "classic": dict(CLASSIC_ROLES),
-    "action_down": dict(CLASSIC_ROLES, A="item1", B="action"),
+    # (B no longer sends the game's B in the two tables where it is not item 1: holding it does, as the Back role)
+    "action_down": dict(CLASSIC_ROLES, A="item1", B="action", B_hold="back"),
     "shield": dict(CLASSIC_ROLES, L="shield", L3="sprint"),   # item 2 gives L to the shield
     "souls": {"L": "shield", "X": "jump", "R": "item2", "Y": "sword", "A": "action", "ZR": "item_main",
               "B": "item1", "ZL": "item3", "L3": "sprint", "R3": "target"},
     # The author's own table: items on the triggers (R, ZL and ZR), the item selector on B, the shield on L
     "triggers": {"L": "shield", "X": "jump", "R": "item1", "Y": "sword", "A": "action", "ZR": "item_main",
-                 "B": "selector", "ZL": "item2", "L3": "sprint", "R3": "target"},
+                 "B": "selector", "ZL": "item2", "L3": "sprint", "R3": "target", "B_hold": "back"},
 }
 REMAP_PRESET_KEYS = ("classic", "action_down", "shield", "souls", "triggers")
 
@@ -79,10 +80,12 @@ def roles_with_armory(roles) -> dict:
 
 
 def keep_holds(table: dict, current: dict) -> dict:
-    """A preset's table with the user's long-press roles (the arrow's and A / B / X / Y's): presets never touch them."""
+    """A preset's table with the user's long-press roles (the arrow's and A / B / X / Y's). A preset only sets the holds it
+    names (Back on the held B where B is not item 1); every other hold keeps what the user had, and so does the arrow."""
     out = dict(table)
-    for k in ("DR", *HOLD_KEYS):
-        out[k] = current.get(k, "none")
+    out["DR"] = current.get("DR", "none")
+    for k in HOLD_KEYS:
+        out[k] = table[k] if table.get(k, "none") != "none" else current.get(k, "none")
     return out
 
 
