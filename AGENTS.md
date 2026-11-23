@@ -115,18 +115,26 @@ Branch `feat/rust-app`: a second implementation of the app, to learn Rust agains
   detection), `crates/shb-cli` (`shb`), `crates/shb-gui` (egui window, English/Spanish only).
 - **Parity is the contract**: `py -3.12 app-rs/tools/parity_check.py --app app --payload app/payload --mode all`
   patches and installs with both implementations and compares bytes. On 2026-11-23: 56/56 images identical
-  (16 profiles + 40 random settings) and 16/16 install trees identical, the enemy packs included (those compare
-  after decompression with the game's dictionary: two zstd encoders need not emit the same frame). Python 3.12 is
-  the one with `zstandard`; without it the pack profiles are skipped. Change the Python `patch_config` or
-  `_patch_packs` and this check must be rerun.
+  (16 profiles + 40 random settings), 16/16 install trees identical and 5/5 recompiled games identical (module,
+  `image.bin`, romfs), the enemy packs included (those compare after decompression with the game's dictionary: two
+  zstd encoders need not emit the same frame). Python 3.12 is the one with `zstandard`; without it the pack
+  profiles are skipped. Change the Python `patch_config`, `_patch_packs` or `recomp.apply_settings` and this check
+  must be rerun.
 - The offset table is `config::off`; `patch_config` never writes past the size the module reports, so old blocks
   (0.4.x = 0x48) keep working.
 - Enemy packs: `crates/shb-core/src/enemy.rs`, with the pure-Rust `structured-zstd` crate (the C-backed one needs
   a C compiler this toolchain does not have). The float scales are computed in `f64` and narrowed once, exactly
   like the Python app's `struct.pack_into`; doing the product in `f32` matched everything but the `x3`/`x1.5` attack
   cadence.
-- Not ported: GameCube UI atlas, the downloadable prompt layouts + table merge, the recomp/rekarina rebuild flow,
-  the updater, four of the six UI languages.
+- Recompiled games: `crates/shb-core/src/game.rs` finds a Longshot/Hookshot/ReLink folder (`.longshot_exefs` +
+  `bin/longshot.exe` …), backs up once into `.shb-backup`, writes the module, patches `image.bin` and copies the
+  romfs. What it cannot do is the build: the code is compiled into the executable by the external builder, so the
+  app says "needs a build" instead of pretending. Rekarina is detected (`rekarina.ini` + `exefs/main`) and not
+  written.
+- The window's texts are generated: `app-rs/tools/gen_i18n.py` turns `app/i18n.py` into
+  `crates/shb-gui/src/i18n_table.rs` (389 keys × 6 languages). `--check` fails when it is stale; CI runs it.
+- Not ported: GameCube UI atlas, the downloadable prompt layouts + table merge, the recomp/Rekarina rebuild flow,
+  the updater.
 - Toolchain on this PC: `stable-x86_64-pc-windows-gnu` (there is no MSVC C++ workload). Two things make it work:
   `llvm-dlltool.exe` from LLVM copied to `~/.cargo/bin/dlltool.exe` (the gnu target needs `dlltool`), and
   `app-rs/.cargo/config.toml`, which links with `rust-lld`. GNU `ld` produced binaries that segfaulted **before

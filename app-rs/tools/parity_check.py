@@ -246,12 +246,102 @@ def install_cases(app: Path, payload: Path, shb: Path, profiles: list[str]) -> i
     return failures
 
 
+def game_cases(app: Path, payload: Path, shb: Path, profiles: list[str]) -> int:
+    """A recompiled game (Longshot shape): the same settings applied by both implementations."""
+    stub_zstandard()
+    installer, presets = load_python_app(app)
+    import hashlib
+    import recomp
+
+    recomp.payload_dir = lambda: payload
+    installer.resource_dir = lambda: payload
+    work = Path(tempfile.mkdtemp(prefix="shb-game-"))
+    failures = 0
+    checked = 0
+    try:
+        for key in profiles:
+            settings = installer.Settings(**presets.settings_kwargs(key))
+            py_game = work / f"py-{key}"
+            rs_game = work / f"rs-{key}"
+            for game in (py_game, rs_game):
+                exefs = game / ".longshot_exefs"
+                (game / "bin").mkdir(parents=True)
+                exefs.mkdir()
+                (game / "bin" / "longshot.exe").write_bytes(b"exe")
+                main = bytearray(0x100)
+                main[0x40:0x44] = bytes([0xE0, 0xF3, 0xCC, 0xFA])
+                (exefs / "main").write_bytes(bytes(main))
+                module = bytearray(0x400)
+                module[0x100:0x108] = b"SHBCFG01"
+                module[0x108:0x10C] = (1).to_bytes(4, "little")
+                module[0x10C:0x110] = (0x61).to_bytes(4, "little")
+                (exefs / "subsdk9").write_bytes(bytes(module))
+                (game / "image.bin").write_bytes(bytes(module))
+                marker = game / "mods" / installer.MOD_NAME / installer.MARKER
+                marker.parent.mkdir(parents=True)
+                marker.write_text(
+                    json.dumps(
+                        {
+                            "module": "standalone",
+                            "module_sha": hashlib.sha256((payload / "standalone" / "subsdk9").read_bytes()).hexdigest(),
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+
+            py_result = recomp.apply_settings(py_game, settings)
+            run_shb(shb, ["game", "--game", str(rs_game), "--profile", key, "--payload", str(payload)])
+
+            def strip(root: Path) -> dict[str, str]:
+                out = {}
+                for rel in [".longshot_exefs/subsdk9", "image.bin"]:
+                    path = root / rel
+                    if path.is_file():
+                        out[rel] = hashlib.sha256(path.read_bytes()).hexdigest()
+                romfs = root / "mods" / installer.MOD_NAME / "romfs"
+                for path in sorted(romfs.rglob("*")):
+                    if path.is_file():
+                        out[f"romfs/{path.relative_to(romfs).as_posix()}"] = hashlib.sha256(path.read_bytes()).hexdigest()
+                return out
+
+            py_files, rs_files = strip(py_result.target), strip(rs_game)
+            differing = [n for n in set(py_files) | set(rs_files) if py_files.get(n) != rs_files.get(n)]
+            # The enemy packs are zstd frames: what matters is the content the game decompresses.
+            recompressed = []
+            dictionary_path = payload / "romfs_opts" / "enemy_speed_pack.zsdic"
+            if differing and dictionary_path.is_file():
+                dictionary = dictionary_path.read_bytes()
+                for name in list(differing):
+                    if not name.endswith(".zs"):
+                        continue
+                    py_path = py_result.target / "mods" / installer.MOD_NAME / name
+                    rs_path = rs_game / "mods" / installer.MOD_NAME / name
+                    if not (py_path.is_file() and rs_path.is_file()):
+                        continue
+                    if zs_payload(py_path.read_bytes(), dictionary) == zs_payload(rs_path.read_bytes(), dictionary):
+                        differing.remove(name)
+                        recompressed.append(name)
+            checked += 1
+            if not differing:
+                extra = f", {len(recompressed)} packs equal after decompression" if recompressed else ""
+                print(f"  game {key:<16} ok ({len(py_files)} files: module, image.bin and romfs identical{extra})")
+            else:
+                failures += 1
+                print(f"  game {key:<16} DIFFERENT")
+                for name in sorted(differing)[:8]:
+                    print(f"    {name}: py={py_files.get(name)} rs={rs_files.get(name)}")
+        print(f"game: {checked - failures}/{checked} games identical")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return failures
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--app", type=Path, default=DEFAULT_APP, help="the Python app folder")
     ap.add_argument("--payload", type=Path, default=None, help="the payload folder (app/payload)")
     ap.add_argument("--shb", type=Path, default=None, help="the shb binary (default: target/debug/shb)")
-    ap.add_argument("--mode", choices=["patch", "install", "all"], default="patch")
+    ap.add_argument("--mode", choices=["patch", "install", "game", "all"], default="patch")
     ap.add_argument("--random", type=int, default=40, help="random settings to check")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--profiles", default="souls,hero,souls-hero,world,base,manual-shield,recommended",
@@ -273,6 +363,9 @@ def main() -> int:
     if args.mode in ("install", "all"):
         print(f"install parity ({payload})")
         failures += install_cases(app, payload, shb, [p for p in args.profiles.split(",") if p])
+    if args.mode in ("game", "all"):
+        print("recompiled game parity")
+        failures += game_cases(app, payload, shb, [p for p in args.profiles.split(",") if p])
     return 1 if failures else 0
 
 

@@ -16,6 +16,7 @@ pub mod config;
 pub mod enemy;
 pub mod error;
 pub mod find;
+pub mod game;
 pub mod install;
 pub mod ips;
 pub mod paths;

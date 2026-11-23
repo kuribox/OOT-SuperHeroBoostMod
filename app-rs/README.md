@@ -15,6 +15,7 @@ app-rs/
 │   │   ├── src/config.rs         the ShbConfig block: the offset table and the writer
 │   │   ├── src/presets.rs        the game profiles
 │   │   ├── src/enemy.rs         the enemy speed / aggression packs (zstd, the game's dictionary)
+│   │   ├── src/game.rs          a recompiled game (Longshot/Hookshot/ReLink): module, image.bin, romfs
 │   │   ├── src/install.rs        install / uninstall of the mod folder
 │   │   ├── src/ips.rs            IPS32 read + merge
 │   │   ├── src/find.rs           mods folder, emulator program, game language
@@ -78,19 +79,23 @@ python tools/parity_check.py --app ../app --payload ../app/payload --mode all
 ```
 
 Result on this branch (2026-11-23): 56/56 patched images identical (16 profiles + 40 random settings, including
-out-of-range HUD scales, stray remap entries and the 0.4.x block sizes) and **16/16 install trees identical** for
-every profile, the enemy packs included: the `.zs` files are compared after decompression with the game's own
-dictionary (the Rust encoder is not required to emit the same frame bytes, and Python's libzstd reads ours).
+out-of-range HUD scales, stray remap entries and the 0.4.x block sizes), **16/16 install trees identical** for every
+profile and **5/5 recompiled games identical** (module, `image.bin` and romfs), the enemy packs included: the `.zs`
+files are compared after decompression with the game's own dictionary (the Rust encoder is not required to emit the
+same frame bytes, and Python's libzstd reads ours).
 
 The install comparison needs the real `zstandard` module (`py -3.12 -m pip install zstandard`); without it the
 profiles with enemy packs are skipped and the rest still runs, because the config patching does not use it.
 
 ## The window
 
-Eight pages, the same ones the Python app's sidebar has: Install, Home, Stamina, Difficulty, Controls, HUD, Misc,
-About. English and Spanish. The enemy components are dropdowns of the real factors (`x1.5` … `x6`), the stamina
-modes and the aggression levels are named rows, and the remap table only offers the roles the module accepts on
-each button.
+The Python app's eight pages (Install, Presets, Gameplay, Difficulty, Controls, HUD, Misc, About), its palette and
+its two fonts (Segoe UI and Palatino Linotype), its logo in the header, and **its texts**: `i18n.rs` uses
+`i18n_table.rs`, generated from `app/i18n.py` by `tools/gen_i18n.py`, so all 389 strings come in the same six
+languages. `python app-rs/tools/gen_i18n.py --check` fails when the table is stale (CI runs it).
+
+The install page has the Python app's three targets: emulator (works end to end), recompiled game (writes the
+module, `image.bin` and the romfs; the build itself is not ported) and Rekarina (detected only).
 
 ## Not ported yet
 
@@ -98,8 +103,11 @@ These are reported as notes in the install result instead of being silently skip
 
 - the GameCube UI diagram (`gamecube.py`: patches the game's own UI atlas, needs the dump),
 - the downloadable game-wide prompt layout and its resource-size-table merge (`layouts.py`),
-- the Python app's relink / rekarina / longshot rebuild flow and the self-updater,
-- four of the six UI languages (the window has English and Spanish).
+- the rebuild of a recompiled game (Longshot/Hookshot/ReLink): everything except the build is ported
+  (`shb game --game <folder>`, the module, `image.bin` and the romfs), and the app says so instead of pretending;
+- Rekarina: detected, not written yet (it patches the module in place, the executable's module hash and its own
+  state);
+- the self-updater.
 
 `cargo test -p shb-core` covers the offset table, the remap rules, the presets, the IPS reader, the mods folder
 detection, the enemy packs (a real trained dictionary, scaled values read back) and a full install into a temp

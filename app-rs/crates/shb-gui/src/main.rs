@@ -200,15 +200,60 @@ impl App {
     }
 
     fn install(&mut self) {
-        if self.target != Target::Emulator {
-            self.failed = true;
-            self.notes = vec![format!(
-                "{}: {}",
-                self.t("target"),
-                self.t(self.target.key())
-            )];
-            return;
+        match self.target {
+            Target::Emulator => self.install_emulator(),
+            Target::Recomp => self.install_game(),
+            Target::Rekarina => {
+                self.failed = true;
+                self.notes = vec![self.t("e_rekarina_needs_build").to_string()];
+            }
         }
+    }
+
+    /// A recompiled game (Longshot / Hookshot / ReLink): the module, `image.bin` and the romfs files.
+    fn install_game(&mut self) {
+        let Some(payload) = self.payload.clone() else {
+            self.failed = true;
+            self.notes = vec![self.t("e_no_payload").to_string()];
+            return;
+        };
+        let path = PathBuf::from(self.emu.trim());
+        let Some(found) = shb_core::game::find(&path) else {
+            self.failed = true;
+            self.notes = vec![if shb_core::game::looks_like_rekarina(&path) {
+                self.t("e_rekarina_needs_build").to_string()
+            } else {
+                format!("{} {}", self.t("recomp_missing"), path.display())
+            }];
+            return;
+        };
+        match shb_core::game::apply_settings(&found, &self.settings, &payload) {
+            Ok(image) => {
+                self.failed = false;
+                self.notes = vec![
+                    format!(
+                        "{} ({}, {})",
+                        found.root.display(),
+                        found.flavor.name(),
+                        found.exefs.display()
+                    ),
+                    if image {
+                        self.t("recomp_applied").to_string()
+                    } else {
+                        self.t("recomp_needs_build").to_string()
+                    },
+                ];
+                let line = format!("{} {}", self.t("installed"), found.root.display());
+                self.say(line);
+            }
+            Err(err) => {
+                self.failed = true;
+                self.notes = vec![format!("error: {err}")];
+            }
+        }
+    }
+
+    fn install_emulator(&mut self) {
         let Some(payload) = self.payload.clone() else {
             self.failed = true;
             self.notes = vec![self.t("e_no_payload").to_string()];

@@ -7,16 +7,18 @@
 //! shb show [--emu <folder> | --nso <file>]   what the installed module says
 //! shb patch --nso <in> --out <out> [options] patch a module image without installing it
 //! shb lang --emu <folder> [--set es]    read / set the mod HUD language of an installed module
+//! shb game --game <folder> [options]    the same settings for a recompiled game (Longshot/Hookshot/ReLink)
+//! shb game-uninstall --game <folder>    put a recompiled game's original files back
 //! ```
 //!
 //! The options that shape the install are the settings of the Python app (`--profile`, `--hud-mode`,
 //! `--enemy-hp`, `--manual-shield`...), and `--settings <file>` loads a JSON the window wrote.
 
 use shb_core::config::{self, read_config};
-use shb_core::find;
 use shb_core::presets::{self, PROFILE_KEYS};
 use shb_core::settings::{HudMode, Lang, Settings};
 use shb_core::{Error, Result, install, payload_root};
+use shb_core::{find, game};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -30,6 +32,8 @@ Super Hero Boost companion (Rust port)
   shb patch --nso <file> --out <file> [options]
                                              patch a module image and write it somewhere
   shb lang --emu <folder> [--set <code>]     read or set the mod HUD language of an installed module
+  shb game --game <folder> [options]         apply the settings to a recompiled game
+  shb game-uninstall --game <folder>         restore a recompiled game's files
 
 Install options (they override the profile):
   --profile <key>          game profile (default: custom)
@@ -37,6 +41,7 @@ Install options (they override the profile):
   --payload <folder>       payload folder (default: next to the program, else app/payload)
   --name <folder>          mod folder name (default: zz-Super-Hero-Boost)
   --save-settings          remember the settings as the app's own file
+  --dry-run                (game) only report what was found, write nothing
   --no-stamina  --no-button-mapping  --no-songbook  --stamina-bar
   --hud-mode <wide|simple|plain>   --hud-collectibles   --rupees  --clock  --clock24
   --quick-boots  --quick-mask  --hide-minimap
@@ -63,6 +68,7 @@ fn main() -> ExitCode {
 #[derive(Default)]
 struct Options {
     emu: Option<PathBuf>,
+    game: Option<PathBuf>,
     nso: Option<PathBuf>,
     out: Option<PathBuf>,
     settings: Option<PathBuf>,
@@ -109,6 +115,7 @@ struct Options {
     great_fairy: bool,
     farore_outdoor: bool,
     save_settings: bool,
+    dry_run: bool,
 }
 
 /// The value that follows a flag.
@@ -124,6 +131,7 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
     while let Some(arg) = it.next() {
         match arg.as_str() {
             "--emu" => o.emu = Some(PathBuf::from(value_of(&mut it, "--emu")?)),
+            "--game" => o.game = Some(PathBuf::from(value_of(&mut it, "--game")?)),
             "--nso" => o.nso = Some(PathBuf::from(value_of(&mut it, "--nso")?)),
             "--out" => o.out = Some(PathBuf::from(value_of(&mut it, "--out")?)),
             "--settings" => o.settings = Some(PathBuf::from(value_of(&mut it, "--settings")?)),
@@ -184,6 +192,7 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
             "--great-fairy" => o.great_fairy = true,
             "--farore-outdoor" => o.farore_outdoor = true,
             "--save-settings" => o.save_settings = true,
+            "--dry-run" => o.dry_run = true,
             "--help" | "-h" => return Ok(("help".to_string(), o)),
             other => {
                 return Err(Error::io(
@@ -555,6 +564,68 @@ fn run(args: &[String]) -> Result<()> {
                     .map(|l| l.as_str())
                     .unwrap_or("?");
                 println!("{name}");
+            }
+            Ok(())
+        }
+        "game" => {
+            let path = o.game.clone().ok_or_else(|| {
+                Error::io(
+                    PathBuf::from("--game"),
+                    std::io::Error::other("the game folder is required"),
+                )
+            })?;
+            let found = game::find(&path).ok_or_else(|| {
+                if game::looks_like_rekarina(&path) {
+                    Error::io(PathBuf::from("--game"), std::io::Error::other(
+                        "this is a Rekarina install: its target is not ported to the Rust app yet",
+                    ))
+                } else {
+                    Error::NotAGame(path.clone())
+                }
+            })?;
+            let settings = settings_from(&o)?;
+            let payload = payload_root(o.payload.as_deref()).ok_or_else(|| {
+                Error::PayloadMissing(PathBuf::from("payload (set --payload or SHB_PAYLOAD)"))
+            })?;
+            println!(
+                "game: {} ({}, {})",
+                found.root.display(),
+                found.flavor.name(),
+                found.exefs.display()
+            );
+            println!(
+                "  module {}",
+                if game::is_installed(&found) {
+                    "present"
+                } else {
+                    "missing (needs a build)"
+                }
+            );
+            if o.dry_run {
+                return Ok(());
+            }
+            let image = game::apply_settings(&found, &settings, &payload)?;
+            println!(
+                "settings written to the module{}",
+                if image { " and image.bin" } else { "" }
+            );
+            println!(
+                "the code has to be compiled into the game: that rebuild is not ported to the Rust app yet"
+            );
+            Ok(())
+        }
+        "game-uninstall" => {
+            let path = o.game.clone().ok_or_else(|| {
+                Error::io(
+                    PathBuf::from("--game"),
+                    std::io::Error::other("the game folder is required"),
+                )
+            })?;
+            let found = game::find(&path).ok_or(Error::NeedsBuild(path.clone()))?;
+            if game::uninstall(&found)? {
+                println!("restored the original files under {}", found.root.display());
+            } else {
+                println!("nothing to restore under {}", found.root.display());
             }
             Ok(())
         }

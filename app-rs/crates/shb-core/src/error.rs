@@ -25,6 +25,12 @@ pub enum Error {
     IpsFormat(&'static str),
     /// A compressed payload that could not be read or written (the enemy packs).
     Codec(String),
+    /// A recompiled game that does not have the module yet: its code has to be compiled into the executable.
+    NeedsBuild(PathBuf),
+    /// The game is a different build than the one this payload was made for.
+    WrongBuild(String),
+    /// The folder is not a game this port knows how to write.
+    NotAGame(PathBuf),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -61,6 +67,20 @@ impl fmt::Display for Error {
             Error::IpsOverlap(off) => write!(f, "IPS files overlap at main+{off:#x}"),
             Error::IpsFormat(why) => write!(f, "bad IPS file: {why}"),
             Error::Codec(what) => write!(f, "{what}"),
+            Error::NeedsBuild(path) => write!(
+                f,
+                "{} has no module yet: installing here needs the game to be rebuilt with the module compiled in",
+                path.display()
+            ),
+            Error::WrongBuild(build) => {
+                write!(
+                    f,
+                    "the game is build {build}, the payload is for {MODULE_BUILD_HINT}"
+                )
+            }
+            Error::NotAGame(path) => {
+                write!(f, "{} is not a game folder this app knows", path.display())
+            }
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }
@@ -69,6 +89,9 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+/// Shown when a game is a different build than the payload's.
+const MODULE_BUILD_HINT: &str = "e0f3ccfa (update v131072)";
 
 /// Read a whole file, reporting its path on failure.
 pub fn read(path: &std::path::Path) -> Result<Vec<u8>> {

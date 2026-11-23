@@ -56,5 +56,5 @@ jobs:
         run: python -m pip install zstandard
       - name: Build the CLI
         run: cargo build --manifest-path app-rs/Cargo.toml -p shb-cli
-      - name: Compare the patched modules and the installed trees
+      - name: Compare the patched modules, the installed trees and a recompiled game
         run: python app-rs/tools/parity_check.py --app app --payload app/payload --mode all
