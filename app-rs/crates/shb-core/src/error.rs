@@ -31,6 +31,8 @@ pub enum Error {
     WrongBuild(String),
     /// The folder is not a game this port knows how to write.
     NotAGame(PathBuf),
+    /// The update check or the download failed.
+    Update(String),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -81,6 +83,7 @@ impl fmt::Display for Error {
             Error::NotAGame(path) => {
                 write!(f, "{} is not a game folder this app knows", path.display())
             }
+            Error::Update(what) => write!(f, "update: {what}"),
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }

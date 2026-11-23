@@ -17,7 +17,8 @@ pub fn program_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn home() -> PathBuf {
+/// The user's home folder.
+pub fn home() -> PathBuf {
     std::env::var_os("USERPROFILE")
         .or_else(|| std::env::var_os("HOME"))
         .map(PathBuf::from)

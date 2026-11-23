@@ -23,6 +23,7 @@ pub mod paths;
 pub mod presets;
 pub mod roles;
 pub mod settings;
+pub mod update;
 
 pub use error::{Error, Result};
 pub use install::{InstallRequest, InstallResult};

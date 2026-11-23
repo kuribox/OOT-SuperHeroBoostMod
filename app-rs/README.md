@@ -106,8 +106,13 @@ These are reported as notes in the install result instead of being silently skip
 - the rebuild of a recompiled game (Longshot/Hookshot/ReLink): everything except the build is ported
   (`shb game --game <folder>`, the module, `image.bin` and the romfs), and the app says so instead of pretending;
 - Rekarina: detected, not written yet (it patches the module in place, the executable's module hash and its own
-  state);
-- the self-updater.
+  state).
+
+The updater is ported too: `shb update [--download|--apply] [--current <version>]` asks GitHub for the latest
+release, picks this platform's asset, verifies the SHA-256 GitHub publishes and, on Windows, replaces the running
+program through a detached PowerShell script. The window's About page drives the same code in a background thread.
+The HTTP client uses the system TLS (schannel) because the rustls backend needs a C compiler this toolchain does
+not have.
 
 `cargo test -p shb-core` covers the offset table, the remap rules, the presets, the IPS reader, the mods folder
 detection, the enemy packs (a real trained dictionary, scaled values read back) and a full install into a temp

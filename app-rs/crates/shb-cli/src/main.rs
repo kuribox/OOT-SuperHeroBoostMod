@@ -34,6 +34,8 @@ Super Hero Boost companion (Rust port)
   shb lang --emu <folder> [--set <code>]     read or set the mod HUD language of an installed module
   shb game --game <folder> [options]         apply the settings to a recompiled game
   shb game-uninstall --game <folder>         restore a recompiled game's files
+  shb update [--download|--apply] [--current <version>]
+                                             check GitHub for a newer release (and download / install it)
 
 Install options (they override the profile):
   --profile <key>          game profile (default: custom)
@@ -116,6 +118,9 @@ struct Options {
     farore_outdoor: bool,
     save_settings: bool,
     dry_run: bool,
+    current: Option<String>,
+    download: bool,
+    apply: bool,
 }
 
 /// The value that follows a flag.
@@ -193,6 +198,9 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
             "--farore-outdoor" => o.farore_outdoor = true,
             "--save-settings" => o.save_settings = true,
             "--dry-run" => o.dry_run = true,
+            "--current" => o.current = Some(value_of(&mut it, "--current")?),
+            "--download" => o.download = true,
+            "--apply" => o.apply = true,
             "--help" | "-h" => return Ok(("help".to_string(), o)),
             other => {
                 return Err(Error::io(
@@ -628,6 +636,60 @@ fn run(args: &[String]) -> Result<()> {
                 println!("nothing to restore under {}", found.root.display());
             }
             Ok(())
+        }
+        "update" => {
+            let current = o
+                .current
+                .clone()
+                .unwrap_or_else(|| shb_core::VERSION.to_string());
+            println!(
+                "this build {current}, checking {}",
+                shb_core::update::API_LATEST
+            );
+            match shb_core::update::check(&current)? {
+                None => {
+                    println!("up to date");
+                    Ok(())
+                }
+                Some(update) => {
+                    println!("new release {} ({})", update.tag, update.page_url);
+                    match &update.asset_name {
+                        Some(name) => println!("asset {name} ({} bytes)", update.asset_size),
+                        None => println!("no asset for this platform"),
+                    }
+                    if o.download || o.apply {
+                        let (dest, _) = shb_core::update::update_path(&update.version);
+                        println!("downloading to {}", dest.display());
+                        let mut last = -1i64;
+                        let saved = shb_core::update::download(&update, &dest, |done, total| {
+                            let percent = if total > 0 {
+                                (done * 100).checked_div(total).unwrap_or(0) as i64
+                            } else {
+                                -1
+                            };
+                            if percent != last {
+                                last = percent;
+                                print!("\r  {percent}%");
+                                use std::io::Write;
+                                let _ = std::io::stdout().flush();
+                            }
+                        })?;
+                        println!("\nsaved {}", saved.display());
+                        if o.apply {
+                            if shb_core::update::apply_and_restart(&saved) {
+                                println!(
+                                    "the app will restart with the new version once this process exits"
+                                );
+                            } else {
+                                println!(
+                                    "cannot replace the running program here; the file is at the path above"
+                                );
+                            }
+                        }
+                    }
+                    Ok(())
+                }
+            }
         }
         other => Err(unknown("command", other)),
     }

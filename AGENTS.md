@@ -133,8 +133,10 @@ Branch `feat/rust-app`: a second implementation of the app, to learn Rust agains
   written.
 - The window's texts are generated: `app-rs/tools/gen_i18n.py` turns `app/i18n.py` into
   `crates/shb-gui/src/i18n_table.rs` (389 keys × 6 languages). `--check` fails when it is stale; CI runs it.
-- Not ported: GameCube UI atlas, the downloadable prompt layouts + table merge, the recomp/Rekarina rebuild flow,
-  the updater.
+- The updater (`crates/shb-core/src/update.rs`): GitHub's latest release, this platform's asset, the SHA-256 check
+  and the PowerShell restart script. `ureq` runs with `native-tls` on purpose: the rustls backend needs `ring`,
+  whose build wants a C compiler this toolchain does not have.
+- Not ported: GameCube UI atlas, the downloadable prompt layouts + table merge, the recomp/Rekarina rebuild flow.
 - Toolchain on this PC: `stable-x86_64-pc-windows-gnu` (there is no MSVC C++ workload). Two things make it work:
   `llvm-dlltool.exe` from LLVM copied to `~/.cargo/bin/dlltool.exe` (the gnu target needs `dlltool`), and
   `app-rs/.cargo/config.toml`, which links with `rust-lld`. GNU `ld` produced binaries that segfaulted **before

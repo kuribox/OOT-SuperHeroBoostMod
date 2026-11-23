@@ -18,9 +18,30 @@ use shb_core::install::{self, InstallRequest};
 use shb_core::presets::{self, PROFILE_KEYS};
 use shb_core::roles::{self, ROLE_KEYS, Role};
 use shb_core::settings::{BmLayout, ButtonStyle, GameLayout, HudMode, LMode, Lang, Settings};
+use shb_core::update::{self, Update};
 use shb_core::{enemy, paths, payload_root};
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, channel};
 use theme::{ghost_button, primary_button, section, title};
+
+/// What the update check is doing, so the page can paint it.
+enum UpdateState {
+    Idle,
+    Checking,
+    UpToDate,
+    Available(Update),
+    Downloading { done: Arc<AtomicU64>, total: u64 },
+    Ready(PathBuf),
+    Failed(String),
+}
+
+/// The answers of the background threads.
+enum UpdateMsg {
+    Checked(Result<Option<Update>, String>),
+    Downloaded(Result<PathBuf, String>),
+}
 
 /// A page of the sidebar, in the Python app's order (`nav` in `main.py`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,6 +126,8 @@ struct App {
     failed: bool,
     logo: Option<egui::TextureHandle>,
     status: Option<String>,
+    update: UpdateState,
+    update_rx: Option<Receiver<UpdateMsg>>,
 }
 
 impl App {
@@ -127,6 +150,8 @@ impl App {
             failed: false,
             logo: theme::logo(&cc.egui_ctx),
             status: None,
+            update: UpdateState::Idle,
+            update_rx: None,
         };
         match app.payload.clone() {
             Some(path) => app.say(format!("payload: {}", path.display())),
@@ -301,6 +326,50 @@ impl App {
         }
     }
 
+    /// Ask GitHub in a thread: the window keeps painting while the request is on its way.
+    fn start_check(&mut self) {
+        let current = shb_core::VERSION.to_string();
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            let result = update::check(&current).map_err(|e| e.to_string());
+            let _ = tx.send(UpdateMsg::Checked(result));
+        });
+        self.update_rx = Some(rx);
+        self.update = UpdateState::Checking;
+    }
+
+    /// Download the release asset in a thread, with a counter the page reads every frame.
+    fn start_download(&mut self, found: Update) {
+        let (dest, _) = update::update_path(&found.version);
+        let done = Arc::new(AtomicU64::new(0));
+        let total = found.asset_size;
+        let counter = Arc::clone(&done);
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            let result = update::download(&found, &dest, |bytes, _| {
+                counter.store(bytes, Ordering::Relaxed);
+            })
+            .map_err(|e| e.to_string());
+            let _ = tx.send(UpdateMsg::Downloaded(result));
+        });
+        self.update_rx = Some(rx);
+        self.update = UpdateState::Downloading { done, total };
+    }
+
+    /// Take whatever the background thread produced, if anything.
+    fn poll_update(&mut self) {
+        let Some(rx) = &self.update_rx else { return };
+        let Ok(message) = rx.try_recv() else { return };
+        self.update_rx = None;
+        match message {
+            UpdateMsg::Checked(Ok(Some(found))) => self.update = UpdateState::Available(found),
+            UpdateMsg::Checked(Ok(None)) => self.update = UpdateState::UpToDate,
+            UpdateMsg::Checked(Err(err)) => self.update = UpdateState::Failed(err),
+            UpdateMsg::Downloaded(Ok(path)) => self.update = UpdateState::Ready(path),
+            UpdateMsg::Downloaded(Err(err)) => self.update = UpdateState::Failed(err),
+        }
+    }
+
     fn save(&mut self) {
         match paths::save_settings(&self.settings) {
             Ok(path) => {
@@ -406,6 +475,7 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let lang = self.ui_lang;
         let mut changed = false;
+        self.poll_update();
 
         egui::Panel::top("header")
             .frame(
@@ -1202,7 +1272,87 @@ impl App {
 
     fn page_about(&mut self, ui: &mut egui::Ui) {
         let lang = self.ui_lang;
+        let mut action: Option<Update> = None;
         section(ui, tr(lang, "about_title"), None, |ui| {
+            match &self.update {
+                UpdateState::Idle => {
+                    if ghost_button(ui, tr(lang, "update_check")).clicked() {
+                        self.start_check();
+                    }
+                }
+                UpdateState::Checking => {
+                    ui.label(tr(lang, "update_checking"));
+                }
+                UpdateState::UpToDate => {
+                    ui.label(fill(tr(lang, "update_latest"), &[("v", shb_core::VERSION)]));
+                    if ghost_button(ui, tr(lang, "update_check")).clicked() {
+                        self.start_check();
+                    }
+                }
+                UpdateState::Available(found) => {
+                    let found = found.clone();
+                    ui.label(
+                        egui::RichText::new(fill(
+                            tr(lang, "update_banner"),
+                            &[("v", &found.tag), ("cur", shb_core::VERSION)],
+                        ))
+                        .color(theme::AMBER),
+                    );
+                    ui.horizontal(|ui| {
+                        if primary_button(ui, tr(lang, "update_download")).clicked() {
+                            action = Some(found.clone());
+                        }
+                        if ghost_button(ui, tr(lang, "update_later")).clicked() {
+                            self.update = UpdateState::Idle;
+                        }
+                    });
+                }
+                UpdateState::Downloading { done, total } => {
+                    let bytes = done.load(Ordering::Relaxed);
+                    let fraction = if *total > 0 {
+                        bytes as f32 / *total as f32
+                    } else {
+                        0.0
+                    };
+                    ui.add(egui::ProgressBar::new(fraction).text(format!(
+                        "{} {:.0}%",
+                        tr(lang, "update_downloading").replace("{p}", ""),
+                        fraction * 100.0
+                    )));
+                }
+                UpdateState::Ready(path) => {
+                    ui.label(tr(lang, "update_ready"));
+                    ui.label(
+                        egui::RichText::new(path.display().to_string())
+                            .size(12.0)
+                            .color(theme::DIM),
+                    );
+                    ui.horizontal(|ui| {
+                        if primary_button(ui, tr(lang, "update_download")).clicked() {
+                            let path = path.clone();
+                            if !update::apply_and_restart(&path) {
+                                update::reveal(&path);
+                            }
+                        }
+                        if ghost_button(ui, "…").clicked() {
+                            update::reveal(path);
+                        }
+                    });
+                }
+                UpdateState::Failed(err) => {
+                    ui.label(egui::RichText::new(err).color(theme::RED));
+                    ui.label(tr(lang, "update_failed"));
+                    ui.horizontal(|ui| {
+                        if ghost_button(ui, tr(lang, "update_check")).clicked() {
+                            self.start_check();
+                        }
+                        if ghost_button(ui, "GitHub").clicked() {
+                            update::open_releases();
+                        }
+                    });
+                }
+            }
+            ui.add_space(8.0);
             ui.label(egui::RichText::new(tr(lang, "about_body")).color(theme::TEXT));
             ui.add_space(6.0);
             ui.label(egui::RichText::new(tr(lang, "about_link")).color(theme::DIM));
@@ -1217,6 +1367,9 @@ impl App {
                 );
             }
         });
+        if let Some(found) = action {
+            self.start_download(found);
+        }
     }
 }
 
