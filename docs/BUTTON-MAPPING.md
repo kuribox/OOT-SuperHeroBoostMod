@@ -62,6 +62,35 @@ struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no rol
 - The app lists the arrow as the last row of Controls, with a note under it. It is not part of the presets: choosing
   one keeps the arrow's role, and the preset buttons ignore it when they decide which preset is active.
 
+## Held face buttons (A, B, X, Y) and the Back role
+
+**Hold roles.** A, B, X and Y can also have a role for their long press, in `ShbConfig.bm_hold[4]` (A, B, X, Y order,
+struct 93..96, appended after `bm_role_dr`; the struct is 0x64 bytes now, an older app leaves them 0 = none).
+`button_remap_on_input` reads them with the arrow's code (`HOLD_PB` = DR, A, B, X, Y, `remap_hold_role()`):
+
+- A, B, X and Y: the short role goes through **at once**, with no delay. Held for `REMAP_DR_HOLD` (20 HUD frames) the
+  hold role's virtual button is set as well and the physical bit is cleared, so the short role lets go (no sword
+  charge or A-held sprint can run past that point); the hold role stays down while the button does. (A first version
+  held the short press back until release, like the arrow; it felt late on the sword and the jump.) The short action
+  has already happened when the hold fires: pick a hold role that does not mind it. The arrow keeps the delayed
+  behaviour, because its short press is Navi's call and must not fire on every hold.
+- Roles a hold takes (`_HOLD_ROLES`): jump, sword, action, camera, sprint, shield, selector, armory and **back**. No
+  items and no target (their buttons show on the HUD or need the held state). A role is still on one button at most,
+  hold rows included: picking it for a hold moves it from the button that had it.
+- The app keeps them in the same role table under `A_hold` ... `Y_hold` (`HOLD_KEYS`); presets never touch them
+  (`keep_holds`), nor does the preset detection. `remap_selector_on()` also looks at them (`hold_has`): a selector on a
+  hold needs no short-press button.
+- Diagnostics: `g_remap_hold[5]` (DR, A, B, X, Y) counts long presses that fired.
+
+**Back role (`ROLE_BACK`, `VBTN_BACK` = HID bit 27).** The game's own B: let go of a ledge, cancel, get off ... With the
+remap the only way to send B was the button holding item 1, so those actions were lost whenever item 1 sat somewhere
+else or B was a selector. The role works on any button and in a hold. button_mapping strips the bit early and, after
+its own item logic (`button_mapping_on_input` wraps `bm_input`), sets the item-1 virtual button (B, X with the Jump/B
+swap) **only where that press is not an item use**: Link busy with something else (the slot logic leaves the buttons
+alone there: hanging, climbing, swimming ...), or the B slot holds no item (`g_back_ok`). With an item on slot B and
+Link free it does nothing, so it never fires the item by accident. Diagnostics: `g_back_dbg[0]` reads with the role
+down, `[1]` reads where it became B.
+
 ## Item selector (role)
 
 With the remap the selector has its own virtual button, `VBTN_SELECTOR` (HID bit 26, unused with a full controller), so

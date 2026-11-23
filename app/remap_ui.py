@@ -245,9 +245,29 @@ for _lang, (_n, _d) in {
         T[_lang]['preset_triggers'] = _n
         T[_lang]['ctrl_preset_triggers_d'] = _d
 
+# the back role and the held face buttons
+for _lang, (_n, _h, _hh) in {
+    'en': ('Back (B action)', "The game's own B: let go of a ledge, cancel, get off ... It is not an item use, so it works on any button even when item 1 is somewhere else or the B slot has an item. It acts while Link is busy with something else (hanging, climbing, swimming ...) or when the B slot is empty.",
+           "Hold the button for about a third of a second to do this as well. The short press keeps its role above and acts at once; when the hold fires, the short role lets go (so a held button cannot charge the sword or sprint with A)."),
+    'es': ('Atrás (acción de B)', 'La B propia del juego: soltarse de un borde, cancelar, bajarse ... No usa objeto, así que va en cualquier botón aunque el objeto 1 esté en otro o la ranura B tenga un objeto. Actúa mientras Link está ocupado en otra cosa (colgado, trepando, nadando ...) o con la ranura B vacía.',
+           'Mantén el botón un tercio de segundo para hacer esto también. La pulsación corta conserva su acción de arriba y actúa al instante; cuando salta la larga, la corta se suelta (así un botón mantenido no puede cargar la espada ni correr con A).'),
+    'pt': ('Voltar (ação do B)', 'O B do próprio jogo: soltar-se de uma borda, cancelar, descer ... Não usa item, então vale em qualquer botão mesmo com o item 1 em outro ou o espaço B com item. Age enquanto Link está ocupado com outra coisa (pendurado, escalando, nadando ...) ou com o espaço B vazio.',
+           'Segure o botão por cerca de um terço de segundo para fazer isto também. O toque curto mantém a ação de cima e age na hora; quando a longa dispara, a curta é solta (assim um botão segurado não carrega a espada nem corre com A).'),
+    'fr': ('Retour (action de B)', "Le B propre au jeu : se lâcher d'un rebord, annuler, descendre ... Il n'utilise pas d'objet, donc il va sur n'importe quel bouton même si l'objet 1 est ailleurs ou si l'emplacement B a un objet. Il agit quand Link est occupé à autre chose (suspendu, grimpant, nageant ...) ou si l'emplacement B est vide.",
+           "Maintenez le bouton environ un tiers de seconde pour faire ceci aussi. L'appui court garde son action du dessus et agit tout de suite ; quand le long part, le court est relâché (un bouton maintenu ne peut donc pas charger l'épée ni sprinter avec A)."),
+    'de': ('Zurück (B-Aktion)', 'Das eigene B des Spiels: von einer Kante loslassen, abbrechen, absteigen ... Es benutzt kein Item, also geht es auf jeder Taste, auch wenn Item 1 woanders liegt oder der B-Platz ein Item hat. Es wirkt, solange Link etwas anderes tut (hängen, klettern, schwimmen ...) oder der B-Platz leer ist.',
+           'Halte die Taste etwa eine Drittelsekunde, um dies auch zu tun. Der kurze Druck behält seine Aktion oben und wirkt sofort; wenn der lange auslöst, wird der kurze losgelassen (eine gehaltene Taste kann also kein Schwert laden und nicht mit A sprinten).'),
+    'it': ('Indietro (azione di B)', "Il B vero del gioco: lasciarsi da un bordo, annullare, scendere ... Non usa oggetti, quindi va su qualsiasi tasto anche se l'oggetto 1 è altrove o lo slot B ha un oggetto. Agisce mentre Link è occupato in altro (appeso, in arrampicata, a nuoto ...) o con lo slot B vuoto.",
+           "Tieni premuto il tasto circa un terzo di secondo per fare anche questo. La pressione breve mantiene l'azione sopra e agisce subito; quando scatta la lunga, la breve viene rilasciata (un tasto tenuto non può quindi caricare la spada né correre con A)."),
+}.items():
+    if _lang in T:
+        T[_lang]['role_back'] = _n
+        T[_lang]['role_back_help'] = _h
+        T[_lang]['hold_help'] = _hh
+
 # ---------------------------------------------------------------- model
 # The order the editor lists the buttons in (face buttons, shoulders, sticks). The module's order is I.REMAP_BUTTONS.
-ROW_ORDER = ("X", "Y", "A", "B", "L", "R", "ZL", "ZR", "L3", "R3", "DR")
+ROW_ORDER = ("X", "X_hold", "Y", "Y_hold", "A", "A_hold", "B", "B_hold", "L", "R", "ZL", "ZR", "L3", "R3", "DR")
 FACE = ("A", "B", "X", "Y")
 STICKS = ("L3", "R3")
 # glyph drawn for each game button per button style (tools/make_buttons.py GLYPHS)
@@ -270,13 +290,14 @@ HUD_GAMECUBE = {**HUD_POS, "A": (1292.6, 680.0), "B": (1144.6, 612.0),
 HUD_SIMPLE = {"item2": (1120.4, 872.3), "item3": (1445.2, 872.3), "item_main": (1677.2, 680.0),
               "item1": (1292.6, 680.0)}
 ITEM_OFF = (-25.3, 25.3)
-MOVE_ROLES = ("jump", "sword", "action", "target", "camera", "sprint", "shield", "armory")
-ROLE_HELP = {"action": "role_action_help", "item_main": "role_item_main_help", "armory": "role_armory_help"}
+MOVE_ROLES = ("jump", "sword", "action", "target", "camera", "sprint", "shield", "armory", "back")
+ROLE_HELP = {"action": "role_action_help", "item_main": "role_item_main_help", "armory": "role_armory_help",
+             "back": "role_back_help"}
 
 
 def role_vars(saved, master=None) -> dict:
     roles = I.normalize_roles(saved if isinstance(saved, dict) else I.CLASSIC_ROLES)
-    return {b: tk.StringVar(master=master, value=roles[b]) for b in I.REMAP_BUTTONS}
+    return {b: tk.StringVar(master=master, value=roles[b]) for b in I.ROLE_KEYS}
 
 
 def roles_value(rvars: dict) -> dict:
@@ -292,16 +313,17 @@ def set_roles(rvars: dict, roles: dict) -> None:
 
 def preset_of(roles: dict) -> str:
     """The preset a table is (the D-pad right long press is no part of a preset: it keeps its own role)."""
-    roles = dict(I.normalize_roles(roles), DR="none")
+    free = {k: "none" for k in ("DR", *I.HOLD_KEYS)}
+    roles = dict(I.normalize_roles(roles), **free)
     for k in I.REMAP_PRESET_KEYS:
-        if dict(I.normalize_roles(I.REMAP_PRESETS[k]), DR="none") == roles:
+        if dict(I.normalize_roles(I.REMAP_PRESETS[k]), **free) == roles:
             return k
     return "custom"
 
 
 def menu_buttons(roles: dict) -> dict:
     """core/remap.c remap_menu_buttons(): the pause-menu button that assigns each of items 1..3."""
-    phys = {r: b for b, r in roles.items() if r != "none"}
+    phys = {r: b for b, r in roles.items() if r != "none" and b in I.REMAP_BUTTONS}
     out, taken = {}, set()
     for r in ("item1", "item2", "item3"):
         b = phys.get(r)
@@ -469,6 +491,8 @@ class RemapEditor:
             help_icon(line, self.L(key + "_help"), self.c, self.fam).pack(side="left", padx=(4, 0))
         if role in ROLE_HELP:
             help_icon(help_slot, self.L(ROLE_HELP[role]), self.c, self.fam).pack(side="left")
+        if btn in I.HOLD_KEYS:   # what a long press means for this button
+            help_icon(help_slot, self.L("hold_help"), self.c, self.fam).pack(side="left", padx=(4, 0))
         if btn == "DR":   # the arrow is Navi's call: only the long press is the role
             line = UI.Frame(f, bg=bg)
             line.pack(anchor="w", pady=1)
@@ -496,7 +520,12 @@ class RemapEditor:
             cb.config(values=[self.role_name(r) for r in ch])
             self.choices[b] = ch + [r for r in self.choices[b] if r not in ch]   # (hidden ones stay pickable by index)
             cb.current(ch.index(roles[b]) if roles[b] in ch else 0)
-            self._chip(self.chips[b], 20, 14, b, 12)
+            if b in I.HOLD_KEYS:   # the long press of the face button above: a small chip and a down arrow
+                self.chips[b].delete("all")
+                self._chip(self.chips[b], 14, 14, b[0], 9, clear=False)
+                self.chips[b].create_text(31, 14, text="↓", fill=self.c["DIM"], font=(self.fam, 11, "bold"))
+            else:
+                self._chip(self.chips[b], 20, 14, b, 12)
             self._options_for(b, roles[b])
         n_items = sum(1 for r in roles.values() if r in I.ITEM_ROLES)
         self.count.config(text=self.L("rm_items", n=n_items))
@@ -574,7 +603,11 @@ class RemapEditor:
             self._chip(cv, x, y, btn, 12, clear=False)
             role = roles[btn]
             lx, ly, anchor = label_at[btn]
-            cv.create_text(lx, ly, text=self.role_name(role), fill=self._role_color(role), anchor=anchor,
+            text = self.role_name(role)
+            hold = roles.get(btn + "_hold", "none")
+            if hold != "none":   # a long press role too: "Jump  ↓ Back"
+                text = f"{text}  ↓ {self.role_name(hold)}" if role != "none" else f"↓ {self.role_name(hold)}"
+            cv.create_text(lx, ly, text=text, fill=self._role_color(role), anchor=anchor,
                            font=(self.fam, 9, "bold"))
 
     def _draw_hud(self, roles: dict):
@@ -583,7 +616,7 @@ class RemapEditor:
         cv.delete("all")
         simple = self.v["bsimple"].get()
         positions = HUD_GAMECUBE if self.v["bplace"].get() == "gamecube" else HUD_POS
-        phys = {r: b for b, r in roles.items() if r != "none"}
+        phys = {r: b for b, r in roles.items() if r != "none" and b in I.REMAP_BUTTONS}
         sc = 0.37
         ox, oy = 200 - 1292.6 * sc, 118 + 712.0 * sc
 

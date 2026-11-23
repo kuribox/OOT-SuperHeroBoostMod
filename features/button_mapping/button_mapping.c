@@ -232,9 +232,18 @@ static void dbg_tick(void);   /* diagnostic dump (below, beside the save code) *
  * game's own prompts there name them. The game fills the samples again on every read, so this is done once per read. */
 u32 g_remap_dbg[3];   /* reads remapped, reads left alone, last physical -> virtual (low bits) */
 u32 g_remap_live;     /* the last read was remapped: the HUD prompts name the roles' buttons (core/hud.c) */
-static u32 dr_since, dr_pulse;   /* D-pad right long press: frame it went down, replay reads left */
-static unsigned char dr_fired;
-u32 g_remap_dr[2];   /* diagnostics: short presses replayed, long presses that fired the role */
+/* Held buttons: D-pad right (its short press is the game's Navi call) and A / B / X / Y (whose short press is their own
+ * role) can have a role for the LONG press (remap_hold_role). Per button: the frame the press went down, the replay
+ * reads left of a short press, and whether the long press already fired. */
+#define HOLD_N 5
+static const unsigned char HOLD_PB[HOLD_N] = {PB_DR, PB_A, PB_B, PB_X, PB_Y};
+static u32 hold_since[HOLD_N], hold_pulse[HOLD_N];
+static unsigned char hold_fired[HOLD_N];
+u32 g_remap_dr[2];   /* diagnostics: short presses replayed, long presses that fired a role (all held buttons) */
+u32 g_remap_hold[HOLD_N];   /* diagnostics: long presses that fired, per button: DR A B X Y */
+static void hold_reset(void) {
+    for (u32 h = 0; h < HOLD_N; h++) { hold_since[h] = hold_pulse[h] = 0; hold_fired[h] = 0; }
+}
 void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     (void)a2;
     if (site != 3 || !a0) return;
@@ -258,39 +267,40 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
     if (!playing || covered || g_songbook_active || player_dead() || player_state_starts("Evt")) {
         g_remap_dbg[1]++;
         g_remap_live = 0;
-        dr_since = dr_pulse = 0;
-        dr_fired = 0;
+        hold_reset();
         return;
     }
     g_remap_live = 1;
     HidView view = {a0, count, 0};
-    /* D-pad right: short press = Navi (the game's), long press = the role in bm_role_dr. The press is held back
-     * until it is known which: released early it is replayed as a short pulse, held it never reaches the game. */
-    u64 dr_add = 0, dr_clear = 0;
-    u32 dr_role = remap_role_of(PB_DR);
-    if (dr_role != ROLE_NONE && dr_role < ROLE_N) {
-        u64 all = 0;
-        for (u32 i = 0; i < count; i++) all |= hid_get_buttons(&view, i);
-        if (all & REMAP_BIT[PB_DR]) {
-            if (!dr_since) { dr_since = now ? now : 1; dr_fired = 0; dr_pulse = 0; }
-            if (now - dr_since >= REMAP_DR_HOLD) {
-                if (!dr_fired) g_remap_dr[1]++;
-                dr_fired = 1;
-                dr_add = remap_role_virt(dr_role);
-            }
-            dr_clear = REMAP_BIT[PB_DR];
+    /* Held buttons: short press = the button's own role (Navi for D-pad right), long press = its hold role. The press is
+     * held back until it is known which: released early it is replayed as a short pulse (the physical bit goes through
+     * the remap, so the short role fires), held it never reaches the game as the short one. */
+    u64 add = 0, clear = 0, pulse_add = 0, all = 0;
+    for (u32 i = 0; i < count; i++) all |= hid_get_buttons(&view, i);
+    for (u32 h = 0; h < HOLD_N; h++) {
+        u32 p = HOLD_PB[h], role = remap_hold_role(p);
+        u64 bit = REMAP_BIT[p];
+        if (role == ROLE_NONE || role >= ROLE_N) { hold_since[h] = hold_pulse[h] = 0; hold_fired[h] = 0; continue; }
+        if (all & bit) {
+            if (!hold_since[h]) { hold_since[h] = now ? now : 1; hold_fired[h] = 0; hold_pulse[h] = 0; }
+            if (now - hold_since[h] >= REMAP_DR_HOLD) {
+                if (!hold_fired[h]) { g_remap_dr[1]++; g_remap_hold[h]++; }
+                hold_fired[h] = 1;
+                add |= remap_role_virt(role);
+                clear |= bit;                       /* the short role lets go, the hold role takes over */
+            } else if (p == PB_DR) {
+                clear |= bit;                       /* Navi (the arrow's short press) waits to know which press it is */
+            }                                       /* A / B / X / Y: the short role goes through at once, no delay */
         } else {
-            if (dr_since && !dr_fired) { dr_pulse = 3; g_remap_dr[0]++; }   /* a short press: let the game see it now, for three reads */
-            dr_since = 0;
-            dr_fired = 0;
+            if (p == PB_DR && hold_since[h] && !hold_fired[h]) { hold_pulse[h] = 3; g_remap_dr[0]++; }   /* a short press of the arrow: let the game see it now, for three reads */
+            hold_since[h] = 0;
+            hold_fired[h] = 0;
         }
-        if (dr_pulse && !(all & REMAP_BIT[PB_DR])) { dr_add |= REMAP_BIT[PB_DR]; dr_pulse--; }
-    } else {
-        dr_since = 0; dr_fired = 0; dr_pulse = 0;
+        if (hold_pulse[h] && !(all & bit)) { pulse_add |= bit; hold_pulse[h]--; }
     }
     for (u32 i = 0; i < count; i++) {
         u64 b = hid_get_buttons(&view, i);
-        u64 v = (remap_apply(b) & ~dr_clear) | dr_add;
+        u64 v = remap_apply((b & ~clear) | pulse_add) | add;
         if (v != b) hid_set_buttons(&view, i, v);
         if (i == 0) g_remap_dbg[2] = (u32)(b & 0x3FF) | ((u32)(v & 0x3FF) << 16);
     }
@@ -301,7 +311,26 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
 u64 g_dbg_a0[5], g_dbg_a1[5];
 u32 g_dbg_cnt[5], g_dbg_btn[5], g_dbg_hits[5];
 
+/* The back role (VBTN_BACK, core/remap.h): seen in this read, and whether it may reach the game as B now. */
+static u32 g_back_seen, g_back_ok;
+u32 g_back_dbg[2];   /* diagnostics: reads with the back role down, reads where it was turned into B */
+static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result);
 void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
+    g_back_seen = 0;
+    g_back_ok = 1;
+    bm_input(site, a0, a1, a2, stock_result);
+    if (site != 3 || !a0 || !g_back_seen) return;
+    g_back_dbg[0]++;
+    if (!g_back_ok) return;
+    u32 count = hid_sample_count(a1, stock_result);
+    if (count == 0 || count > 64) return;
+    HidView view = {a0, count, 0};
+    u64 bit = remap_role_virt(ROLE_ITEM1);   /* the game's B (X with the Jump/B swap) */
+    for (u32 i = 0; i < count; i++) hid_set_buttons(&view, i, hid_get_buttons(&view, i) | bit);
+    g_back_dbg[1]++;
+}
+
+static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     if (site < 5) {
         HidView dv = {a0, 0, 0};
         u32 dcount = hid_sample_count(a1, stock_result);
@@ -326,7 +355,8 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     for (u32 i = 0; i < count; i++) {
         u64 b = hid_get_buttons(&view, i);
         if (b & VBTN_SELECTOR) sel_held = 1;
-        if (b & (VBTN_SHIELD | VBTN_SELECTOR)) hid_set_buttons(&view, i, b & ~(VBTN_SHIELD | VBTN_SELECTOR));
+        if (b & VBTN_BACK) g_back_seen = 1;
+        if (b & (VBTN_SHIELD | VBTN_SELECTOR | VBTN_BACK)) hid_set_buttons(&view, i, b & ~(VBTN_SHIELD | VBTN_SELECTOR | VBTN_BACK));
     }
     u32 sel_was = sel_prev;
     sel_prev = sel_held;
@@ -518,6 +548,9 @@ void button_mapping_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_r
     int free_now = ingame && (player_state_is("Wait") || player_state_is("Move") ||
                               player_state_starts("LockOn"));   /* LockOn*: ZL held (target or free), aiming */
     int using = g_phase == PH_EQUIP || g_phase == PH_HOLD || g_phase == PH_ZRBACK;
+    /* The back role is the game's B only where B is not an item use: Link busy with something else (hanging, climbing,
+     * swimming ... where the slot logic below leaves every button alone) or no item on the B slot. */
+    g_back_ok = !g_shbcfg.button_mapping || (!free_now && !using) || g_assign[SLOT_B] < 0;
     /* With our item buttons the game's item selector opens only from L in the selector mode: R (and L as an item
      * button) never reach the game while Link plays, whatever he is doing (sword, hookshot, bow ...). Events
      * (dialogues, shops) and the ocarina (L / R are notes there) keep them. */

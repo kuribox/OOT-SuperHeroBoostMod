@@ -36,6 +36,7 @@ enum {
     ROLE_SHIELD,     /* VBTN_SHIELD: the manual shield's guard (ShbConfig.manual_shield) */
     ROLE_SELECTOR,   /* virtual L in the item-selector mode (ShbConfig.bm_l_mode = 2): opens the game's selector */
     ROLE_ARMORY,     /* VBTN_ARMORY: held, the stick / D-pad changes sword and shield (features/quick_select) */
+    ROLE_BACK,       /* VBTN_BACK: the game's own B (let go of a ledge, cancel ...) without using the B item */
     ROLE_N
 };
 
@@ -49,6 +50,10 @@ enum {
  * has its own virtual button, so it no longer shares L with item 2. features/button_mapping turns it into the game's R
  * (which opens the selector for ZR) and strips it. Without the remap the selector is still L (bm_l_mode = 2). */
 #define VBTN_SELECTOR (1ull << 26)
+/* The back role's press (the right Joy-Con's SR, unused with a full controller): features/button_mapping turns it into
+ * the game's B (the item-1 button) after its own item logic, and only where that press is not an item use: while Link
+ * is busy with something else (hanging, climbing, swimming ...) or when the B slot holds no item. */
+#define VBTN_BACK (1ull << 27)
 /* The item selector is on: remap_on() and a button holds the role, or the old L selector (bm_l_mode = 2). */
 int remap_selector_on(void);
 /* The old L-as-selector mode: L itself is the selector (no remap): L holds no item, its HUD part is hidden. */
@@ -64,6 +69,11 @@ extern const u64 REMAP_BIT[PB_N];
 #define REMAP_DR_HOLD 20u
 u32 remap_role_of(u32 phys);        /* the role on a physical button (bm_role_dr for PB_DR) */
 
+/* A, B, X, Y and D-pad right (PB_DR) can also have a role for the LONG press, in ShbConfig.bm_hold (A, B, X, Y) and
+ * bm_role_dr. A button with a hold role is held back until it is known which press it is (REMAP_DR_HOLD HUD frames):
+ * released before, its short role goes to the game as a short pulse; held longer, the hold role is pressed and the
+ * short one never is. 0 = the button has no hold role. */
+u32 remap_hold_role(u32 phys);
 int remap_on(void);                 /* the player's own table is in use */
 u32 remap_role_phys(u32 role);      /* the physical button holding a role, PB_NONE if none */
 u64 remap_role_virt(u32 role);      /* the virtual (game) button of a role */
