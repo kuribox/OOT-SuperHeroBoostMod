@@ -1,5 +1,6 @@
 #include "dispatch.h"
 #include "config.h"
+#include "clock.h"
 
 /* Finds the player from the per-frame movement update of physics actors (hook at main+0x2C215E0,
  * x0 = actor) and turns his action-state name into events.
@@ -314,5 +315,5 @@ int player_max_life(void) { return g_player_maxlife; }
 void player_mark_combat(void) { u32 f = hud_frame_count(); g_combat_frame = f ? f : 1; }
 
 int player_in_combat(void) {
-    return g_combat_frame != 0 && (hud_frame_count() - g_combat_frame) < 300u;
+    return g_combat_frame != 0 && (hud_frame_count() - g_combat_frame) < shb_frames(300u);   /* 5 s, whatever the frame rate */
 }

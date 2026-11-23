@@ -661,3 +661,25 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   frame 5400, and every stale `shbdebug.bin` in `user/nand/user/save` kept its mtime.
 - Not proven: that the race caused that crash. It is the only mod-side I/O in the window and the stack shows a
   corrupt object being released, but reproducing it needs the 200 fps timing.
+
+## Frames are not milliseconds: the module's own clock (Nov 23)
+
+- Every duration in the mod was written in frames with a hard-coded 1/60 s (`DT_FRAME`, `SW_HOLD 18`,
+  `GAP_TICKS 20`, `RUN_HOLD_FRAMES`, `L3_IDLE_FRAMES`, `g_check_owned = 30`, the 300-frame combat window). That is
+  only right when the game runs at 60: the crash report that started this had the intro at ~200 presents/s, and
+  the emulator here runs the game at 40-48 fps while it settles, so the same build ticks 20%..230% off.
+- The source is `CNTPCT_EL0`, not a wall clock and not a new import: `sdk` reads it 45 times (the
+  `nn::os::GetSystemTick` path), so every target that runs the game at all — emulator, Longshot, ReLink,
+  Rekarina — necessarily translates that instruction. `main` itself never reads it (0 hits), which is why the
+  game's own timing survives HLE. `core/clock.c` (`shb_clock_tick` from `hud_frame`, `shb_dt_frame`,
+  `shb_frames`).
+- **The rate must be read, not assumed.** Fritchii implements `CNTFRQ_EL0` = 31 250 000 Hz; with the console's
+  19.2 MHz the module's clock ran **+62.9%** against the host's wall clock over 10 s. Reading `CNTFRQ_EL0` and
+  dividing by it: **-0.06%** over 10 s, `g_clock_dbg[1]` 17.8-25.3 ms/frame while the emulator presented ~44-48 fps.
+- Verified live: stamina set to 10 and sampled twice — `38.33 -> 74.53` in 1.50 s = **24.12/s** with
+  `REGEN_PER_SEC 24`, while the module reported 41 fps. The old frame-based code would have given 16.4/s there.
+- Left in frames on purpose: the input sample count of one read, the two-frame stick centring of the L3 sprint,
+  `g_same_reads`, and the ocarina/UI animation counters — those are per-read or per-presented-frame facts, not
+  durations.
+- Unverified: Longshot/ReLink. If a translator ever refuses `mrs CNTPCT_EL0` the value cannot be plausible
+  (1..100 ms per frame) and every helper falls back to 1/60 per frame, i.e. exactly the old behaviour.

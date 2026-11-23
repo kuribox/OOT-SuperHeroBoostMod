@@ -1,5 +1,6 @@
 #include "../../core/dispatch.h"
 #include "../../core/hid.h"
+#include "../../core/clock.h"
 #include "../../core/config.h"
 #include "../../core/remap.h"
 
@@ -377,7 +378,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
                 if (g_cur_age >= 0) for (int s = 0; s < SLOT_ZR; s++) g_set[g_cur_age][s] = g_assign[s];
                 for (int s = 0; s < SLOT_ZR; s++) g_assign[s] = g_set[age][s];
                 g_cur_age = age;
-                g_check_owned = 30;   /* a set was just taken: drop what this save does not have (a few frames) */
+                g_check_owned = shb_frames(30);   /* a set was just taken: drop what this save does not have (a few frames) */
                 /* each age has its own item box: nothing of the other age's is borrowed in it */
                 if (g_borrowed) unborrow();
                 g_phase = PH_IDLE;
@@ -667,7 +668,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
         /* only standing or walking: aiming (bow, hookshot, slingshot) is a LockOn* state too, and the item must
          * stay in the box until the shot is over (else the ZR item is drawn or shot instead) */
         g_phase_t = (player_state_is("Wait") || player_state_is("Move")) ? g_phase_t + 1 : 0;
-        if (g_phase_t >= (u32)(g_borrow_item == 3 ? GAP_BOOMERANG : GAP_TICKS)) {
+        if (g_phase_t >= shb_frames((u32)(g_borrow_item == 3 ? GAP_BOOMERANG : GAP_TICKS))) {
             box_put(g_saved);
             g_phase = PH_RESTORE;
             g_phase_t = 0;

@@ -25,6 +25,7 @@
 #include "config.h"
 #include "remap.h"
 #include "gd_index.h"
+#include "clock.h"
 
 typedef unsigned long long u64;
 typedef unsigned char u8;
@@ -2865,6 +2866,7 @@ static void slots_reset(void) {
 
 u32 hud_frame_count(void) { return g_tick; }
 static void hud_frame(void) {
+    shb_clock_tick();                                /* real frame duration: the features count frames, not time */
     g_hud_dbg[1] = MARK | ++g_tick;
     refresh_button_swap();
     if (g_shbcfg.hud_collectibles) kset_refresh();   /* every frame, loads too: progress.sav is in the save buffer only briefly */
