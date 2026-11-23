@@ -132,15 +132,40 @@ fn ps_text(glyph: &str) -> Option<&'static str> {
     })
 }
 
-/// The button as the chosen style names it (the list of buttons uses this, not the Switch name).
-pub fn glyph_text(style: ButtonStyle, button: Button) -> &'static str {
-    match glyph(style, button) {
-        "circle" => "○",
-        "cross" => "✕",
-        "triangle" => "△",
-        "square" => "□",
-        other => other,
+/// A button drawn on its own, for a page that lists the pad: the same chip the preview paints, at a size that fits a
+/// row. `extra` is drawn after it (the "+" of a long press).
+pub fn chip(
+    ui: &mut egui::Ui,
+    style: ButtonStyle,
+    button: Button,
+    extra: Option<&str>,
+) -> egui::Response {
+    let size = egui::vec2(34.0, 22.0);
+    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::hover());
+    let painter = ui.painter_at(rect);
+    let canvas = Canvas {
+        painter,
+        origin: rect.min,
+        scale: 1.0,
+        clip: rect,
+    };
+    draw_chip(
+        &canvas,
+        rect.center() - egui::vec2(if extra.is_some() { 6.0 } else { 0.0 }, 0.0),
+        style,
+        button,
+        8.0,
+    );
+    if let Some(text) = extra {
+        canvas.text(
+            rect.right_center() - egui::vec2(4.0, 0.0),
+            egui::Align2::RIGHT_CENTER,
+            text,
+            9.0,
+            crate::theme::DIM,
+        );
     }
+    response
 }
 
 // --------------------------------------------------------------------------- the scaled painter
@@ -508,10 +533,26 @@ pub fn hud(
         let mark = to_px(bx + ITEM_OFF.0 * 1.9, by + ITEM_OFF.1 * 1.9);
         match role {
             Role::Sword => {
+                // A sword, not a stroke: a blade with its point, a cross-guard, a grip and a pommel.
+                let steel = Color32::from_rgb(0xE6, 0xEC, 0xF4);
+                let gold = Color32::from_rgb(0xD9, 0xB4, 0x5A);
+                let blade_from = mark + egui::vec2(-2.0, 2.0) * paint.scale;
+                let blade_to = mark + egui::vec2(7.0, -7.0) * paint.scale;
+                paint.line(blade_from, blade_to, Stroke::new(2.6, steel));
+                let guard_a = mark + egui::vec2(-5.5, -0.5) * paint.scale;
+                let guard_b = mark + egui::vec2(0.5, 5.5) * paint.scale;
+                paint.line(guard_a, guard_b, Stroke::new(1.8, gold));
+                let grip_from = mark + egui::vec2(-2.0, 2.0) * paint.scale;
+                let grip_to = mark + egui::vec2(-6.0, 6.0) * paint.scale;
                 paint.line(
-                    mark + egui::vec2(-5.0, 5.0) * paint.scale,
-                    mark + egui::vec2(6.0, -6.0) * paint.scale,
-                    Stroke::new(1.6, Color32::from_rgb(0xDF, 0xE6, 0xEE)),
+                    grip_from,
+                    grip_to,
+                    Stroke::new(2.2, Color32::from_rgb(0x6B, 0x4A, 0x2A)),
+                );
+                paint.painter.circle_filled(
+                    mark + egui::vec2(-6.5, 6.5) * paint.scale,
+                    1.6 * paint.scale,
+                    gold,
                 );
             }
             Role::Shield => {

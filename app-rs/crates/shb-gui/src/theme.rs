@@ -60,8 +60,10 @@ pub fn install(ctx: &egui::Context) {
     visuals.window_stroke = Stroke::new(1.0, BORDER);
     visuals.window_corner_radius = CornerRadius::same(14);
     visuals.menu_corner_radius = CornerRadius::same(10);
-    visuals.selection.bg_fill = ACCENT;
-    visuals.selection.stroke = Stroke::new(1.0, ON_ACCENT);
+    // A chosen item anywhere (a list, a combo's popup) is dark gold with light gold text: the gold fill with cream
+    // text it used to be was unreadable.
+    visuals.selection.bg_fill = ACCENT_DARK;
+    visuals.selection.stroke = Stroke::new(1.5, ACCENT2);
     visuals.hyperlink_color = ACCENT;
     // 5 / 1: every interactive widget shows the hand, the way the Python app's buttons do.
     visuals.interact_cursor = Some(egui::CursorIcon::PointingHand);

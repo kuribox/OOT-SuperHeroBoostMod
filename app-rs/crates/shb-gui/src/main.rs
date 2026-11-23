@@ -189,7 +189,10 @@ impl App {
             logo: theme::logo(&cc.egui_ctx),
             status: None,
             update: UpdateState::Idle,
-            help: None,
+            // `SHB_HELP=variant_d` opens that text at start: how the docs' screenshots are taken.
+            help: std::env::var("SHB_HELP")
+                .ok()
+                .and_then(|key| HELP_KEYS.iter().copied().find(|known| *known == key)),
             rebuild_rx: None,
             update_rx: None,
         };
@@ -650,18 +653,6 @@ fn preset_desc_key_for(key: &str) -> &'static str {
     }
 }
 
-/// The label of a row of the editor: the button as the chosen style names it, and the long press of a face button
-/// marked with a "+".
-fn button_glyph(button: Button, style: ButtonStyle) -> String {
-    match button {
-        Button::AHold => format!("{}+", preview::glyph_text(style, Button::A)),
-        Button::BHold => format!("{}+", preview::glyph_text(style, Button::B)),
-        Button::XHold => format!("{}+", preview::glyph_text(style, Button::X)),
-        Button::YHold => format!("{}+", preview::glyph_text(style, Button::Y)),
-        other => preview::glyph_text(style, other).to_string(),
-    }
-}
-
 /// A role in the window's language.
 fn into_role_name(lang: Lang, role: Role) -> String {
     tr(lang, role_key(role)).to_string()
@@ -724,6 +715,31 @@ fn take_role(current: &Roles, button: Button, picked: Role) -> Roles {
     shb_core::roles::normalize(&table)
 }
 
+/// Every text a "?" can open, spelled out so `SHB_HELP` can name one (a development aid).
+const HELP_KEYS: &[&str] = &[
+    "rm_help",
+    "rm_hud_help",
+    "variant_d",
+    "bm_ext_d",
+    "bm_simple_d",
+    "bm_place_d",
+    "hud_ctrl_scale_desc",
+    "hud_count_scale_desc",
+    "enemy_alert_help",
+    "enemy_aggro_help",
+    "opt_shield_help",
+    "opt_switch_help",
+    "opt_auto_help",
+    "opt_toggle_help",
+    "role_action_help",
+    "role_item_main_help",
+    "role_armory_help",
+    "role_back_help",
+    "stamina_ring_d",
+    "stamina_bar_d",
+    "game_layout_d",
+];
+
 /// The language of the window: the system's when it is one of ours, else English.
 fn system_lang() -> Lang {
     for var in ["LC_ALL", "LC_MESSAGES", "LANG"] {
@@ -769,7 +785,7 @@ impl eframe::App for App {
                     .inner_margin(egui::Margin::symmetric(14, 7)),
             )
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     if let Some(logo) = &self.logo {
                         let height = 30.0;
                         let size = logo.size_vec2();
@@ -786,14 +802,28 @@ impl eframe::App for App {
                         );
                     });
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        egui::ComboBox::from_id_salt("ui-lang")
-                            .selected_text(lang_name(self.ui_lang))
-                            .width(120.0)
-                            .show_ui(ui, |ui| {
-                                for code in Lang::ALL {
-                                    ui.selectable_value(&mut self.ui_lang, *code, lang_name(*code));
-                                }
-                            });
+                        // The flag beside the name: the fonts carry no flag emoji, so it is drawn.
+                        ui.horizontal(|ui| {
+                            widgets::flag(ui, self.ui_lang);
+                            egui::ComboBox::from_id_salt("ui-lang")
+                                .selected_text(lang_name(self.ui_lang))
+                                .width(110.0)
+                                .show_ui(ui, |ui| {
+                                    for code in Lang::ALL {
+                                        let response = ui
+                                            .horizontal(|ui| {
+                                                widgets::flag(ui, *code);
+                                                ui.selectable_value(
+                                                    &mut self.ui_lang,
+                                                    *code,
+                                                    lang_name(*code),
+                                                )
+                                            })
+                                            .inner;
+                                        let _ = response;
+                                    }
+                                });
+                        });
                         ui.label(
                             egui::RichText::new(tr(lang, "language"))
                                 .size(12.0)
@@ -895,16 +925,34 @@ impl eframe::App for App {
             let text = tr(lang, key).to_string();
             let title = text.split('.').next().unwrap_or(&text).to_string();
             // Always in the same place: opening one "?" and then another must not move the text around.
-            let window = egui::Window::new(title)
-                .anchor(egui::Align2::CENTER_TOP, [0.0, 64.0])
+            let frame =
+                egui::Frame::window(ui.style()).inner_margin(egui::Margin::symmetric(18, 14));
+            let window = egui::Window::new(egui::RichText::new(title).size(14.0).strong())
+                .anchor(egui::Align2::CENTER_TOP, [0.0, 96.0])
                 .collapsible(false)
                 .resizable(false)
+                .title_bar(true)
+                .frame(frame)
                 .open(&mut open)
                 .default_width(520.0);
-            window.show(ui.ctx(), |ui| {
+            let shown = window.show(ui.ctx(), |ui| {
                 ui.set_max_width(500.0);
+                ui.add_space(2.0);
                 ui.label(egui::RichText::new(text).size(13.0).color(theme::TEXT));
             });
+            // A click anywhere else closes it, the way a dialog does.
+            if let Some(shown) = &shown {
+                let clicked_outside = ui.input(|i| {
+                    i.pointer.any_click()
+                        && i.pointer
+                            .interact_pos()
+                            .map(|pos| !shown.response.rect.contains(pos))
+                            .unwrap_or(false)
+                });
+                if clicked_outside {
+                    self.help = None;
+                }
+            }
             if !open {
                 self.help = None;
             }
@@ -1070,6 +1118,9 @@ impl App {
     }
 
     /// A profile: its name, the first sentence of what it changes and the rest behind the "?".
+    ///
+    /// The name and the sentence take the click, not a rectangle drawn over the card: an interaction on top of the
+    /// card was swallowing the "?" (a click there did nothing).
     fn profile_card(
         &mut self,
         ui: &mut egui::Ui,
@@ -1098,23 +1149,28 @@ impl App {
             ))
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::symmetric(10, 6));
-        let drawn = frame.show(ui, |ui| {
+        let mut pick = false;
+        frame.show(ui, |ui| {
             ui.set_width(width - 22.0);
             ui.horizontal(|ui| {
                 // The name, and the star drawn instead of trusting a font that may not carry "★".
                 let name = profile_name(lang, key);
                 let starred = name.contains('★');
                 let text = name.replace('★', "").trim_end().to_string();
-                ui.label(
-                    egui::RichText::new(&text)
-                        .size(12.5)
-                        .strong()
-                        .color(if selected {
-                            theme::ON_ACCENT
-                        } else {
-                            theme::TEXT
-                        }),
-                );
+                let label = egui::RichText::new(&text)
+                    .size(12.5)
+                    .strong()
+                    .color(if selected {
+                        theme::ON_ACCENT
+                    } else {
+                        theme::TEXT
+                    });
+                if ui
+                    .add(egui::Label::new(label).sense(egui::Sense::click()))
+                    .clicked()
+                {
+                    pick = true;
+                }
                 if starred {
                     let color = if selected {
                         theme::ON_ACCENT
@@ -1128,20 +1184,20 @@ impl App {
                 }
             });
             ui.horizontal_wrapped(|ui| {
-                ui.label(egui::RichText::new(&shown).size(11.0).color(if selected {
+                let text = egui::RichText::new(&shown).size(11.0).color(if selected {
                     theme::ON_ACCENT
                 } else {
                     theme::DIM
-                }));
+                });
+                if ui
+                    .add(egui::Label::new(text).sense(egui::Sense::click()))
+                    .clicked()
+                {
+                    pick = true;
+                }
             });
         });
-        // The whole card answers the click, not only the name.
-        let hit = ui.interact(
-            drawn.response.rect,
-            ui.make_persistent_id(("profile-card", key)),
-            egui::Sense::click(),
-        );
-        if hit.clicked() {
+        if pick {
             self.profile = key.to_string();
         }
     }
@@ -1204,19 +1260,17 @@ impl App {
                         );
                         for (value, key) in PRESET_KEYS.iter().enumerate() {
                             ui.horizontal(|ui| {
-                                if ui
-                                    .selectable_value(
-                                        &mut self.settings.preset,
-                                        value as u8,
-                                        tr(lang, key),
-                                    )
-                                    .changed()
+                                if widgets::pill(
+                                    ui,
+                                    self.settings.preset == value as u8,
+                                    tr(lang, key),
+                                )
+                                .clicked()
                                 {
+                                    self.settings.preset = value as u8;
                                     changed = true;
                                 }
-                                let desc = format!("{key}_d");
                                 widgets::help_icon(ui, preset_desc_key(value), lang, &mut help);
-                                let _ = desc;
                             });
                             widgets::desc_under(ui, preset_desc(lang, value));
                         }
@@ -1646,6 +1700,8 @@ impl App {
     }
 
     /// One card of the presets: its name, the first sentence of its description, and the rest behind the "?".
+    ///
+    /// The name and the sentence take the click; a rectangle over the whole card used to eat the "?".
     fn preset_card(&mut self, ui: &mut egui::Ui, key: &'static str, changed: &mut bool) -> bool {
         let lang = self.ui_lang;
         let selected = shb_core::roles::remap_preset(key)
@@ -1671,37 +1727,40 @@ impl App {
             ))
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::symmetric(10, 6));
-        let drawn = frame.show(ui, |ui| {
+        let mut pick = false;
+        frame.show(ui, |ui| {
             ui.set_width(width - 22.0);
-            ui.label(
-                egui::RichText::new(tr(lang, preset_name_key(key)))
-                    .size(12.5)
-                    .strong()
+            let label = egui::RichText::new(tr(lang, preset_name_key(key)))
+                .size(12.5)
+                .strong()
+                .color(if selected {
+                    theme::ON_ACCENT
+                } else {
+                    theme::TEXT
+                });
+            if ui
+                .add(egui::Label::new(label).sense(egui::Sense::click()))
+                .clicked()
+            {
+                pick = true;
+            }
+            ui.horizontal_wrapped(|ui| {
+                let text = egui::RichText::new(tr(lang, preset_desc_key_for(key)))
+                    .size(11.0)
                     .color(if selected {
                         theme::ON_ACCENT
                     } else {
-                        theme::TEXT
-                    }),
-            );
-            ui.horizontal_wrapped(|ui| {
-                ui.label(
-                    egui::RichText::new(tr(lang, preset_desc_key_for(key)))
-                        .size(11.0)
-                        .color(if selected {
-                            theme::ON_ACCENT
-                        } else {
-                            theme::DIM
-                        }),
-                );
+                        theme::DIM
+                    });
+                if ui
+                    .add(egui::Label::new(text).sense(egui::Sense::click()))
+                    .clicked()
+                {
+                    pick = true;
+                }
             });
         });
-        // The whole card answers the click, not only the name.
-        let hit = ui.interact(
-            drawn.response.rect,
-            ui.make_persistent_id(("preset-card", key)),
-            egui::Sense::click(),
-        );
-        if hit.clicked() {
+        if pick {
             self.apply_preset(key, changed);
         }
         selected
@@ -1764,17 +1823,21 @@ impl App {
         ];
         for button in rows {
             ui.horizontal(|ui| {
-                // The button as the chosen style names it (Switch A, Xbox B, PlayStation ○), with the long press of a
-                // face button marked: the list is the pad.
-                ui.add_sized(
-                    [34.0, 20.0],
-                    egui::Label::new(
-                        egui::RichText::new(button_glyph(button, self.settings.button_style))
-                            .size(12.0)
-                            .strong()
-                            .color(theme::ACCENT),
-                    ),
-                );
+                // The button drawn the way the preview draws it (a Switch A, an Xbox B, a PlayStation ○), with the
+                // long press of a face button marked "+": the list is the pad, not its names.
+                // A long press is drawn as its face button with a "+".
+                let (drawn, extra) = match button {
+                    Button::AHold => (Button::A, Some("+")),
+                    Button::BHold => (Button::B, Some("+")),
+                    Button::XHold => (Button::X, Some("+")),
+                    Button::YHold => (Button::Y, Some("+")),
+                    other => (other, None),
+                };
+                let chip_response = preview::chip(ui, self.settings.button_style, drawn, extra);
+                if extra.is_some() {
+                    // The button with the "+" is the one above held down: say it on hover.
+                    chip_response.on_hover_text(tr(lang, "hold_help"));
+                }
                 let current = self
                     .settings
                     .bm_roles
@@ -2286,15 +2349,9 @@ impl App {
             ui.add_space(6.0);
             ui.label(egui::RichText::new(tr(lang, "about_link")).color(theme::DIM));
             ui.label(
-                egui::RichText::new(format!("Rust {} — {}", shb_core::VERSION, find::TITLE_ID))
+                egui::RichText::new(format!("{} — {}", shb_core::VERSION, find::TITLE_ID))
                     .color(theme::DIM),
             );
-            if let Some(payload) = &self.payload {
-                ui.label(
-                    egui::RichText::new(format!("payload: {}", payload.display()))
-                        .color(theme::DIM),
-                );
-            }
         });
         if let Some(found) = action {
             self.start_download(found);

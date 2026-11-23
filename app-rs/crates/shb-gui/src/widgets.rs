@@ -129,14 +129,99 @@ pub fn help_icon(
     lang: Lang,
     open: &mut Option<&'static str>,
 ) {
+    // No frame: a gold "?" on the panel, quiet until the pointer is over it.
     let button = egui::Button::new(RichText::new("?").size(12.0).strong().color(theme::ACCENT))
         .fill(egui::Color32::TRANSPARENT)
-        .stroke(egui::Stroke::new(1.0, theme::ACCENT_DARK))
-        .corner_radius(egui::CornerRadius::same(9))
-        .min_size(egui::vec2(18.0, 18.0));
+        .stroke(egui::Stroke::NONE)
+        .corner_radius(egui::CornerRadius::same(8))
+        .min_size(egui::vec2(16.0, 16.0));
     if ui.add(button).on_hover_text(short(tr(lang, key))).clicked() {
         *open = Some(key);
     }
+}
+
+/// The flag of a language, drawn: the system fonts do not carry the flag emoji.
+pub fn flag(ui: &mut egui::Ui, lang: Lang) {
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(19.0, 13.0), egui::Sense::hover());
+    let painter = ui.painter();
+    painter.rect_filled(rect, 1.0, egui::Color32::from_rgb(0x20, 0x20, 0x22));
+    let stripe = |y0: f32, y1: f32, color: egui::Color32| {
+        let r = egui::Rect::from_min_max(
+            egui::pos2(rect.min.x, rect.min.y + rect.height() * y0),
+            egui::pos2(rect.max.x, rect.min.y + rect.height() * y1),
+        );
+        painter.rect_filled(r, 0.0, color);
+    };
+    let band = |x0: f32, x1: f32, color: egui::Color32| {
+        let r = egui::Rect::from_min_max(
+            egui::pos2(rect.min.x + rect.width() * x0, rect.min.y),
+            egui::pos2(rect.min.x + rect.width() * x1, rect.max.y),
+        );
+        painter.rect_filled(r, 0.0, color);
+    };
+    let red = egui::Color32::from_rgb(0xC8, 0x1E, 0x2E);
+    let yellow = egui::Color32::from_rgb(0xF2, 0xC5, 0x2E);
+    let blue = egui::Color32::from_rgb(0x1E, 0x3F, 0xA8);
+    let white = egui::Color32::from_rgb(0xF2, 0xF2, 0xF2);
+    let green = egui::Color32::from_rgb(0x1E, 0x7A, 0x3C);
+    let black = egui::Color32::from_rgb(0x1A, 0x1A, 0x1A);
+    match lang {
+        // Spain: red, yellow, red.
+        Lang::Es => {
+            stripe(0.0, 0.25, red);
+            stripe(0.25, 0.75, yellow);
+            stripe(0.75, 1.0, red);
+        }
+        // Portugal: green, red.
+        Lang::Pt => {
+            band(0.0, 0.4, green);
+            band(0.4, 1.0, red);
+        }
+        // France: blue, white, red.
+        Lang::Fr => {
+            band(0.0, 0.34, blue);
+            band(0.34, 0.66, white);
+            band(0.66, 1.0, red);
+        }
+        // Germany: black, red, gold.
+        Lang::De => {
+            stripe(0.0, 0.34, black);
+            stripe(0.34, 0.66, red);
+            stripe(0.66, 1.0, yellow);
+        }
+        // Italy: green, white, red.
+        Lang::It => {
+            band(0.0, 0.34, green);
+            band(0.34, 0.66, white);
+            band(0.66, 1.0, red);
+        }
+        // English: the Union Jack, as close as three lines get.
+        Lang::En => {
+            painter.rect_filled(rect, 0.0, egui::Color32::from_rgb(0x0A, 0x1E, 0x5A));
+            let cross = |thickness: f32, color: egui::Color32| {
+                let w = rect.width() * thickness;
+                let h = rect.height() * thickness;
+                painter.rect_filled(
+                    egui::Rect::from_center_size(rect.center(), egui::vec2(rect.width(), h)),
+                    0.0,
+                    color,
+                );
+                painter.rect_filled(
+                    egui::Rect::from_center_size(rect.center(), egui::vec2(w, rect.height())),
+                    0.0,
+                    color,
+                );
+            };
+            cross(0.22, white);
+            cross(0.11, red);
+        }
+    }
+    painter.rect_stroke(
+        rect,
+        1.0,
+        egui::Stroke::new(1.0, theme::BORDER),
+        egui::StrokeKind::Inside,
+    );
 }
 
 /// The first sentence of a long text: what the "?" shows on hover, with the rest in its window.

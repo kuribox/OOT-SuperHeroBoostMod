@@ -106,10 +106,16 @@ and its two fonts (Segoe UI and Palatino Linotype), its logo in the header, and 
 and `tools/check_gui_keys.py` fails when the window asks for a key that is not in it — a missing key shows the key
 itself on screen, which a screenshot does not make obvious. CI runs both.
 
-The **?** windows always open in the same place (`CENTER_TOP`), so reading one after another does not make the text
-jump around, and every interactive widget shows the hand cursor. The chosen option of a set is drawn as a gold pill
-with dark text (`widgets::pill`): the theme's own `selectable_value` painted cream text on gold, which is unreadable.
-The star of "Recomendado ★" is drawn (`widgets::star`), because not every installed font carries the glyph.
+The **?** windows open in one place (`CENTER_TOP`, with the window's own margins), close on a click outside, and a
+click on a card's name or text selects it — an interaction drawn over the whole card used to swallow the "?". The "?"
+itself is a bare gold mark, without a frame. Every interactive widget shows the hand cursor. The chosen option of a
+set is a gold pill with dark text (`widgets::pill`), and the theme's `selection` colours are dark gold/light gold for
+the lists that still use them: cream text on gold was unreadable. The star of "Recomendado ★" is drawn
+(`widgets::star`), and so are the flag of each language (`widgets::flag`), because the installed fonts carry neither
+glyph.
+
+The buttons of the remap list are drawn, not written: the same chip the preview paints, with a "+" for the long press
+of the face button above it.
 
 Every option carries the Python app's one-sentence explanation under it, and the gold **?** beside a control opens the
 full text in a window. The three previews are drawn with egui's painter: the stamina ring or bar (Gameplay), the
