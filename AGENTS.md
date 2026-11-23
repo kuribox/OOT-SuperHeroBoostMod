@@ -58,6 +58,8 @@ export SHB_GAME="E:/Switch2/Roms/Zelda Ocarina.nup"
 # 1. module + IPS for the emulator/standalone variant the app installs (~2 s)
 python tools/build_core.py --features controls,manual_shield,stamina,songbook,button_mapping,quick_select \
     --slots --compat --base 0x4F80000
+# --debug-dump keeps the save:/slot_00/shbdebug.bin diagnostic (it creates files in the player's save
+# volume): test builds only, never the release payload.
 # 2. install with the app or its CLI (this overwrites ShbConfig with the chosen profile)
 python app/main.py --cli --emu "$SHB_EMU" --profile recommended
 # 3. run, load the save, read diagnostics, take screenshots

@@ -799,7 +799,17 @@ static void save_read(const char *ours) {
     g_save_dbg[2]++;
 }
 /* ---- diagnostic dump: <slot>/shbdebug.bin. Which wrappers ran, the input calls per site, the
- * save hook's results and the config block the module reads. Changes nothing the game sees. ---- */
+ * save hook's results and the config block the module reads.
+ *
+ * It is a test tool, not a feature: it CREATES FILES IN THE GAME'S SAVE VOLUME, from the input
+ * hook, on a timer. A release build must not do that at all — a write landing while
+ * gmd::SaveDataMgr is committing its own files (fs: save: published N files) races it, and the
+ * crash it leaves is a release of a half-built object somewhere else entirely. Turn it on only
+ * for a build you are diagnosing: build_core.py --debug-dump. ---- */
+#ifndef SHB_DBG_DUMP
+#define SHB_DBG_DUMP 0
+#endif
+#if SHB_DBG_DUMP
 extern unsigned int g_wrap_entry[5], g_slot_entry[4], g_code_entry[32];
 extern u32 g_save_dbg[6];
 static u32 g_dbg_tick, g_dbg_done;
@@ -843,13 +853,16 @@ static void dbg_write_path(const char *path) {
     fs_write_file(f, 0, buf, 440, &opt);
     fs_close_file(f);
 }
+#endif   /* SHB_DBG_DUMP */
 
 static void dbg_tick(void) {
+#if SHB_DBG_DUMP
     if (++g_dbg_tick < 600) return;          /* about every 10 s of input polling */
     g_dbg_tick = 0;
     if (g_dbg_done >= 60) return;
     g_dbg_done++;
     dbg_write_path("save:/slot_00/shbdebug.bin");
+#endif
 }
 
 /* core/hud.c, hook on nn::fs::OpenFile (main+0x3C42590): any file the game opens */
@@ -859,6 +872,7 @@ void button_mapping_on_open(const char *path, int mode) {
     if (!our_path(path, ours)) return;
     if (mode & 2) save_write(ours);
     else save_read(ours);
+#if SHB_DBG_DUMP
     {   /* dump next to the save the game just opened (the save volume is mounted here) */
         char dbg[48];
         u32 n = 0, slash = 0;
@@ -868,4 +882,5 @@ void button_mapping_on_open(const char *path, int mode) {
         for (u32 j = 0; ; j++) { dbg[slash + j] = TAIL[j]; if (!TAIL[j]) break; }
         dbg_write_path(dbg);
     }
+#endif
 }

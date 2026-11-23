@@ -637,3 +637,27 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
 - Checked live in the emulator: 150/150 -> controls group (1740, -540), counters (-1740, 540); 60/60 -> (1848, 432) /
   (-1848, -432); installed through the CLI at 130/80 the module applied it from the first frame; the pause menu is
   unaffected. At 150% the wide counter row reaches the minimap's left edge.
+
+## A Longshot crash at the intro: writing into save:/ (Nov 23)
+
+- Report from a player (Longshot v3.1.1, 23 s uptime, map "Title and intro"): `0xc0000005` read in thread
+  `SceneLowPriority` at `longshot.exe+0x1927c87e`, right after `gmd::SaveDataMgr: fs: save: published 2 files` and
+  after the intro movie ended (there `nn::movie::Finalize` is an unimplemented import). Without the mod it does not
+  happen, per the reporter.
+- Reading the guest dump: `main` is at `0x80020000` on Longshot **and** in the emulator, so `0x80794090` is
+  `main+0x774090` (the bytes match stock `main`: no hook of ours is there). What matters is `x20 = 0x80794090`, i.e.
+  a **code address used as an object pointer**: `main+0x7740f8` is `ldr x8,[x0]; ldr x8,[x8,#0x30]; blr x8`, so it
+  read the "vtable" out of instruction bytes (`x8 = 0xb5000235f9413e75`) and faulted. The enclosing function
+  (`main+0x773660`) is a refcounted release (`ldadd -1`, destroy at 0) of an entry in a handle table
+  (`[[main+0x4c82d60]] + 0x9f8`, stride 0x28): a half-built object being released.
+- The mod was the only extra code writing into the save volume at that moment: `dbg_tick()`
+  (`features/button_mapping/button_mapping.c`) ran on every input read and every 600 reads did
+  `fs_create_file` + `fs_write_file` of `save:/slot_00/shbdebug.bin` (plus one dump per `progress.sav` open). It had
+  left 23 of those files across the save folders of the test emulator. That machine ran the intro uncapped (log:
+  1200 presents at 200 fps, `frame_rate_cap=0`, `vsync=0`), so the frame-counted timer fired every ~3 s instead of
+  10 s — inside `gmd::SaveDataMgr`'s commit window. Timing, not a bad pointer of ours.
+- Fix: the dump is a **test build only**. `build_core.py --debug-dump` defines `SHB_DBG_DUMP`; a release module has
+  no `SHBDBG01`/`shbdebug` strings and creates no files. Verified in the emulator: boot, save load, HUD live at
+  frame 5400, and every stale `shbdebug.bin` in `user/nand/user/save` kept its mtime.
+- Not proven: that the race caused that crash. It is the only mod-side I/O in the window and the stack shows a
+  corrupt object being released, but reproducing it needs the 200 fps timing.
