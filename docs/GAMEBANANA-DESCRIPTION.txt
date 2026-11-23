@@ -1,10 +1,24 @@
-SHB-OcarinaTweaks 0.9.1 - REBUILD ONCE
-The module changed: reinstall the profile (emulator) or rebuild the game once with 0.9.1 (Longshot / Hookshot / ReLink / Rekarina). If a crash remains, attach logs/longshot_log.txt (or the Rekarina log) and the new file in bug-reports/.
+SHB-OcarinaTweaks 0.9.3 - REBUILD ONCE
+The module changed: reinstall the profile (emulator) or rebuild the game once with 0.9.3 (Longshot / Hookshot / ReLink / Rekarina). If a crash remains, attach logs/longshot_log.txt (or the Rekarina log) and the new file in bug-reports/.
 
 SHB-OcarinaTweaks (Super Hero Boost) is a gameplay and HUD module for the Ocarina of Time remake (update v131072): stamina, difficulty, an extended HUD, a full button remap, item buttons, quick select and more. Everything is a switch in the companion app, SHB-OcarinaTweaks, and the installer patches the module with the profile you pick: no recompiling, no manual file editing.
 
 WHAT YOU ARE DOWNLOADING
-The file in the Files tab is SuperHeroBoost-0.9.1-presets.zip: the mod itself, with all 15 named profiles of the app ready to install in an emulator. It contains no executable. The configuration app is a separate download (see "Emulator - custom settings" below); it is not in the Files tab.
+The file in the Files tab is SuperHeroBoost-0.9.3-presets.zip: the mod itself, with all 15 named profiles of the app ready to install in an emulator. It contains no executable. The configuration app is a separate download (see "Emulator - custom settings" below); it is not in the Files tab.
+
+NEW IN 0.9.3 (everything since 0.9.1)
+CONTROLS
+- Two actions on A, B, X and Y: every one of those buttons has a second row in Controls (a down arrow) for what it does when you HOLD it (about a third of a second). The short press acts at once, with no delay; when the hold fires, the short role lets go. It takes Jump, Sword, Action, Center camera, Sprint, Shield, Item selector, Armory or Back.
+- New role Back: the game's own B (let go of a ledge, cancel, get off ...) on any button or in a hold. It is not an item use: it acts while Link is busy with something else (hanging, climbing, swimming ...) or when the B slot holds no item.
+- Triggers and Action at the bottom now put Back on the held B (Recommended, Recommended (no beta enemies), Super Hero, Ultra Hero and Beta All bring it).
+SPRINT (TOGGLE)
+- The toggled sprint lets go by itself when you stop moving.
+- It no longer throws the jar you lift (its A did): while you carry something it only gives the speed.
+FIXES
+- The manual shield threw lifted jars by itself: the module no longer touches the guard flags while Link carries something.
+- Installing the PlayStation layout now also installs the font of the button glyphs: before, only the menu's controller picture changed and the rest of the game kept the Switch buttons.
+- Heart pieces in chests count in the area counter (0.9.2): the ten chests with a heart piece are in the total, so an area whose only piece is a chest no longer reads 0/0.
+- The app opens with the stamina system off (it crashed).
 
 NEW IN 0.9.1 (everything since 0.9.0)
 CONTROLS
@@ -68,14 +82,14 @@ REQUIREMENTS
 - Back up your saves. On Windows the app closes a running game before installing and during a rebuild; save first.
 
 EMULATOR - QUICK INSTALL (PRESETS ZIP)
-1. Download SuperHeroBoost-0.9.1-presets.zip from the Files tab and extract it.
+1. Download SuperHeroBoost-0.9.3-presets.zip from the Files tab and extract it.
 2. Open the folder of the profile you want (01 Recommended, 02 Recommended (no beta enemies), ...).
 3. Copy its zz-Super-Hero-Boost folder into user/load/0400486024DEC000 (merge it if that folder already exists).
 4. Start the game.
 Only one profile can be installed at a time: they all use the same folder name, so replace the previous one.
 
 EMULATOR - CUSTOM SETTINGS (APP)
-1. Download SHB-OcarinaTweaks.exe from GitHub Releases: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/tag/v0.9.1 (Linux and macOS builds are there too). The module is bundled inside the app: you do not need Python.
+1. Download SHB-OcarinaTweaks.exe from GitHub Releases: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/tag/v0.9.3 (Linux and macOS builds are there too). The module is bundled inside the app: you do not need Python.
 2. Save your progress. On Windows the app closes the game for you before installing.
 3. Pick a profile or adjust each section: Gameplay, Difficulty, Controls, HUD.
 4. Choose your emulator folder (the one that contains "user") and press Install.
