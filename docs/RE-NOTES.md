@@ -674,6 +674,21 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   the 26 hook sites are baked into `image.bin`/`bin/longshot.exe` by the rebuild. "It does not crash without the
   mod" only clears the mod as a whole if that test rebuilt the game from a clean exefs.
 
+## HUD counts: the ZR button followed the borrowed item (Nov 23)
+
+- Symptom from the player: using an item changed the number shown on *another* item's button (e.g. the slingshot's
+  ammo), and it came back when the use ended.
+- Cause: `zr_mirror()` (core/hud.c) keeps the ZR button showing the game's item box. While a slot item *borrows*
+  the box (`g_zr_hold`, features/button_mapping), the box holds the borrowed item; the icon was frozen but the
+  item index (`g_zr_index`) was not, and the number drawn next to the button is `gd_int(item_stock_index(g_zr_index))`.
+  Proven live: with a deku stick borrowed, `g_zr_index` was 0 and the ZR button showed the stick count (4) instead
+  of the slingshot's (2/6). Fixed by freezing the index too.
+- The *flicker* seen while trying to fix it came from writing the count text every frame: two writers alternate on
+  the same pane (the game updates item-count panes by name, and our cloned parts repeat those names). The text is
+  written when our value changes again; `hud_on_settext` catches a game write into one of our buttons' count panes
+  and puts our value back in the same call (`g_num_fix_n` counts it; 0 in a standing-still session, so the ZR freeze
+  is what the player saw fixed).
+
 ## Frames are not milliseconds: the module's own clock (Nov 23)
 
 - Every duration in the mod was written in frames with a hard-coded 1/60 s (`DT_FRAME`, `SW_HOLD 18`,

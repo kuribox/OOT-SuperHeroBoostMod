@@ -2065,6 +2065,11 @@ static void zr_mirror(void) {
         if (!g_zr_hold) g_sb_force[10][0] = 1;   /* hidden */
         return;
     }
+    /* A slot item is borrowing the box (features/button_mapping sets g_zr_hold): the box holds the borrowed
+     * item, but this button stands for the one that comes back. Freeze the icon AND the item index — before,
+     * only the icon was frozen, so the number followed the borrowed item (a slingshot in the box showed the
+     * deku stick's count while a stick was being used, and went back when the use ended). */
+    if (g_zr_hold) return;
     /* a bottle in the box: its own Enum value names the bottle (BottleA..E), the content is in the bottle record */
     int bp = bottle_box_pos(box_value());
     const char *disp = bp >= 0 ? bottle_icon_rec(60u + (u32)bp) : 0;
@@ -2544,6 +2549,10 @@ static void slots_draw(SlotBtn *set, const u64 *ctrls, u64 frame, const float *l
             *(u32 *)b->hide[8] |= 0x6F;
         }
         if (b->num_rec && cnt >= 0) {
+            /* Only when our value changes. Rewriting it every frame fights the game, which updates these count
+             * panes too (our clones repeat its names): the two values alternate and the number blinks. The
+             * game's own writes into our pane are caught in hud_on_settext, which puts ours back in the same
+             * call. */
             if (cnt != b->num_val) {
                 b->num_val = cnt;
                 u32 n = put_int(b->num_txt, cnt);
@@ -2736,6 +2745,7 @@ char g_aguide_text[48];
 /* Diagnostic: the last 32 game texts set through the set-text-by-name call (pane name + first bytes), used to find
  * the names a layout writes (e.g. the map's). Read by tools/live_check.py. */
 u32 g_stxt_n = 0x10000000u;
+u32 g_num_fix_n;   /* times the game wrote one of our buttons' count panes and we put our value back */
 struct { char nm[24]; char s[24]; u32 len; } g_stxt[32];
 static void stxt_log(const char *nm, const char *s, u32 len) {
     u32 e = (g_stxt_n - 0x10000000u) % 32, j;
@@ -2974,6 +2984,20 @@ static void hud_on_settext(u64 pane, const u64 *ref, u64 lr, const u64 *regs) {
     const char *s = (const char *)ref[0];
     u32 len = (u32)ref[1];
     if (!s || !vptr((u64)s)) return;
+    /* The game updates item-count panes by name, and our cloned buttons repeat those names, so its value can land
+     * in one of ours: the button showed another item's count (and, when we rewrote ours every frame, the two
+     * values alternated and the number blinked). Put our value back in this same call, after the game's write. */
+    for (u32 k = 0; k < (u32)PART_TOT; k++) {
+        if (g_sb[k].num_rec != pane || g_sb[k].num_val < 0) continue;
+        u32 n = put_int(g_sb[k].num_txt, g_sb[k].num_val), same = n == len;
+        for (u32 i = 0; same && i < n; i++) if (s[i] != g_sb[k].num_txt[i]) same = 0;
+        if (!same) {
+            g_text_ref.s = g_sb[k].num_txt; g_text_ref.len = n; g_text_ref.z = 0; g_text_ref.m1 = -1;
+            g_num_fix_n++;
+            set_text((void *)pane, &g_text_ref, 0);
+        }
+        return;
+    }
     /* Minus map: append the area heart-piece count to the native Skulltula counter's total text. */
     const char *nm = (const char *)regs[0xF0 / 8];
     if (nm && vptr((u64)nm)) stxt_log(nm, s, len);
