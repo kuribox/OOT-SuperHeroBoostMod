@@ -8,8 +8,15 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.9.3**. It gives **A, B, X and Y a second action when you hold them**, with no delay on the short
-press, adds a **Back** role (the game's own B, on the held B in the Triggers table), makes the toggled sprint let go
+Current release: **0.10**. Durations in the mod are **real seconds** now: stamina, the long-press thresholds,
+the target switch, the item gap and the "in combat" window read the game's own clock instead of assuming 60
+frames a second, so they behave the same on a machine that runs the game faster or slower. And the module
+**writes nothing into the save folder any more**: some builds had left a `shbdebug.bin` diagnostic in the save
+slots, and that is a test build only now. The module changed, so install 0.10 and **rebuild the game once** on
+Longshot, ReLink or Rekarina.
+
+0.9.3 gave **A, B, X and Y a second action when you hold them**, with no delay on the short
+press, added a **Back** role (the game's own B, on the held B in the Triggers table), made the toggled sprint let go
 when you stop and stop throwing the objects you lift, fixes the manual shield throwing lifted jars and installs the
 PlayStation prompts in the whole game, not only in the menu. 0.9.2 counts the **chests that hold a heart piece**
 in the area counter. 0.9.1 made the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
@@ -35,6 +42,25 @@ L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD 
 The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.10
+
+Every duration in the mod used to be a number of frames at a fixed 1/60 s. That is only right at 60 fps: a
+machine that runs the game faster (or slower) made stamina and the rest tick off by the same factor. They are
+real seconds now.
+
+- **Stamina in real time.** The sprint drain, the action costs and the recharge (0.8 s idle, 1.8 s in combat,
+  2.5 s after exhaustion) last what they say whatever the frame rate. Measured live in the emulator: 24/s of
+  refill at 41 and at 50 fps, where counting frames gave 16 and 20.
+- **The same for the thresholds.** A long press is 0.3 s, and so are the target-switch hold, the pause before
+  the ZR item goes back into the box, the item-set check after loading a save and the 5 s "in combat" window.
+- **No file is written into your save.** The module used to leave a `shbdebug.bin` diagnostic next to every
+  save it touched — from the input hook, on a timer, inside the game's own save-commit window. It only exists
+  in a build made with `--debug-dump` now; the release module creates no files at all.
+- **The clock is the console's own.** It reads the game's counter (`CNTPCT_EL0`, the one `sdk` uses for
+  `nn::os::GetSystemTick`) and its rate from `CNTFRQ_EL0`: no new import, no file, nothing to install. If a
+  target ever reports an implausible frame time the mod falls back to the old 1/60 per frame, so it cannot end
+  up worse than before.
 
 ## What's new in 0.9.3
 
