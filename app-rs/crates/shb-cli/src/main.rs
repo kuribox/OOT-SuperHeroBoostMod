@@ -18,7 +18,7 @@ use shb_core::config::{self, read_config};
 use shb_core::presets::{self, PROFILE_KEYS};
 use shb_core::settings::{HudMode, Lang, Settings};
 use shb_core::{Error, Result, install, payload_root};
-use shb_core::{find, game};
+use shb_core::{find, game, rekarina};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -56,6 +56,36 @@ Install options (they override the profile):
   --hud-ctrl-scale <pct>  --hud-count-scale <pct>
   --lang <en|es|pt|fr|de|it>  (default: the game's language when it can be read)
 ";
+
+fn print_config(cfg: shb_core::config::InstalledConfig) -> Result<()> {
+    println!("stamina        {}", if cfg.stamina { "on" } else { "off" });
+    println!("preset         {}", cfg.preset);
+    println!("enemy hp       {}%", cfg.enemy_hp);
+    println!("damage taken   {}%", cfg.damage);
+    println!("sprint speed   {}%", cfg.sprint_speed);
+    let hud_name = ["wide", "simple", "plain"]
+        .get(cfg.hud_mode as usize)
+        .copied()
+        .unwrap_or("?");
+    let lang_name = Lang::ALL
+        .get(cfg.lang as usize)
+        .map(|l| l.as_str())
+        .unwrap_or("?");
+    println!("hud mode       {hud_name}");
+    println!("hud language   {lang_name}");
+    println!(
+        "button remap   {}",
+        if cfg.bm_remap { "on" } else { "classic" }
+    );
+    for (button, role) in &cfg.roles {
+        let name = shb_core::roles::Role::ALL
+            .get(*role as usize)
+            .map(|r| r.as_str())
+            .unwrap_or("?");
+        println!("  {button:<3} {name}");
+    }
+    Ok(())
+}
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -495,6 +525,10 @@ fn run(args: &[String]) -> Result<()> {
             let nso = match (&o.nso, &o.emu) {
                 (Some(path), _) => shb_core::error::read(path)?,
                 (None, Some(emu)) => {
+                    // A Rekarina install keeps the module in the game's ExeFS, not in a mod folder.
+                    if let Some(rk) = rekarina::find(emu) {
+                        return print_config(rekarina::installed_config(&rk)?);
+                    }
                     let info = install::inspect(emu);
                     let module = info
                         .installed
@@ -509,34 +543,7 @@ fn run(args: &[String]) -> Result<()> {
                     ));
                 }
             };
-            let cfg = read_config(&nso)?;
-            println!("stamina        {}", if cfg.stamina { "on" } else { "off" });
-            println!("preset         {}", cfg.preset);
-            println!("enemy hp       {}%", cfg.enemy_hp);
-            println!("damage taken   {}%", cfg.damage);
-            println!("sprint speed   {}%", cfg.sprint_speed);
-            let hud_name = ["wide", "simple", "plain"]
-                .get(cfg.hud_mode as usize)
-                .copied()
-                .unwrap_or("?");
-            let lang_name = Lang::ALL
-                .get(cfg.lang as usize)
-                .map(|l| l.as_str())
-                .unwrap_or("?");
-            println!("hud mode       {hud_name}");
-            println!("hud language   {lang_name}");
-            println!(
-                "button remap   {}",
-                if cfg.bm_remap { "on" } else { "classic" }
-            );
-            for (button, role) in &cfg.roles {
-                let name = shb_core::roles::Role::ALL
-                    .get(*role as usize)
-                    .map(|r| r.as_str())
-                    .unwrap_or("?");
-                println!("  {button:<3} {name}");
-            }
-            Ok(())
+            print_config(read_config(&nso)?)
         }
         "patch" => {
             let nso = o.nso.clone().ok_or_else(|| {
@@ -593,19 +600,30 @@ fn run(args: &[String]) -> Result<()> {
                     std::io::Error::other("the game folder is required"),
                 )
             })?;
-            let found = game::find(&path).ok_or_else(|| {
-                if game::looks_like_rekarina(&path) {
-                    Error::io(PathBuf::from("--game"), std::io::Error::other(
-                        "this is a Rekarina install: its target is not ported to the Rust app yet",
-                    ))
-                } else {
-                    Error::NotAGame(path.clone())
-                }
-            })?;
             let settings = settings_from(&o)?;
             let payload = payload_root(o.payload.as_deref()).ok_or_else(|| {
                 Error::PayloadMissing(PathBuf::from("payload (set --payload or SHB_PAYLOAD)"))
             })?;
+            if let Some(rekarina) = rekarina::find(&path) {
+                println!("game: {} (rekarina)", rekarina.root.display());
+                println!(
+                    "  built {}",
+                    if rekarina::is_built(&rekarina) {
+                        "yes"
+                    } else {
+                        "no (needs Rekarina's build)"
+                    }
+                );
+                if o.dry_run {
+                    return Ok(());
+                }
+                rekarina::apply_settings(&rekarina, &settings, &payload)?;
+                println!(
+                    "settings written to the module, its hash in the executable, the romfs and the mod order"
+                );
+                return Ok(());
+            }
+            let found = game::find(&path).ok_or(Error::NotAGame(path.clone()))?;
             println!(
                 "game: {} ({}, {})",
                 found.root.display(),
@@ -640,6 +658,21 @@ fn run(args: &[String]) -> Result<()> {
                     std::io::Error::other("the game folder is required"),
                 )
             })?;
+            if let Some(rekarina) = rekarina::find(&path) {
+                return match rekarina::uninstall(&rekarina)? {
+                    true => {
+                        println!(
+                            "restored the original files under {}",
+                            rekarina.root.display()
+                        );
+                        Ok(())
+                    }
+                    false => {
+                        println!("nothing to restore under {}", rekarina.root.display());
+                        Ok(())
+                    }
+                };
+            }
             let found = game::find(&path).ok_or(Error::NeedsBuild(path.clone()))?;
             if game::uninstall(&found)? {
                 println!("restored the original files under {}", found.root.display());

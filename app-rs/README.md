@@ -17,14 +17,21 @@ app-rs/
 │   │   ├── src/enemy.rs         the enemy speed / aggression packs (zstd, the game's dictionary)
 │   │   ├── src/game.rs          a recompiled game (Longshot/Hookshot/ReLink): module, image.bin, romfs
 │   │   ├── src/layouts.rs       the downloadable PlayStation/Xbox prompts + the resource table merge
+│   │   ├── src/gamecube.rs      the GameCube diagram: the game's UI atlas, patched and recompressed
+│   │   ├── src/rekarina.rs      a Rekarina install: the module's block, its hash in the exe, mods_order
 │   │   ├── src/update.rs        the GitHub update check, the download and the restart
+│   │   ├── src/romfs.rs          what the settings mean for the game's files, per target
+│   │   ├── src/zstd.rs           the packed files
 │   │   ├── src/install.rs        install / uninstall of the mod folder
 │   │   ├── src/ips.rs            IPS32 read + merge
 │   │   ├── src/find.rs           mods folder, emulator program, game language
 │   │   └── src/paths.rs          where the settings file lives
 │   ├── shb-cli/                `shb`: profiles, install, uninstall, show, patch, lang
 │   └── shb-gui/                `shb-gui`: the window (egui / eframe)
-└── tools/parity_check.py       the Rust app against the Python app, byte for byte
+└── tools/
+    ├── parity_check.py          the Rust app against the Python app, byte for byte
+    ├── gen_i18n.py              the window's texts, from app/i18n.py
+    └── gen_gamecube.py          the GameCube artwork, from app/gamecube_textures.py
 ```
 
 ## Build and run
@@ -82,9 +89,10 @@ python tools/parity_check.py --app ../app --payload ../app/payload --mode all
 
 Result on this branch (2026-11-23): 56/56 patched images identical (16 profiles + 40 random settings, including
 out-of-range HUD scales, stray remap entries and the 0.4.x block sizes), **16/16 install trees identical** for every
-profile and **5/5 recompiled games identical** (module, `image.bin` and romfs), the enemy packs included: the `.zs`
-files are compared after decompression with the game's own dictionary (the Rust encoder is not required to emit the
-same frame bytes, and Python's libzstd reads ours).
+profile, **5/5 recompiled games identical** (module, `image.bin` and romfs) and **7/7 Rekarina installs identical**
+(the module, `Rekarina.exe` with its hash rewritten, the `mods_order` line, the romfs and the marker file), the enemy
+packs included: the `.zs` files are compared after decompression with the game's own dictionary (the Rust encoder is
+not required to emit the same frame bytes, and Python's libzstd reads ours).
 
 The install comparison needs the real `zstandard` module (`py -3.12 -m pip install zstandard`); without it the
 profiles with enemy packs are skipped and the rest still runs, because the config patching does not use it.
@@ -96,18 +104,29 @@ its two fonts (Segoe UI and Palatino Linotype), its logo in the header, and **it
 `i18n_table.rs`, generated from `app/i18n.py` by `tools/gen_i18n.py`, so all 389 strings come in the same six
 languages. `python app-rs/tools/gen_i18n.py --check` fails when the table is stale (CI runs it).
 
-The install page has the Python app's three targets: emulator (works end to end), recompiled game (writes the
-module, `image.bin` and the romfs; the build itself is not ported) and Rekarina (detected only).
+The install page has the Python app's three targets: emulator, recompiled game and Rekarina. All three write the
+settings; the two that need a compiler (a recompiled game's rebuild and Rekarina's lift) are Rekarina's and
+Longshot's own tools, and this app does not start them.
 
 ## Not ported yet
 
-These are reported as notes in the install result instead of being silently skipped:
+Two things are left to the Python app, both because they run somebody else's compiler and neither can be verified
+without it:
 
-- the GameCube UI diagram (`gamecube.py`: patches the game's own UI atlas, needs the dump),
-- the rebuild of a recompiled game (Longshot/Hookshot/ReLink): everything except the build is ported
-  (`shb game --game <folder>`, the module, `image.bin` and the romfs), and the app says so instead of pretending;
-- Rekarina: detected, not written yet (it patches the module in place, the executable's module hash and its own
-  state).
+- **the rebuild of a recompiled game** (Longshot/Hookshot/ReLink). Everything except the build is ported
+  (`shb game --game <folder>` writes the module, `image.bin` and the romfs and says the code still has to be
+  compiled into the game). On this PC the builder the Python app drives (`tools/nx2/make_game.py`) is gone: the
+  installed one is the .NET `LongshotBuilder`, so that path is broken for both apps until they are matched.
+- **Rekarina's lift and compile** (`rekarina.py`'s three stages, 10-20 minutes, `setup/<version>`'s own scripts).
+  The settings half is ported; a game that was not built with the mod is refused with that exact reason instead of
+  being patched into a state Rekarina would not load.
+
+The GameCube diagram (`gamecube.rs`) is ported: the artwork comes from `gamecube_textures.rs`/`.bin`, generated from
+`app/gamecube_textures.py` by `tools/gen_gamecube.py` (base85 + zlib decoded once, at generation time, so the Rust
+side needs neither). `make_atlas` reads the game's own 244 MB UI archive (from `<install>/romfs` or `$SHB_ROMFS`),
+checks a SHA-256 per region before touching it — a different archive is refused, never patched blind — and
+recompresses at level 6. `disable_legacy_atlas` switches a standalone `GameCube-System-Controller` off the same way
+the Python app does.
 
 The PlayStation/Xbox prompt pack (`layouts.rs`) is ported: the GameBanana download, the ZIP extract of the three
 files, the `RESTBL` parse/merge/compress and the atlas copy with the safe font from the payload. It runs last in the
@@ -121,4 +140,4 @@ not have.
 
 `cargo test -p shb-core` covers the offset table, the remap rules, the presets, the IPS reader, the mods folder
 detection, the enemy packs (a real trained dictionary, scaled values read back) and a full install into a temp
-folder (40 tests).
+folder (57 tests).

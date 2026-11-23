@@ -11,7 +11,6 @@
 use crate::config::{MAGIC, patch_config};
 use crate::error::{Error, Result, read, write};
 use crate::find::MOD_NAME;
-use crate::install::copy_tree;
 use crate::settings::Settings;
 use std::path::{Path, PathBuf};
 
@@ -208,7 +207,7 @@ pub fn apply_settings(game: &Game, s: &Settings, payload: &Path) -> Result<bool>
     Ok(image_patched)
 }
 
-/// The recompilers read their mods from `<game>/mods/<name>/romfs`.
+/// The recompilers read their mods from `<game>/mods/<name>/romfs`: wipe our folder and write it again.
 fn install_romfs(game: &Game, s: &Settings, payload: &Path) -> Result<()> {
     let mods = game.root.join("mods");
     let target = mods.join(MOD_NAME);
@@ -225,51 +224,15 @@ fn install_romfs(game: &Game, s: &Settings, payload: &Path) -> Result<()> {
     if target.exists() {
         std::fs::remove_dir_all(&target).map_err(|e| Error::io(&target, e))?;
     }
-    let romfs = target.join("romfs");
-    std::fs::create_dir_all(&romfs).map_err(|e| Error::io(&romfs, e))?;
-    write(&target.join(crate::find::MARKER), b"{}")?;
-
-    if s.button_mapping {
-        let art = payload.join("button_romfs");
-        let style = match s.button_style {
-            crate::settings::ButtonStyle::Switch => "switch",
-            crate::settings::ButtonStyle::Xbox => "xbox",
-            crate::settings::ButtonStyle::PlayStation => "playstation",
-        };
-        if art.join(style).is_dir() {
-            copy_tree(&art.join(style), &romfs)?;
-        }
-        if art.join("common").is_dir() {
-            copy_tree(&art.join("common"), &romfs)?;
-        }
-    }
-    let drops: &[&str] = match (s.no_heart_drop, s.no_magic_drop) {
-        (true, true) => &["no_heart_magic_drop"],
-        (true, false) => &["no_heart_drop"],
-        (false, true) => &["no_magic_drop"],
-        (false, false) => &[],
-    };
-    for opt in drops {
-        let src = payload.join("romfs_opts").join(opt);
-        if src.is_dir() {
-            copy_tree(&src, &romfs)?;
-        }
-    }
-    for (opt, enabled) in [
-        ("enemy_double", s.enemy_double),
-        ("farore_outdoor", s.farore_outdoor),
-        ("great_fairy", s.great_fairy),
-    ] {
-        let src = payload.join("romfs_opts").join(opt);
-        if enabled && src.is_dir() {
-            copy_tree(&src, &romfs)?;
-        }
-    }
-    crate::enemy::install(&romfs, s, payload)?;
-    if s.game_layout != crate::settings::GameLayout::None {
-        // Last: the layout's resource table is merged over the mod's own.
-        crate::layouts::apply(&romfs, s.game_layout.as_str(), payload)?;
-    }
+    std::fs::create_dir_all(&target).map_err(|e| Error::io(&target, e))?;
+    crate::error::write(&target.join(crate::find::MARKER), b"{}")?;
+    crate::romfs::populate(
+        &target.join("romfs"),
+        s,
+        payload,
+        &game.root,
+        crate::romfs::Variant::Recompiled,
+    )?;
     Ok(())
 }
 

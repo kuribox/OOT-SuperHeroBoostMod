@@ -35,6 +35,12 @@ pub enum Error {
     Update(String),
     /// The downloadable controller layout could not be fetched or read.
     Layout(String),
+    /// A Rekarina install: what it is missing, or what it refused.
+    Rekarina(String),
+    /// A packed file could not be read as zstd.
+    Zstd(String),
+    /// The GameCube artwork: the game's UI archive is missing or is not the one it was cut for.
+    GameCube(String),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -87,6 +93,9 @@ impl fmt::Display for Error {
             }
             Error::Update(what) => write!(f, "update: {what}"),
             Error::Layout(what) => write!(f, "layout: {what}"),
+            Error::Rekarina(what) => write!(f, "rekarina: {what}"),
+            Error::Zstd(what) => write!(f, "zstd: {what}"),
+            Error::GameCube(what) => write!(f, "gamecube: {what}"),
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }

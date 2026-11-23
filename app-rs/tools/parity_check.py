@@ -336,12 +336,145 @@ def game_cases(app: Path, payload: Path, shb: Path, profiles: list[str]) -> int:
     return failures
 
 
+
+def rekarina_cases(app: Path, payload: Path, shb: Path, profiles: list[str]) -> int:
+    """A Rekarina install that was already built with the mod: the settings half applied by both implementations."""
+    stub_zstandard()
+    installer, presets = load_python_app(app)
+    import hashlib
+    import rekarina
+
+    rekarina.payload_dir = lambda: payload / "rekarina"
+    installer.resource_dir = lambda: payload
+    work = Path(tempfile.mkdtemp(prefix="shb-rekarina-"))
+    failures = 0
+    checked = 0
+
+    def make_game(root: Path) -> None:
+        (root / "exefs").mkdir(parents=True)
+        main = bytearray(0x100)
+        main[0x40:0x44] = bytes([0xE0, 0xF3, 0xCC, 0xFA])
+        (root / "exefs" / "main").write_bytes(bytes(main))
+        module = bytearray(0x400)
+        module[0x100:0x108] = b"SHBCFG01"
+        module[0x108:0x10C] = (1).to_bytes(4, "little")
+        module[0x10C:0x110] = (0x61).to_bytes(4, "little")
+        (root / "exefs" / "subsdk9").write_bytes(bytes(module))
+        module_sha = hashlib.sha256(bytes(module)).hexdigest()
+        exe = b"REKARINA" + module_sha.encode("ascii") + bytes(64)
+        (root / "Rekarina.exe").write_bytes(exe)
+        (root / "rekarina.ini").write_text(
+            "\n".join(
+                [
+                    "[general]",
+                    "lang = es-419",
+                    "",
+                    "[mods]",
+                    "mods_order = othermod",
+                    "mods_disabled = zz-Super-Hero-Boost|other2",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        (root / ".shb-rekarina").mkdir()
+        (root / ".shb-rekarina" / "state.json").write_text(
+            json.dumps(
+                {
+                    "built": True,
+                    "release": "1.1.1",
+                    "game": "1.1.1",
+                    "exe_sha256": hashlib.sha256(exe).hexdigest(),
+                    "module_sha256": module_sha,
+                    "rebuilt": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    try:
+        for key in profiles:
+            settings = installer.Settings(**presets.settings_kwargs(key))
+            py_game = work / f"py-{key}"
+            rs_game = work / f"rs-{key}"
+            make_game(py_game)
+            make_game(rs_game)
+
+            rekarina.apply_settings(py_game, settings)
+            run_shb(shb, ["game", "--game", str(rs_game), "--profile", key, "--payload", str(payload)])
+
+            def digest(path: Path) -> str:
+                return hashlib.sha256(path.read_bytes()).hexdigest()
+
+            problems = []
+            for rel in ["exefs/subsdk9", "Rekarina.exe"]:
+                if digest(py_game / rel) != digest(rs_game / rel):
+                    problems.append(rel)
+
+            def order(root: Path) -> list[str]:
+                return [
+                    line.strip()
+                    for line in (root / "rekarina.ini").read_text(encoding="utf-8").splitlines()
+                    if line.strip().lower().startswith(("mods_order", "mods_disabled"))
+                ]
+
+            if order(py_game) != order(rs_game):
+                problems.append(f"rekarina.ini {order(py_game)} != {order(rs_game)}")
+
+            mod = installer.MOD_NAME
+            py_files = {}
+            rs_files = {}
+            for name, root, bucket in (("py", py_game, py_files), ("rs", rs_game, rs_files)):
+                base = root / "mods" / mod
+                for path in sorted(base.rglob("*")):
+                    if path.is_file():
+                        rel = path.relative_to(base).as_posix()
+                        if rel == installer.MARKER:
+                            bucket[rel] = json.loads(path.read_text(encoding="utf-8"))
+                        else:
+                            bucket[rel] = digest(path)
+            dictionary_path = payload / "romfs_opts" / "enemy_speed_pack.zsdic"
+            dictionary = dictionary_path.read_bytes() if dictionary_path.is_file() else b""
+            for name in set(py_files) | set(rs_files):
+                if py_files.get(name) == rs_files.get(name):
+                    continue
+                # The enemy packs are zstd frames: what matters is the content the game decompresses.
+                if (
+                    name.endswith(".zs")
+                    and dictionary
+                    and isinstance(py_files.get(name), str)
+                    and isinstance(rs_files.get(name), str)
+                ):
+                    py_bytes = (py_game / "mods" / mod / name).read_bytes()
+                    rs_bytes = (rs_game / "mods" / mod / name).read_bytes()
+                    try:
+                        if zs_payload(py_bytes, dictionary) == zs_payload(rs_bytes, dictionary):
+                            continue
+                    except Exception:  # noqa: BLE001 - a file that is not a zstd frame is a real difference
+                        pass
+                problems.append(f"mods/{mod}/{name}")
+
+            if not problems:
+                printed = len([n for n in py_files if n != installer.MARKER])
+                print(f"  rekarina {key:<14} ok ({printed} files + the marker: module, exe, ini and romfs identical)")
+            else:
+                failures += 1
+                print(f"  rekarina {key:<14} DIFFERENT")
+                for name in problems[:8]:
+                    print(f"    {name}")
+            checked += 1
+        print(f"rekarina: {checked - failures}/{checked} installs identical")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return failures
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--app", type=Path, default=DEFAULT_APP, help="the Python app folder")
     ap.add_argument("--payload", type=Path, default=None, help="the payload folder (app/payload)")
     ap.add_argument("--shb", type=Path, default=None, help="the shb binary (default: target/debug/shb)")
-    ap.add_argument("--mode", choices=["patch", "install", "game", "all"], default="patch")
+    ap.add_argument("--mode", choices=["patch", "install", "game", "rekarina", "all"], default="patch")
     ap.add_argument("--random", type=int, default=40, help="random settings to check")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--profiles", default="souls,hero,souls-hero,world,base,manual-shield,recommended",
@@ -366,6 +499,9 @@ def main() -> int:
     if args.mode in ("game", "all"):
         print("recompiled game parity")
         failures += game_cases(app, payload, shb, [p for p in args.profiles.split(",") if p])
+    if args.mode in ("rekarina", "all"):
+        print("rekarina install parity")
+        failures += rekarina_cases(app, payload, shb, [p for p in args.profiles.split(",") if p])
     return 1 if failures else 0
 
 

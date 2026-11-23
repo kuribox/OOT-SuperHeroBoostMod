@@ -265,7 +265,7 @@ pub fn ensure(style: &str, mut progress: impl FnMut(u64, u64)) -> Result<PathBuf
     if atlas < MIN_ATLAS || font < 4096 || !root.join(TABLE).is_file() {
         return Err(Error::Layout(format!("{GB_PAGE}: the zip is incomplete")));
     }
-    restbl(&decompress(&read(&root.join(TABLE))?)?)?; // must parse
+    restbl(&crate::zstd::decompress(&read(&root.join(TABLE))?)?)?; // must parse
     write(
         &root.join("ok"),
         serde_json::json!({
@@ -314,23 +314,6 @@ fn extract(zip_path: &Path, out: &Path) -> Result<()> {
         )));
     }
     Ok(())
-}
-
-fn decompress(data: &[u8]) -> Result<Vec<u8>> {
-    let mut source = data;
-    let mut decoder = structured_zstd::decoding::StreamingDecoder::new(&mut source);
-    let mut out = Vec::new();
-    decoder
-        .read_to_end(&mut out)
-        .map_err(|e| Error::Layout(format!("zstd: {e}")))?;
-    Ok(out)
-}
-
-fn compress(data: &[u8]) -> Result<Vec<u8>> {
-    use structured_zstd::encoding::{CompressionLevel, FrameCompressor};
-    // The Python app writes the merged table at level 19 (it is small and read once).
-    let mut compressor: FrameCompressor = FrameCompressor::new(CompressionLevel::from_level(19));
-    Ok(compressor.compress_independent_frame(data))
 }
 
 /// A parsed `RESTBL`: the version, the fixed name size, the CRC table and the name table.
@@ -411,8 +394,8 @@ pub fn merge_table(src: &Path, dst: &Path) -> Result<()> {
         std::fs::copy(src, dst).map_err(|e| Error::io(dst, e))?;
         return Ok(());
     }
-    let mut ours = restbl(&decompress(&read(dst)?)?)?;
-    let theirs = restbl(&decompress(&read(src)?)?)?;
+    let mut ours = restbl(&crate::zstd::decompress(&read(dst)?)?)?;
+    let theirs = restbl(&crate::zstd::decompress(&read(src)?)?)?;
     for (key, size) in theirs.crc {
         let entry = ours.crc.entry(key).or_insert(0);
         *entry = (*entry).max(size);
@@ -422,7 +405,7 @@ pub fn merge_table(src: &Path, dst: &Path) -> Result<()> {
         *entry = (*entry).max(size);
     }
     let dumped = dump_restbl(&ours);
-    write(dst, &compress(&dumped)?)?;
+    write(dst, &crate::zstd::compress(&dumped, 19)?)?;
     Ok(())
 }
 

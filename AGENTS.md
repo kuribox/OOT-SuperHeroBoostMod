@@ -136,7 +136,11 @@ Branch `feat/rust-app`: a second implementation of the app, to learn Rust agains
 - The updater (`crates/shb-core/src/update.rs`): GitHub's latest release, this platform's asset, the SHA-256 check
   and the PowerShell restart script. `ureq` runs with `native-tls` on purpose: the rustls backend needs `ring`,
   whose build wants a C compiler this toolchain does not have.
-- Not ported: the GameCube UI atlas (`gamecube.py`/`gamecube_textures.py`) and the recomp/Rekarina rebuild flow.
+- Not ported: the two flows that run somebody else's compiler — the recompiled-game rebuild (Longshot/Hookshot/
+  ReLink, whose installed builder is now the .NET one and not `tools/nx2/make_game.py`) and Rekarina's three-stage
+  lift and compile. Everything around them is ported, including Rekarina's settings half (`rekarina.rs`: config
+  block, the module hash in `Rekarina.exe`, `mods_order`, `build-cache/mods-built.txt`) and the GameCube diagram
+  (`gamecube.rs`: the game's own UI atlas patched with the artwork generated from `app/gamecube_textures.py`).
 - The PlayStation/Xbox prompt pack (`crates/shb-core/src/layouts.rs`) is ported: GameBanana download, ZIP extract
   of the three files, `RESTBL` parse/merge/compress (zstd 19) and the atlas copy, with the safe font from the
   payload. It is the last step of the romfs install, so its table wins the merge.

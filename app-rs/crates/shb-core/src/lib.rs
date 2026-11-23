@@ -17,14 +17,18 @@ pub mod enemy;
 pub mod error;
 pub mod find;
 pub mod game;
+pub mod gamecube;
 pub mod install;
 pub mod ips;
 pub mod layouts;
 pub mod paths;
 pub mod presets;
+pub mod rekarina;
 pub mod roles;
+pub mod romfs;
 pub mod settings;
 pub mod update;
+pub mod zstd;
 
 pub use error::{Error, Result};
 pub use install::{InstallRequest, InstallResult};

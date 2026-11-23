@@ -228,9 +228,37 @@ impl App {
         match self.target {
             Target::Emulator => self.install_emulator(),
             Target::Recomp => self.install_game(),
-            Target::Rekarina => {
+            Target::Rekarina => self.install_rekarina(),
+        }
+    }
+
+    /// A Rekarina install: the settings half only — the module's config block, the hash `Rekarina.exe` stores for it,
+    /// the romfs files and our mod first in `mods_order`. The lift and the compile are Rekarina's build.
+    fn install_rekarina(&mut self) {
+        let Some(payload) = self.payload.clone() else {
+            self.failed = true;
+            self.notes = vec![self.t("e_no_payload").to_string()];
+            return;
+        };
+        let path = PathBuf::from(self.emu.trim());
+        let Some(found) = shb_core::rekarina::find(&path) else {
+            self.failed = true;
+            self.notes = vec![format!("{} {}", self.t("rekarina_missing"), path.display())];
+            return;
+        };
+        match shb_core::rekarina::apply_settings(&found, &self.settings, &payload) {
+            Ok(()) => {
+                self.failed = false;
+                self.notes = vec![
+                    format!("{} (rekarina)", found.root.display()),
+                    self.t("rekarina_built").to_string(),
+                ];
+                let line = format!("{} {}", self.t("installed"), found.root.display());
+                self.say(line);
+            }
+            Err(err) => {
                 self.failed = true;
-                self.notes = vec![self.t("e_rekarina_needs_build").to_string()];
+                self.notes = vec![format!("{err}")];
             }
         }
     }
@@ -314,6 +342,34 @@ impl App {
             return;
         }
         let emu = PathBuf::from(self.emu.trim());
+        if self.target == Target::Rekarina
+            && let Some(found) = shb_core::rekarina::find(&emu)
+        {
+            match shb_core::rekarina::uninstall(&found) {
+                Ok(true) => {
+                    self.notes.clear();
+                    self.failed = false;
+                    self.say(self.t("uninstalled"));
+                }
+                Ok(false) => self.say(self.t("nothing")),
+                Err(err) => self.say(format!("error: {err}")),
+            }
+            return;
+        }
+        if self.target == Target::Recomp
+            && let Some(found) = shb_core::game::find(&emu)
+        {
+            match shb_core::game::uninstall(&found) {
+                Ok(true) => {
+                    self.notes.clear();
+                    self.failed = false;
+                    self.say(self.t("uninstalled"));
+                }
+                Ok(false) => self.say(self.t("nothing")),
+                Err(err) => self.say(format!("error: {err}")),
+            }
+            return;
+        }
         match install::uninstall(&emu) {
             Ok(true) => {
                 self.notes.clear();

@@ -7,7 +7,7 @@
 use crate::config::patch_config;
 use crate::error::{Error, Result, read, write};
 use crate::find::{self, MARKER, MOD_NAME, TITLE_ID};
-use crate::settings::{BmLayout, ButtonStyle, GameLayout, Settings};
+use crate::settings::Settings;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -41,15 +41,6 @@ pub struct InstallResult {
     pub variant: String,
     /// Things the user should know, already phrased (conflicts, optional files that were not built...).
     pub notes: Vec<String>,
-}
-
-/// The button art folder of a style.
-fn style_dir(style: ButtonStyle) -> &'static str {
-    match style {
-        ButtonStyle::Switch => "switch",
-        ButtonStyle::Xbox => "xbox",
-        ButtonStyle::PlayStation => "playstation",
-    }
 }
 
 pub fn install(req: &InstallRequest) -> Result<InstallResult> {
@@ -86,78 +77,20 @@ pub fn install(req: &InstallRequest) -> Result<InstallResult> {
         &read(&pay.join("ours.ips"))?,
     )?;
 
-    let mut notes: Vec<String> = Vec::new();
     let romfs = target.join("romfs");
-
-    // buttonMapping: the button textures of the chosen style plus the shared UI budget.
-    if s.button_mapping {
-        let art = req.payload.join("button_romfs");
-        let plat = style_dir(s.button_style);
-        if !art.join(plat).is_dir() {
-            return Err(Error::PayloadMissing(art.join(plat)));
-        }
-        copy_tree(&art.join(plat), &romfs)?;
-        if art.join("common").is_dir() {
-            copy_tree(&art.join("common"), &romfs)?;
-        }
+    let mut notes = crate::romfs::populate(
+        &romfs,
+        s,
+        &req.payload,
+        &req.emu,
+        crate::romfs::Variant::Emulator,
+    )?;
+    if s.bm_layout == crate::settings::BmLayout::Gamecube
+        && let Some(note) = crate::gamecube::disable_legacy_atlas(&mods)?
+    {
+        notes.push(note);
     }
-
-    // The drops are two changes to the same game table: when both are on, one combined file is installed.
-    let drops: Vec<&str> = match (s.no_heart_drop, s.no_magic_drop) {
-        (true, true) => vec!["no_heart_magic_drop"],
-        (true, false) => vec!["no_heart_drop"],
-        (false, true) => vec!["no_magic_drop"],
-        (false, false) => vec![],
-    };
-    for opt in drops {
-        let src = req.payload.join("romfs_opts").join(opt);
-        if src.is_dir() {
-            copy_tree(&src, &romfs)?;
-        } else {
-            // The file is generated from the user's own dump: never block the install because of it.
-            let key = if opt == "no_heart_magic_drop" {
-                "no heart drops and no magic drops".to_string()
-            } else {
-                opt.replace('_', " ")
-            };
-            notes.push(format!("{key}: not built (needs the game dump), skipped"));
-        }
-    }
-
-    for (opt, enabled) in [
-        ("enemy_double", s.enemy_double),
-        ("farore_outdoor", s.farore_outdoor),
-        ("great_fairy", s.great_fairy),
-    ] {
-        if !enabled {
-            continue;
-        }
-        let src = req.payload.join("romfs_opts").join(opt);
-        if src.is_dir() {
-            copy_tree(&src, &romfs)?;
-        } else {
-            notes.push(format!("{}: not built, skipped", opt.replace('_', " ")));
-        }
-    }
-
-    // The enemy components: patched speed/aggression packs plus the animation folder of the chosen level.
-    notes.extend(crate::enemy::install(&romfs, s, &req.payload)?);
-
-    // Parts of the Python app that this port does not carry yet: say it instead of installing half of it.
-    if s.bm_layout == BmLayout::Gamecube {
-        notes.push(
-            "GameCube layout: the patched UI diagram is not ported to the Rust app yet; the HUD and the button art were installed"
-                .to_string(),
-        );
-    }
-    // The game-wide prompts download: last, so its resource table is merged over the final one.
-    if s.game_layout != GameLayout::None {
-        let style = s.game_layout.as_str();
-        crate::layouts::apply(&romfs, style, &req.payload)?;
-        notes.push(format!("game prompts: {style} layout installed"));
-    }
-
-    // Conflicts: other mods that patch the executable, and the ones that fight over the button font.
+    // Conflicts: other mods that patch the executable too.
     let skip = [req.name.as_str()];
     let conflicts = find::other_exefs_mods(&mods, &skip);
     if !conflicts.is_empty() {
