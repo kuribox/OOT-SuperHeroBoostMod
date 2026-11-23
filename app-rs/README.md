@@ -14,6 +14,7 @@ app-rs/
 │   │   ├── src/roles.rs          the button remap table, and what the module accepts
 │   │   ├── src/config.rs         the ShbConfig block: the offset table and the writer
 │   │   ├── src/presets.rs        the game profiles
+│   │   ├── src/enemy.rs         the enemy speed / aggression packs (zstd, the game's dictionary)
 │   │   ├── src/install.rs        install / uninstall of the mod folder
 │   │   ├── src/ips.rs            IPS32 read + merge
 │   │   ├── src/find.rs           mods folder, emulator program, game language
@@ -77,19 +78,29 @@ python tools/parity_check.py --app ../app --payload ../app/payload --mode all
 ```
 
 Result on this branch (2026-11-23): 56/56 patched images identical (16 profiles + 40 random settings, including
-out-of-range HUD scales, stray remap entries and the 0.4.x block sizes), 6/6 install trees identical.
+out-of-range HUD scales, stray remap entries and the 0.4.x block sizes) and **16/16 install trees identical** for
+every profile, the enemy packs included: the `.zs` files are compared after decompression with the game's own
+dictionary (the Rust encoder is not required to emit the same frame bytes, and Python's libzstd reads ours).
 
-`zstandard` is stubbed when it is not installed, because the config patching does not use it.
+The install comparison needs the real `zstandard` module (`py -3.12 -m pip install zstandard`); without it the
+profiles with enemy packs are skipped and the rest still runs, because the config patching does not use it.
+
+## The window
+
+Eight pages, the same ones the Python app's sidebar has: Install, Home, Stamina, Difficulty, Controls, HUD, Misc,
+About. English and Spanish. The enemy components are dropdowns of the real factors (`x1.5` … `x6`), the stamina
+modes and the aggression levels are named rows, and the remap table only offers the roles the module accepts on
+each button.
 
 ## Not ported yet
 
 These are reported as notes in the install result instead of being silently skipped:
 
-- the enemy speed / aggression packs (`_patch_packs`: the zstd dictionary packs under `payload/romfs_opts`),
 - the GameCube UI diagram (`gamecube.py`: patches the game's own UI atlas, needs the dump),
 - the downloadable game-wide prompt layout and its resource-size-table merge (`layouts.py`),
 - the Python app's relink / rekarina / longshot rebuild flow and the self-updater,
-- the six-language UI (the window has English and Spanish).
+- four of the six UI languages (the window has English and Spanish).
 
-`cargo test -p shb-core` covers the offset table, the remap rules, the presets, the IPS reader, the mods
-folder detection and a full install into a temp folder (36 tests).
+`cargo test -p shb-core` covers the offset table, the remap rules, the presets, the IPS reader, the mods folder
+detection, the enemy packs (a real trained dictionary, scaled values read back) and a full install into a temp
+folder (40 tests).

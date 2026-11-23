@@ -13,6 +13,7 @@
 //! - [`ips`], [`find`], [`paths`]: the small parts around it
 
 pub mod config;
+pub mod enemy;
 pub mod error;
 pub mod find;
 pub mod install;

@@ -8,3 +8,10 @@ description = "Super Hero Boost companion: config block patching, installer and 
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+# Pure-Rust zstd: the enemy packs are compressed with the game's own dictionary, and the C-backed crate needs a
+# C compiler the windows-gnu toolchain on this PC does not have.
+structured-zstd = "0.4"
+
+[dev-dependencies]
+# The dictionary trainer, only for the tests: the payload ships a trained dictionary and the app never builds one.
+structured-zstd = { version = "0.4", features = ["dict-builder"] }

@@ -1,4 +1,4 @@
-//! The window: the same options as the Python app, in one scrolling page.
+//! The window: the same pages as the Python app (sidebar, then one page at a time).
 //!
 //! Everything here goes through `shb-core`, so the window and `shb` (the CLI) cannot drift apart: the same
 //! settings produce the same bytes. The window adds no logic of its own beyond remembering the last path.
@@ -9,8 +9,47 @@ use shb_core::install::{self, InstallRequest};
 use shb_core::presets::{self, PROFILE_KEYS};
 use shb_core::roles::{self, ROLE_KEYS, Role};
 use shb_core::settings::{BmLayout, ButtonStyle, GameLayout, HudMode, LMode, Lang, Settings};
-use shb_core::{paths, payload_root};
+use shb_core::{enemy, paths, payload_root};
 use std::path::PathBuf;
+
+/// A page of the sidebar. The order is the Python app's (`nav` in `main.py`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Page {
+    Install,
+    Home,
+    Stamina,
+    Difficulty,
+    Controls,
+    Hud,
+    Misc,
+    About,
+}
+
+impl Page {
+    const ALL: [Page; 8] = [
+        Page::Install,
+        Page::Home,
+        Page::Stamina,
+        Page::Difficulty,
+        Page::Controls,
+        Page::Hud,
+        Page::Misc,
+        Page::About,
+    ];
+
+    fn key(self) -> &'static str {
+        match self {
+            Page::Install => "nav_install",
+            Page::Home => "nav_home",
+            Page::Stamina => "nav_stamina",
+            Page::Difficulty => "nav_difficulty",
+            Page::Controls => "nav_controls",
+            Page::Hud => "nav_hud",
+            Page::Misc => "nav_misc",
+            Page::About => "nav_about",
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum UiLang {
@@ -20,150 +59,277 @@ enum UiLang {
 
 impl UiLang {
     fn t(self, key: &'static str) -> &'static str {
-        match (self, key) {
-            (UiLang::En, "title") => "Super Hero Boost",
-            (UiLang::En, "subtitle") => "Configurator (Rust)",
-            (UiLang::En, "emu") => "Emulator folder",
-            (UiLang::En, "detect") => "Detect",
-            (UiLang::En, "mods_ok") => "Mod folder found",
-            (UiLang::En, "mods_missing") => "No mod folder under that path",
-            (UiLang::En, "installed") => "installed",
-            (UiLang::En, "not_installed") => "not installed",
-            (UiLang::En, "profile") => "Game profile",
-            (UiLang::En, "apply") => "Apply",
-            (UiLang::En, "stamina") => "Stamina",
-            (UiLang::En, "enabled") => "Stamina system",
-            (UiLang::En, "preset") => "Stamina costs",
-            (UiLang::En, "actions") => "Actions that cost stamina",
-            (UiLang::En, "jump") => "Jump",
-            (UiLang::En, "attack") => "Attack",
-            (UiLang::En, "sprint") => "Sprint",
-            (UiLang::En, "block") => "Block",
-            (UiLang::En, "shoot") => "Shoot",
-            (UiLang::En, "roll") => "Roll",
-            (UiLang::En, "combat_only") => "Only while in combat",
-            (UiLang::En, "difficulty") => "Difficulty",
-            (UiLang::En, "enemy_hp") => "Enemy health, % of vanilla",
-            (UiLang::En, "damage") => "Damage taken, % of vanilla",
-            (UiLang::En, "sprint_speed") => "Sprint speed, % of vanilla",
-            (UiLang::En, "no_heart") => "No heart drops (green rupees)",
-            (UiLang::En, "no_magic") => "No magic drops (green rupees)",
-            (UiLang::En, "hud") => "HUD",
-            (UiLang::En, "hud_mode") => "Layout",
-            (UiLang::En, "rupees") => "Rupee counter",
-            (UiLang::En, "clock") => "Clock",
-            (UiLang::En, "clock24") => "24 hour clock",
-            (UiLang::En, "collectibles") => "Skulltula / heart piece counter",
-            (UiLang::En, "stamina_bar") => "Stamina as a bar (not the ring)",
-            (UiLang::En, "hide_minimap") => "Hide the minimap",
-            (UiLang::En, "ctrl_scale") => "Buttons size, %",
-            (UiLang::En, "count_scale") => "Counters size, %",
-            (UiLang::En, "controls") => "Controls",
-            (UiLang::En, "button_mapping") => "buttonMapping (item buttons on the HUD)",
-            (UiLang::En, "button_style") => "Button pictures",
-            (UiLang::En, "bm_layout") => "Face button layout",
-            (UiLang::En, "bm_simple") => "Simple layout",
-            (UiLang::En, "l_mode") => "L does",
-            (UiLang::En, "remap") => "Button remap",
-            (UiLang::En, "table") => "Ready-made table",
-            (UiLang::En, "manual_shield") => "Manual shield (ZL holds the guard)",
-            (UiLang::En, "target_r3") => "Target with R3",
-            (UiLang::En, "sprint_l3") => "L3 sprints",
-            (UiLang::En, "sprint_l3_toggle") => "L3 toggles the sprint",
-            (UiLang::En, "auto_target") => "Lock on to the next enemy",
-            (UiLang::En, "switch_target") => "Switch target with the other shoulder",
-            (UiLang::En, "songbook") => "Play songs from the songbook",
-            (UiLang::En, "quick_boots") => "D-pad down: boots",
-            (UiLang::En, "quick_mask") => "D-pad up: masks",
-            (UiLang::En, "language") => "Language of the mod's HUD",
-            (UiLang::En, "install") => "Install",
-            (UiLang::En, "uninstall") => "Uninstall",
-            (UiLang::En, "save") => "Save settings",
-            (UiLang::En, "log") => "Messages",
-            (UiLang::En, "payload") => "Payload",
-            (UiLang::En, "payload_missing") => "payload not found (app/payload or --payload)",
-            (UiLang::En, "profile_changed") => "Profile set to",
-            (UiLang::En, "saved") => "Settings saved",
-            (UiLang::En, "game_prompts") => "game prompts",
-            (UiLang::Es, "title") => "Super Hero Boost",
-            (UiLang::Es, "subtitle") => "Configurador (Rust)",
-            (UiLang::Es, "emu") => "Carpeta del emulador",
-            (UiLang::Es, "detect") => "Detectar",
-            (UiLang::Es, "mods_ok") => "Carpeta de mods encontrada",
-            (UiLang::Es, "mods_missing") => "No hay carpeta de mods en esa ruta",
-            (UiLang::Es, "installed") => "instalado",
-            (UiLang::Es, "not_installed") => "sin instalar",
-            (UiLang::Es, "profile") => "Perfil de juego",
-            (UiLang::Es, "apply") => "Aplicar",
-            (UiLang::Es, "stamina") => "Resistencia",
-            (UiLang::Es, "enabled") => "Sistema de resistencia",
-            (UiLang::Es, "preset") => "Costes de resistencia",
-            (UiLang::Es, "actions") => "Acciones que gastan resistencia",
-            (UiLang::Es, "jump") => "Salto",
-            (UiLang::Es, "attack") => "Ataque",
-            (UiLang::Es, "sprint") => "Esprintar",
-            (UiLang::Es, "block") => "Bloquear",
-            (UiLang::Es, "shoot") => "Disparar",
-            (UiLang::Es, "roll") => "Rodar",
-            (UiLang::Es, "combat_only") => "Solo en combate",
-            (UiLang::Es, "difficulty") => "Dificultad",
-            (UiLang::Es, "enemy_hp") => "Vida enemiga, % del original",
-            (UiLang::Es, "damage") => "Daño recibido, % del original",
-            (UiLang::Es, "sprint_speed") => "Velocidad al esprintar, % del original",
-            (UiLang::Es, "no_heart") => "Sin corazones (rupias verdes)",
-            (UiLang::Es, "no_magic") => "Sin jarras de magia (rupias verdes)",
-            (UiLang::Es, "hud") => "HUD",
-            (UiLang::Es, "hud_mode") => "Disposición",
-            (UiLang::Es, "rupees") => "Contador de rupias",
-            (UiLang::Es, "clock") => "Reloj",
-            (UiLang::Es, "clock24") => "Reloj de 24 h",
-            (UiLang::Es, "collectibles") => "Contador de skulltulas / piezas de corazón",
-            (UiLang::Es, "stamina_bar") => "Resistencia como barra (no el anillo)",
-            (UiLang::Es, "hide_minimap") => "Ocultar el minimapa",
-            (UiLang::Es, "ctrl_scale") => "Tamaño de botones, %",
-            (UiLang::Es, "count_scale") => "Tamaño de contadores, %",
-            (UiLang::Es, "controls") => "Controles",
-            (UiLang::Es, "button_mapping") => "buttonMapping (botones de objeto en el HUD)",
-            (UiLang::Es, "button_style") => "Dibujos de los botones",
-            (UiLang::Es, "bm_layout") => "Disposición de los botones",
-            (UiLang::Es, "bm_simple") => "Disposición simple",
-            (UiLang::Es, "l_mode") => "L hace",
-            (UiLang::Es, "remap") => "Remapeo de botones",
-            (UiLang::Es, "table") => "Tabla preparada",
-            (UiLang::Es, "manual_shield") => "Escudo manual (ZL mantiene la guardia)",
-            (UiLang::Es, "target_r3") => "Fijar objetivo con R3",
-            (UiLang::Es, "sprint_l3") => "L3 esprinta",
-            (UiLang::Es, "sprint_l3_toggle") => "L3 activa el esprint",
-            (UiLang::Es, "auto_target") => "Fijar al siguiente enemigo",
-            (UiLang::Es, "switch_target") => "Cambiar de objetivo con el otro hombro",
-            (UiLang::Es, "songbook") => "Tocar canciones desde el cancionero",
-            (UiLang::Es, "quick_boots") => "Cruceta abajo: botas",
-            (UiLang::Es, "quick_mask") => "Cruceta arriba: máscaras",
-            (UiLang::Es, "language") => "Idioma del HUD del mod",
-            (UiLang::Es, "install") => "Instalar",
-            (UiLang::Es, "uninstall") => "Desinstalar",
-            (UiLang::Es, "save") => "Guardar ajustes",
-            (UiLang::Es, "log") => "Mensajes",
-            (UiLang::Es, "payload") => "Payload",
-            (UiLang::Es, "payload_missing") => "no encuentro el payload (app/payload o --payload)",
-            (UiLang::Es, "profile_changed") => "Perfil cambiado a",
-            (UiLang::Es, "saved") => "Ajustes guardados",
-            (UiLang::Es, "game_prompts") => "prompts del juego",
-            (_, missing) => missing,
+        let es = self == UiLang::Es;
+        match key {
+            "title" => "Super Hero Boost",
+            "subtitle" if es => "Configurador",
+            "subtitle" => "Configurator",
+            "nav_install" if es => "Instalar",
+            "nav_install" => "Install",
+            "nav_home" if es => "Inicio",
+            "nav_home" => "Home",
+            "nav_stamina" if es => "Resistencia",
+            "nav_stamina" => "Stamina",
+            "nav_difficulty" if es => "Dificultad",
+            "nav_difficulty" => "Difficulty",
+            "nav_controls" if es => "Controles",
+            "nav_controls" => "Controls",
+            "nav_hud" => "HUD",
+            "nav_misc" if es => "Varios",
+            "nav_misc" => "Misc",
+            "nav_about" if es => "Acerca de",
+            "nav_about" => "About",
+            "emu" if es => "Carpeta del emulador",
+            "emu" => "Emulator folder",
+            "detect" if es => "Detectar",
+            "detect" => "Detect",
+            "mods_ok" if es => "Carpeta de mods encontrada",
+            "mods_ok" => "Mod folder found",
+            "mods_missing" if es => "No hay carpeta de mods en esa ruta",
+            "mods_missing" => "No mod folder under that path",
+            "installed" if es => "instalado",
+            "installed" => "installed",
+            "not_installed" if es => "sin instalar",
+            "not_installed" => "not installed",
+            "install" if es => "Instalar",
+            "install" => "Install",
+            "reinstall" if es => "Reinstalar",
+            "reinstall" => "Reinstall",
+            "uninstall" if es => "Desinstalar",
+            "uninstall" => "Uninstall",
+            "save" if es => "Guardar ajustes",
+            "save" => "Save settings",
+            "profile" if es => "Perfil de juego",
+            "profile" => "Game profile",
+            "apply" if es => "Aplicar perfil",
+            "apply" => "Apply profile",
+            "profile_help" if es => {
+                "Un perfil fija todas las opciones de juego. Si cambias cualquiera, el perfil pasa a personalizado."
+            }
+            "profile_help" => {
+                "A profile sets every gameplay option. Change any of them and the profile becomes custom."
+            }
+            "custom" if es => "personalizado",
+            "custom" => "custom",
+            "stamina" if es => "Resistencia",
+            "stamina" => "Stamina",
+            "enabled" if es => "Sistema de resistencia",
+            "enabled" => "Stamina system",
+            "preset" if es => "Costes de resistencia",
+            "preset" => "Stamina costs",
+            "preset_hardcore" if es => "duro",
+            "preset_hardcore" => "hardcore",
+            "preset_combat" if es => "solo combate",
+            "preset_combat" => "combat only",
+            "preset_sprint" if es => "solo esprintar",
+            "preset_sprint" => "sprint only",
+            "preset_advanced" if es => "avanzado",
+            "preset_advanced" => "advanced",
+            "actions" if es => "Acciones que gastan resistencia",
+            "actions" => "Actions that cost stamina",
+            "jump" if es => "Salto",
+            "jump" => "Jump",
+            "attack" if es => "Ataque",
+            "attack" => "Attack",
+            "sprint" if es => "Esprintar",
+            "sprint" => "Sprint",
+            "block" if es => "Bloquear",
+            "block" => "Block",
+            "shoot" if es => "Disparar",
+            "shoot" => "Shoot",
+            "roll" if es => "Rodar",
+            "roll" => "Roll",
+            "combat_only" if es => "Solo en combate",
+            "combat_only" => "Only while in combat",
+            "difficulty" if es => "Dificultad",
+            "difficulty" => "Difficulty",
+            "enemy_hp" if es => "Vida enemiga, % del original",
+            "enemy_hp" => "Enemy health, % of vanilla",
+            "damage" if es => "Daño recibido, % del original",
+            "damage" => "Damage taken, % of vanilla",
+            "sprint_speed" if es => "Velocidad al esprintar, % del original",
+            "sprint_speed" => "Sprint speed, % of vanilla",
+            "no_heart" if es => "Sin corazones (rupias verdes)",
+            "no_heart" => "No heart drops (green rupees)",
+            "no_magic" if es => "Sin jarras de magia (rupias verdes)",
+            "no_magic" => "No magic drops (green rupees)",
+            "enemies" if es => "Enemigos",
+            "enemies" => "Enemies",
+            "enemy_move" if es => "Velocidad de movimiento",
+            "enemy_move" => "Movement speed",
+            "enemy_anim" if es => "Velocidad de animación",
+            "enemy_anim" => "Animation speed",
+            "enemy_attack" if es => "Frecuencia de ataque",
+            "enemy_attack" => "Attack cadence",
+            "enemy_proj" if es => "Velocidad de proyectiles",
+            "enemy_proj" => "Projectile speed",
+            "enemy_alert" if es => "Radio de alerta a otros enemigos",
+            "enemy_alert" => "Alert radius",
+            "enemy_aggro" if es => "Agresividad",
+            "enemy_aggro" => "Aggression",
+            "boss_move" if es => "Jefes: movimiento",
+            "boss_move" => "Bosses: movement",
+            "boss_anim" if es => "Jefes: animación",
+            "boss_anim" => "Bosses: animation",
+            "level_off" if es => "no",
+            "level_off" => "off",
+            "aggro_normal" if es => "normal",
+            "aggro_normal" => "normal",
+            "aggro_aggressive" if es => "agresivos",
+            "aggro_aggressive" => "aggressive",
+            "aggro_max" if es => "máxima",
+            "aggro_max" => "maximum",
+            "hud" if es => "HUD",
+            "hud" => "HUD",
+            "hud_mode" if es => "Disposición",
+            "hud_mode" => "Layout",
+            "rupees" if es => "Contador de rupias",
+            "rupees" => "Rupee counter",
+            "clock" if es => "Reloj",
+            "clock" => "Clock",
+            "clock24" if es => "Reloj de 24 h",
+            "clock24" => "24 hour clock",
+            "collectibles" if es => "Contador de skulltulas / piezas de corazón",
+            "collectibles" => "Skulltula / heart piece counter",
+            "stamina_bar" if es => "Resistencia como barra (no el anillo)",
+            "stamina_bar" => "Stamina as a bar (not the ring)",
+            "hide_minimap" if es => "Ocultar el minimapa",
+            "hide_minimap" => "Hide the minimap",
+            "ctrl_scale" if es => "Tamaño de los botones, %",
+            "ctrl_scale" => "Buttons size, %",
+            "count_scale" if es => "Tamaño de los contadores, %",
+            "count_scale" => "Counters size, %",
+            "hud_wide" if es => "ancha",
+            "hud_wide" => "wide",
+            "hud_simple" if es => "simple",
+            "hud_simple" => "simple",
+            "hud_plain" if es => "sin placa",
+            "hud_plain" => "plain",
+            "controls" if es => "Controles",
+            "controls" => "Controls",
+            "button_mapping" if es => "buttonMapping (botones de objeto en el HUD)",
+            "button_mapping" => "buttonMapping (item buttons on the HUD)",
+            "button_style" if es => "Dibujos de los botones",
+            "button_style" => "Button pictures",
+            "bm_layout" if es => "Disposición de los botones",
+            "bm_layout" => "Face button layout",
+            "bm_simple" if es => "Disposición simple",
+            "bm_simple" => "Simple layout",
+            "l_mode" if es => "L hace",
+            "l_mode" => "L does",
+            "remap" if es => "Remapeo de botones",
+            "remap" => "Button remap",
+            "remap_help" if es => {
+                "Un rol por botón como mucho, y solo donde el módulo lo admite. Las pulsaciones largas van aparte."
+            }
+            "remap_help" => {
+                "One role per button at most, and only where the module allows it. Long presses are separate."
+            }
+            "table" if es => "Tabla preparada",
+            "table" => "Ready-made table",
+            "manual_shield" if es => "Escudo manual (ZL mantiene la guardia)",
+            "manual_shield" => "Manual shield (ZL holds the guard)",
+            "target_r3" if es => "Fijar objetivo con R3",
+            "target_r3" => "Target with R3",
+            "sprint_l3" if es => "L3 esprinta",
+            "sprint_l3" => "L3 sprints",
+            "sprint_l3_toggle" if es => "L3 activa el esprint",
+            "sprint_l3_toggle" => "L3 toggles the sprint",
+            "auto_target" if es => "Fijar al siguiente enemigo",
+            "auto_target" => "Lock on to the next enemy",
+            "switch_target" if es => "Cambiar de objetivo con el otro hombro",
+            "switch_target" => "Switch target with the other shoulder",
+            "songbook" if es => "Tocar canciones desde el cancionero",
+            "songbook" => "Play songs from the songbook",
+            "quick_boots" if es => "Cruceta abajo: botas",
+            "quick_boots" => "D-pad down: boots",
+            "quick_mask" if es => "Cruceta arriba: máscaras",
+            "quick_mask" => "D-pad up: masks",
+            "misc" if es => "Opciones del mundo",
+            "misc" => "World options",
+            "great_fairy" if es => "Reordenar los regalos de las Grandes Hadas",
+            "great_fairy" => "Reorder the Great Fairy rewards",
+            "farore_outdoor" if es => "Farore's Wind fuera de las mazmorras",
+            "farore_outdoor" => "Farore's Wind outside dungeons",
+            "enemy_double" if es => "Duplicar enemigos (beta)",
+            "enemy_double" => "Duplicate enemies (beta)",
+            "game_layout" if es => "Prompts del juego (descarga aparte)",
+            "game_layout" => "Game prompts (separate download)",
+            "language" if es => "Idioma del HUD del mod",
+            "language" => "Language of the mod's HUD",
+            "about_body" if es => {
+                "Super Hero Boost: resistencia, dificultad, HUD y controles al gusto.\n\n\
+                 Esta ventana es la versión en Rust del configurador; instala el mismo módulo y escribe los mismos \
+                 bytes que la app de Python.\n\n\
+                 El mod no incluye código de terceros. Ocarina of Time es una marca de Nintendo; este proyecto no \
+                 está afiliado a ella."
+            }
+            "about_body" => {
+                "Super Hero Boost: stamina, difficulty, HUD and controls the way you want them.\n\n\
+                 This window is the Rust version of the configurator; it installs the same module and writes the \
+                 same bytes as the Python app.\n\n\
+                 The mod bundles no third-party code. Ocarina of Time is a Nintendo trademark; this project is not \
+                 affiliated with it."
+            }
+            "log" if es => "Mensajes",
+            "log" => "Messages",
+            "payload" => "Payload",
+            "payload_missing" if es => "no encuentro el payload (app/payload o --payload)",
+            "payload_missing" => "payload not found (app/payload or --payload)",
+            "profile_changed" if es => "Perfil cambiado a",
+            "profile_changed" => "Profile set to",
+            "saved" if es => "Ajustes guardados",
+            "saved" => "Settings saved",
+            "removed" if es => "eliminado",
+            "removed" => "removed",
+            "nothing_to_remove" if es => "no había nada que quitar",
+            "nothing_to_remove" => "nothing to remove",
+            "not_ported" if es => "Aún no portado a la app de Rust:",
+            "not_ported" => "Not ported to the Rust app yet:",
+            "game_prompts" if es => "prompts del juego",
+            "game_prompts" => "game prompts",
+            "needs_dump" if es => "necesita el volcado del juego",
+            "needs_dump" => "needs the game dump",
+            _ => key,
         }
+    }
+
+    fn hud_mode_name(self, mode: HudMode) -> &'static str {
+        self.t(match mode {
+            HudMode::Wide => "hud_wide",
+            HudMode::Simple => "hud_simple",
+            HudMode::Plain => "hud_plain",
+        })
+    }
+
+    fn aggro_name(self, level: u8) -> &'static str {
+        self.t(match level {
+            1 => "aggro_aggressive",
+            2 => "aggro_max",
+            _ => "aggro_normal",
+        })
     }
 }
 
 /// The labels of the stamina modes (`preset` in the config block).
-const PRESET_NAMES: [&str; 4] = ["hardcore", "combat only", "sprint only", "advanced"];
+const PRESET_KEYS: [&str; 4] = [
+    "preset_hardcore",
+    "preset_combat",
+    "preset_sprint",
+    "preset_advanced",
+];
 
 struct App {
+    page: Page,
     emu: String,
     settings: Settings,
     profile: String,
     ui_lang: UiLang,
     payload: Option<PathBuf>,
     log: Vec<String>,
+    /// The list of notes the last install produced, shown on the install page.
+    notes: Vec<String>,
+    has_failed: bool,
 }
 
 impl App {
@@ -172,12 +338,15 @@ impl App {
         let (settings, _) = paths::load_settings();
         let emu = std::env::var("SHB_EMU").unwrap_or_default();
         let mut app = App {
+            page: Page::Install,
             emu,
             settings,
             profile: presets::DEFAULT_PROFILE.to_string(),
             ui_lang: UiLang::En,
             payload: payload_root(None),
             log: Vec::new(),
+            notes: Vec::new(),
+            has_failed: false,
         };
         match app.payload.clone() {
             Some(path) => app.say(format!("payload: {}", path.display())),
@@ -252,11 +421,13 @@ impl App {
 
     fn install(&mut self) {
         let Some(payload) = self.payload.clone() else {
-            self.say(self.ui_lang.t("payload_missing"));
+            self.notes = vec![self.ui_lang.t("payload_missing").to_string()];
+            self.has_failed = true;
             return;
         };
         if self.emu.trim().is_empty() {
-            self.say(self.ui_lang.t("mods_missing"));
+            self.notes = vec![self.ui_lang.t("mods_missing").to_string()];
+            self.has_failed = true;
             return;
         }
         let req = InstallRequest::new(
@@ -266,17 +437,19 @@ impl App {
         );
         match install::install(&req) {
             Ok(result) => {
+                self.has_failed = false;
+                self.notes = result.notes;
                 let line = format!(
                     "{} {}",
                     self.ui_lang.t("installed"),
                     result.target.display()
                 );
                 self.say(line);
-                for note in result.notes {
-                    self.say(format!("  {note}"));
-                }
             }
-            Err(err) => self.say(format!("error: {err}")),
+            Err(err) => {
+                self.has_failed = true;
+                self.notes = vec![format!("error: {err}")];
+            }
         }
     }
 
@@ -286,8 +459,11 @@ impl App {
         }
         let emu = PathBuf::from(self.emu.trim());
         match install::uninstall(&emu) {
-            Ok(true) => self.say(format!("{MOD_NAME}: removed")),
-            Ok(false) => self.say("nothing to remove"),
+            Ok(true) => {
+                self.notes.clear();
+                self.say(format!("{MOD_NAME} {}", self.ui_lang.t("removed")));
+            }
+            Ok(false) => self.say(self.ui_lang.t("nothing_to_remove")),
             Err(err) => self.say(format!("error: {err}")),
         }
     }
@@ -310,10 +486,60 @@ fn toggle(ui: &mut egui::Ui, value: &mut bool, text: &str, changed: &mut bool) {
     }
 }
 
+/// A row of choices, the way the Python app draws its segmented controls.
+fn choice_row<T: PartialEq + Copy>(
+    ui: &mut egui::Ui,
+    label: &str,
+    values: &[T],
+    current: &mut T,
+    text: impl Fn(T) -> &'static str,
+) -> bool {
+    let mut changed = false;
+    ui.horizontal_wrapped(|ui| {
+        if !label.is_empty() {
+            ui.label(label);
+        }
+        for value in values {
+            if ui.selectable_value(current, *value, text(*value)).changed() {
+                changed = true;
+            }
+        }
+    });
+    changed
+}
+
+/// A whole-number slider with the level names of the enemy options under it.
+fn enemy_level(ui: &mut egui::Ui, label: &str, value: &mut u8) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(label);
+        egui::ComboBox::from_id_salt(format!("enemy-{label}"))
+            .selected_text(match enemy::factor(*value) {
+                Some(factor) => format!("x{factor}"),
+                None => "off".to_string(),
+            })
+            .show_ui(ui, |ui| {
+                if ui.selectable_value(value, 0, "off").changed() {
+                    changed = true;
+                }
+                for (level, factor) in enemy::LEVELS {
+                    if ui
+                        .selectable_value(value, level, format!("x{factor}"))
+                        .changed()
+                    {
+                        changed = true;
+                    }
+                }
+            });
+    });
+    changed
+}
+
 impl eframe::App for App {
-    // egui 0.37 hands the app a root `Ui` (it used to hand a `Context` and the panels were top-level).
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let lang = self.ui_lang;
+        let mut changed = false;
+
         egui::Panel::top("header").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading(lang.t("title"));
@@ -323,20 +549,20 @@ impl eframe::App for App {
                     ui.selectable_value(&mut self.ui_lang, UiLang::En, "EN");
                 });
             });
-            ui.add_space(4.0);
-            ui.horizontal(|ui| {
-                ui.label(lang.t("emu"));
-                ui.add(egui::TextEdit::singleline(&mut self.emu).desired_width(420.0));
-                if ui.button(lang.t("detect")).clicked() {
-                    self.refresh_emulator();
+        });
+
+        egui::Panel::left("nav").resizable(false).show(ui, |ui| {
+            ui.add_space(6.0);
+            for page in Page::ALL {
+                let selected = self.page == page;
+                let button = egui::Button::new(lang.t(page.key())).selected(selected);
+                if ui.add_sized([ui.available_width(), 32.0], button).clicked() {
+                    self.page = page;
                 }
-            });
-            if let Some(payload) = self.payload.clone() {
-                ui.label(format!("{}: {}", lang.t("payload"), payload.display()));
             }
         });
 
-        egui::Panel::bottom("actions").show(ui, |ui| {
+        egui::Panel::bottom("footer").show(ui, |ui| {
             ui.horizontal(|ui| {
                 if ui.button(lang.t("install")).clicked() {
                     self.install();
@@ -348,403 +574,464 @@ impl eframe::App for App {
                     self.save();
                 }
                 ui.separator();
-                egui::ComboBox::from_label(lang.t("profile"))
-                    .selected_text(self.profile.clone())
-                    .show_ui(ui, |ui| {
-                        for key in PROFILE_KEYS {
-                            ui.selectable_value(&mut self.profile, key.to_string(), key);
-                        }
-                    });
-                if ui.button(lang.t("apply")).clicked() {
-                    self.apply_profile();
-                }
+                let name = if self.profile == "custom" {
+                    lang.t("custom")
+                } else {
+                    self.profile.as_str()
+                };
+                ui.label(format!("{}: {name}", lang.t("profile")));
             });
         });
 
         egui::CentralPanel::default().show(ui, |ui| {
-            let mut changed = false;
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    egui::CollapsingHeader::new(lang.t("stamina"))
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            toggle(
-                                ui,
-                                &mut self.settings.stamina,
-                                lang.t("enabled"),
-                                &mut changed,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(lang.t("preset"));
-                                // The module's stamina modes, in the order `presets.STAMINA_MODES` uses.
-                                for (value, name) in PRESET_NAMES.iter().enumerate() {
-                                    if ui
-                                        .selectable_value(
-                                            &mut self.settings.preset,
-                                            value as u8,
-                                            *name,
-                                        )
-                                        .changed()
-                                    {
-                                        changed = true;
-                                    }
-                                }
-                            });
-                            ui.horizontal_wrapped(|ui| {
-                                ui.label(lang.t("actions"));
-                                toggle(ui, &mut self.settings.jump, lang.t("jump"), &mut changed);
-                                toggle(
-                                    ui,
-                                    &mut self.settings.attack,
-                                    lang.t("attack"),
-                                    &mut changed,
-                                );
-                                toggle(
-                                    ui,
-                                    &mut self.settings.sprint,
-                                    lang.t("sprint"),
-                                    &mut changed,
-                                );
-                                toggle(ui, &mut self.settings.block, lang.t("block"), &mut changed);
-                                toggle(ui, &mut self.settings.shoot, lang.t("shoot"), &mut changed);
-                                toggle(ui, &mut self.settings.roll, lang.t("roll"), &mut changed);
-                            });
-                            toggle(
-                                ui,
-                                &mut self.settings.combat_only,
-                                lang.t("combat_only"),
-                                &mut changed,
-                            );
-                        });
+                .show(ui, |ui| match self.page {
+                    Page::Install => changed |= self.page_install(ui),
+                    Page::Home => changed |= self.page_home(ui),
+                    Page::Stamina => changed |= self.page_stamina(ui),
+                    Page::Difficulty => changed |= self.page_difficulty(ui),
+                    Page::Controls => changed |= self.page_controls(ui),
+                    Page::Hud => changed |= self.page_hud(ui),
+                    Page::Misc => changed |= self.page_misc(ui),
+                    Page::About => self.page_about(ui),
+                });
+        });
 
-                    egui::CollapsingHeader::new(lang.t("difficulty"))
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            if ui
-                                .add(
-                                    egui::Slider::new(&mut self.settings.enemy_hp, 50..=400)
-                                        .text(lang.t("enemy_hp")),
-                                )
-                                .changed()
-                            {
-                                changed = true;
-                            }
-                            if ui
-                                .add(
-                                    egui::Slider::new(&mut self.settings.damage, 50..=400)
-                                        .text(lang.t("damage")),
-                                )
-                                .changed()
-                            {
-                                changed = true;
-                            }
-                            if ui
-                                .add(
-                                    egui::Slider::new(&mut self.settings.sprint_speed, 100..=200)
-                                        .text(lang.t("sprint_speed")),
-                                )
-                                .changed()
-                            {
-                                changed = true;
-                            }
-                            toggle(
-                                ui,
-                                &mut self.settings.no_heart_drop,
-                                lang.t("no_heart"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.no_magic_drop,
-                                lang.t("no_magic"),
-                                &mut changed,
-                            );
-                        });
+        if changed && self.profile != "custom" {
+            // Any option the user touches turns the profile into "custom", like the Python window.
+            self.profile = "custom".to_string();
+        }
+    }
+}
 
-                    egui::CollapsingHeader::new(lang.t("hud"))
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(lang.t("hud_mode"));
-                                for mode in HudMode::ALL {
-                                    if ui
-                                        .selectable_value(
-                                            &mut self.settings.hud_mode,
-                                            *mode,
-                                            mode.as_str(),
-                                        )
-                                        .changed()
-                                    {
-                                        changed = true;
-                                    }
-                                }
-                            });
-                            toggle(
-                                ui,
-                                &mut self.settings.hud_rupees,
-                                lang.t("rupees"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.hud_clock,
-                                lang.t("clock"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.clock_24h,
-                                lang.t("clock24"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.hud_collectibles,
-                                lang.t("collectibles"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.stamina_bar,
-                                lang.t("stamina_bar"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.hide_minimap,
-                                lang.t("hide_minimap"),
-                                &mut changed,
-                            );
-                            if ui
-                                .add(
-                                    egui::Slider::new(&mut self.settings.hud_ctrl_scale, 50..=200)
-                                        .step_by(5.0)
-                                        .text(lang.t("ctrl_scale")),
-                                )
-                                .changed()
-                            {
-                                changed = true;
-                            }
-                            if ui
-                                .add(
-                                    egui::Slider::new(&mut self.settings.hud_count_scale, 50..=200)
-                                        .step_by(5.0)
-                                        .text(lang.t("count_scale")),
-                                )
-                                .changed()
-                            {
-                                changed = true;
-                            }
-                        });
+impl App {
+    fn page_install(&mut self, ui: &mut egui::Ui) -> bool {
+        let lang = self.ui_lang;
+        ui.add_space(6.0);
+        ui.horizontal(|ui| {
+            ui.label(lang.t("emu"));
+            ui.add(egui::TextEdit::singleline(&mut self.emu).desired_width(f32::INFINITY));
+        });
+        ui.horizontal(|ui| {
+            if ui.button(lang.t("detect")).clicked() {
+                self.refresh_emulator();
+            }
+            if let Some(payload) = &self.payload {
+                ui.label(format!("{}: {}", lang.t("payload"), payload.display()));
+            }
+        });
+        ui.add_space(6.0);
+        if !self.notes.is_empty() {
+            ui.separator();
+            for note in &self.notes {
+                if self.has_failed {
+                    ui.colored_label(egui::Color32::from_rgb(220, 120, 110), note);
+                } else {
+                    ui.label(note);
+                }
+            }
+        }
+        ui.separator();
+        ui.label(lang.t("log"));
+        egui::ScrollArea::vertical()
+            .max_height(220.0)
+            .stick_to_bottom(true)
+            .show(ui, |ui| {
+                for line in &self.log {
+                    ui.monospace(line);
+                }
+            });
+        false
+    }
 
-                    egui::CollapsingHeader::new(lang.t("controls"))
-                        .default_open(true)
-                        .show(ui, |ui| {
-                            toggle(
-                                ui,
-                                &mut self.settings.button_mapping,
-                                lang.t("button_mapping"),
-                                &mut changed,
-                            );
-                            ui.horizontal(|ui| {
-                                ui.label(lang.t("button_style"));
-                                for style in ButtonStyle::ALL {
-                                    if ui
-                                        .selectable_value(
-                                            &mut self.settings.button_style,
-                                            *style,
-                                            style.as_str(),
-                                        )
-                                        .changed()
-                                    {
-                                        changed = true;
-                                    }
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label(lang.t("bm_layout"));
-                                for layout in BmLayout::ALL {
-                                    if ui
-                                        .selectable_value(
-                                            &mut self.settings.bm_layout,
-                                            *layout,
-                                            layout.as_str(),
-                                        )
-                                        .changed()
-                                    {
-                                        changed = true;
-                                    }
-                                }
-                            });
-                            ui.horizontal(|ui| {
-                                ui.label(lang.t("l_mode"));
-                                for mode in LMode::ALL {
-                                    if ui
-                                        .selectable_value(
-                                            &mut self.settings.bm_l_mode,
-                                            *mode,
-                                            mode.as_str(),
-                                        )
-                                        .changed()
-                                    {
-                                        changed = true;
-                                    }
-                                }
-                            });
-                            toggle(
-                                ui,
-                                &mut self.settings.bm_simple,
-                                lang.t("bm_simple"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.manual_shield,
-                                lang.t("manual_shield"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.target_r3,
-                                lang.t("target_r3"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.sprint_l3,
-                                lang.t("sprint_l3"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.sprint_l3_toggle,
-                                lang.t("sprint_l3_toggle"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.auto_target,
-                                lang.t("auto_target"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.switch_target,
-                                lang.t("switch_target"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.songbook,
-                                lang.t("songbook"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.quick_boots,
-                                lang.t("quick_boots"),
-                                &mut changed,
-                            );
-                            toggle(
-                                ui,
-                                &mut self.settings.quick_mask,
-                                lang.t("quick_mask"),
-                                &mut changed,
-                            );
-                            if self.settings.game_layout != GameLayout::None {
-                                ui.label(format!(
-                                    "{}: {}",
-                                    lang.t("game_prompts"),
-                                    self.settings.game_layout
-                                ));
+    fn page_home(&mut self, ui: &mut egui::Ui) -> bool {
+        let lang = self.ui_lang;
+        ui.add_space(4.0);
+        ui.label(lang.t("profile_help"));
+        ui.add_space(6.0);
+        for key in PROFILE_KEYS {
+            let selected = self.profile == key;
+            if ui.selectable_label(selected, key).clicked() {
+                self.profile = key.to_string();
+            }
+        }
+        ui.add_space(6.0);
+        if ui.button(lang.t("apply")).clicked() {
+            self.apply_profile();
+        }
+        ui.separator();
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            ui.label(lang.t("language"));
+            for code in Lang::ALL {
+                if ui
+                    .selectable_value(&mut self.settings.lang, *code, code.as_str())
+                    .changed()
+                {
+                    changed = true;
+                }
+            }
+        });
+        changed
+    }
+
+    fn page_stamina(&mut self, ui: &mut egui::Ui) -> bool {
+        let lang = self.ui_lang;
+        let mut changed = false;
+        toggle(
+            ui,
+            &mut self.settings.stamina,
+            lang.t("enabled"),
+            &mut changed,
+        );
+        ui.horizontal_wrapped(|ui| {
+            ui.label(lang.t("preset"));
+            for (value, key) in PRESET_KEYS.iter().enumerate() {
+                if ui
+                    .selectable_value(&mut self.settings.preset, value as u8, lang.t(key))
+                    .changed()
+                {
+                    changed = true;
+                }
+            }
+        });
+        ui.add_space(4.0);
+        ui.label(lang.t("actions"));
+        for (value, key) in [
+            (&mut self.settings.jump, "jump"),
+            (&mut self.settings.attack, "attack"),
+            (&mut self.settings.sprint, "sprint"),
+            (&mut self.settings.block, "block"),
+            (&mut self.settings.shoot, "shoot"),
+            (&mut self.settings.roll, "roll"),
+        ] {
+            toggle(ui, value, lang.t(key), &mut changed);
+        }
+        toggle(
+            ui,
+            &mut self.settings.combat_only,
+            lang.t("combat_only"),
+            &mut changed,
+        );
+        changed
+    }
+
+    fn page_difficulty(&mut self, ui: &mut egui::Ui) -> bool {
+        let lang = self.ui_lang;
+        let mut changed = false;
+        changed |= ui
+            .add(egui::Slider::new(&mut self.settings.enemy_hp, 50..=400).text(lang.t("enemy_hp")))
+            .changed();
+        changed |= ui
+            .add(egui::Slider::new(&mut self.settings.damage, 50..=400).text(lang.t("damage")))
+            .changed();
+        changed |= ui
+            .add(
+                egui::Slider::new(&mut self.settings.sprint_speed, 100..=200)
+                    .text(lang.t("sprint_speed")),
+            )
+            .changed();
+        toggle(
+            ui,
+            &mut self.settings.no_heart_drop,
+            lang.t("no_heart"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.no_magic_drop,
+            lang.t("no_magic"),
+            &mut changed,
+        );
+        ui.separator();
+        ui.label(lang.t("enemies"));
+        changed |= enemy_level(ui, lang.t("enemy_move"), &mut self.settings.enemy_move);
+        changed |= enemy_level(ui, lang.t("enemy_anim"), &mut self.settings.enemy_anim);
+        changed |= enemy_level(ui, lang.t("enemy_attack"), &mut self.settings.enemy_attack);
+        changed |= enemy_level(ui, lang.t("enemy_proj"), &mut self.settings.enemy_proj);
+        changed |= enemy_level(ui, lang.t("enemy_alert"), &mut self.settings.enemy_alert);
+        changed |= enemy_level(ui, lang.t("boss_move"), &mut self.settings.boss_move);
+        changed |= enemy_level(ui, lang.t("boss_anim"), &mut self.settings.boss_anim);
+        ui.horizontal_wrapped(|ui| {
+            ui.label(lang.t("enemy_aggro"));
+            for level in enemy::AGGRO_LEVELS {
+                if ui
+                    .selectable_value(
+                        &mut self.settings.enemy_aggro,
+                        level,
+                        lang.aggro_name(level),
+                    )
+                    .changed()
+                {
+                    changed = true;
+                }
+            }
+        });
+        toggle(
+            ui,
+            &mut self.settings.enemy_double,
+            lang.t("enemy_double"),
+            &mut changed,
+        );
+        changed
+    }
+
+    fn page_controls(&mut self, ui: &mut egui::Ui) -> bool {
+        let lang = self.ui_lang;
+        let mut changed = false;
+        toggle(
+            ui,
+            &mut self.settings.button_mapping,
+            lang.t("button_mapping"),
+            &mut changed,
+        );
+        changed |= choice_row(
+            ui,
+            lang.t("button_style"),
+            ButtonStyle::ALL,
+            &mut self.settings.button_style,
+            |s| s.as_str(),
+        );
+        changed |= choice_row(
+            ui,
+            lang.t("bm_layout"),
+            BmLayout::ALL,
+            &mut self.settings.bm_layout,
+            |s| s.as_str(),
+        );
+        changed |= choice_row(
+            ui,
+            lang.t("l_mode"),
+            LMode::ALL,
+            &mut self.settings.bm_l_mode,
+            |s| s.as_str(),
+        );
+        toggle(
+            ui,
+            &mut self.settings.bm_simple,
+            lang.t("bm_simple"),
+            &mut changed,
+        );
+        ui.separator();
+        toggle(
+            ui,
+            &mut self.settings.manual_shield,
+            lang.t("manual_shield"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.target_r3,
+            lang.t("target_r3"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.sprint_l3,
+            lang.t("sprint_l3"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.sprint_l3_toggle,
+            lang.t("sprint_l3_toggle"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.auto_target,
+            lang.t("auto_target"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.switch_target,
+            lang.t("switch_target"),
+            &mut changed,
+        );
+        ui.separator();
+        toggle(
+            ui,
+            &mut self.settings.songbook,
+            lang.t("songbook"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.quick_boots,
+            lang.t("quick_boots"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.quick_mask,
+            lang.t("quick_mask"),
+            &mut changed,
+        );
+        ui.separator();
+        ui.label(lang.t("remap"));
+        ui.label(lang.t("remap_help"));
+        ui.horizontal_wrapped(|ui| {
+            ui.label(lang.t("table"));
+            for key in roles::REMAP_PRESET_KEYS {
+                if ui.button(key).clicked()
+                    && let Some(table) = roles::remap_preset(key)
+                {
+                    self.settings.bm_roles = table;
+                    changed = true;
+                }
+            }
+        });
+        egui::Grid::new("remap-grid").num_columns(2).show(ui, |ui| {
+            for button in ROLE_KEYS {
+                ui.label(button.as_str());
+                let current = self
+                    .settings
+                    .bm_roles
+                    .get(&button)
+                    .copied()
+                    .unwrap_or(Role::None);
+                egui::ComboBox::from_id_salt(format!("role-{}", button.as_str()))
+                    .selected_text(current.as_str())
+                    .show_ui(ui, |ui| {
+                        let entry = self.settings.bm_roles.entry(button).or_insert(Role::None);
+                        for role in Role::ALL {
+                            if !roles::role_allowed(*role, button) {
+                                continue;
                             }
-                        });
-
-                    egui::CollapsingHeader::new(lang.t("remap"))
-                        .default_open(false)
-                        .show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(lang.t("table"));
-                                for key in roles::REMAP_PRESET_KEYS {
-                                    if ui.button(key).clicked()
-                                        && let Some(table) = roles::remap_preset(key)
-                                    {
-                                        self.settings.bm_roles = table;
-                                        changed = true;
-                                    }
-                                }
-                            });
-                            egui::Grid::new("remap-grid").num_columns(2).show(ui, |ui| {
-                                for button in ROLE_KEYS {
-                                    ui.label(button.as_str());
-                                    let current = self
-                                        .settings
-                                        .bm_roles
-                                        .get(&button)
-                                        .copied()
-                                        .unwrap_or(Role::None);
-                                    egui::ComboBox::from_id_salt(format!(
-                                        "role-{}",
-                                        button.as_str()
-                                    ))
-                                    .selected_text(current.as_str())
-                                    .show_ui(ui, |ui| {
-                                        let entry = self
-                                            .settings
-                                            .bm_roles
-                                            .entry(button)
-                                            .or_insert(Role::None);
-                                        for role in Role::ALL {
-                                            if !roles::role_allowed(*role, button) {
-                                                continue;
-                                            }
-                                            if ui
-                                                .selectable_value(entry, *role, role.as_str())
-                                                .changed()
-                                            {
-                                                changed = true;
-                                            }
-                                        }
-                                    });
-                                    ui.end_row();
-                                }
-                            });
-                        });
-
-                    ui.horizontal(|ui| {
-                        ui.label(lang.t("language"));
-                        for lang_code in Lang::ALL {
-                            if ui
-                                .selectable_value(
-                                    &mut self.settings.lang,
-                                    *lang_code,
-                                    lang_code.as_str(),
-                                )
-                                .changed()
-                            {
+                            if ui.selectable_value(entry, *role, role.as_str()).changed() {
                                 changed = true;
                             }
                         }
                     });
-
-                    ui.separator();
-                    ui.label(lang.t("log"));
-                    egui::ScrollArea::vertical()
-                        .max_height(140.0)
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            for line in &self.log {
-                                ui.monospace(line);
-                            }
-                        });
-                });
-
-            if changed && self.profile != "custom" {
-                // Any option the user touches turns the profile into "custom", like the Python window.
-                self.profile = "custom".to_string();
+                ui.end_row();
             }
         });
+        changed
+    }
+
+    fn page_hud(&mut self, ui: &mut egui::Ui) -> bool {
+        let lang = self.ui_lang;
+        let mut changed = false;
+        ui.horizontal_wrapped(|ui| {
+            ui.label(lang.t("hud_mode"));
+            for mode in HudMode::ALL {
+                if ui
+                    .selectable_value(
+                        &mut self.settings.hud_mode,
+                        *mode,
+                        lang.hud_mode_name(*mode),
+                    )
+                    .changed()
+                {
+                    changed = true;
+                }
+            }
+        });
+        toggle(
+            ui,
+            &mut self.settings.hud_rupees,
+            lang.t("rupees"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.hud_clock,
+            lang.t("clock"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.clock_24h,
+            lang.t("clock24"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.hud_collectibles,
+            lang.t("collectibles"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.stamina_bar,
+            lang.t("stamina_bar"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.hide_minimap,
+            lang.t("hide_minimap"),
+            &mut changed,
+        );
+        changed |= ui
+            .add(
+                egui::Slider::new(&mut self.settings.hud_ctrl_scale, 50..=200)
+                    .step_by(5.0)
+                    .text(lang.t("ctrl_scale")),
+            )
+            .changed();
+        changed |= ui
+            .add(
+                egui::Slider::new(&mut self.settings.hud_count_scale, 50..=200)
+                    .step_by(5.0)
+                    .text(lang.t("count_scale")),
+            )
+            .changed();
+        changed
+    }
+
+    fn page_misc(&mut self, ui: &mut egui::Ui) -> bool {
+        let lang = self.ui_lang;
+        let mut changed = false;
+        ui.label(lang.t("misc"));
+        toggle(
+            ui,
+            &mut self.settings.great_fairy,
+            lang.t("great_fairy"),
+            &mut changed,
+        );
+        toggle(
+            ui,
+            &mut self.settings.farore_outdoor,
+            lang.t("farore_outdoor"),
+            &mut changed,
+        );
+        ui.horizontal_wrapped(|ui| {
+            ui.label(lang.t("game_layout"));
+            for layout in GameLayout::ALL {
+                if ui
+                    .selectable_value(&mut self.settings.game_layout, *layout, layout.as_str())
+                    .changed()
+                {
+                    changed = true;
+                }
+            }
+        });
+        // What this port does not do yet, said on the page where the user would look for it.
+        ui.separator();
+        ui.label(lang.t("not_ported"));
+        ui.label("  game-wide prompt download + resource table merge");
+        ui.label("  GameCube UI diagram (needs the game dump)");
+        ui.label("  relink / rekarina / longshot install targets and the updater");
+        false || changed
+    }
+
+    fn page_about(&mut self, ui: &mut egui::Ui) {
+        ui.add_space(6.0);
+        ui.heading(format!("{} {}", self.ui_lang.t("title"), shb_core::VERSION));
+        ui.separator();
+        ui.label(self.ui_lang.t("about_body"));
+        ui.add_space(6.0);
+        if let Some(payload) = &self.payload {
+            ui.label(format!(
+                "{}: {}",
+                self.ui_lang.t("payload"),
+                payload.display()
+            ));
+        }
+        ui.label(format!("{}: {}", "title id", find::TITLE_ID));
     }
 }
 
@@ -760,11 +1047,10 @@ fn main() -> eframe::Result {
     }
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([980.0, 760.0])
-            .with_min_inner_size([720.0, 520.0]),
+            .with_inner_size([1020.0, 780.0])
+            .with_min_inner_size([760.0, 520.0]),
         ..Default::default()
     };
-    eprintln!("the game's title id: {}", find::TITLE_ID);
     eframe::run_native(
         "Super Hero Boost",
         options,

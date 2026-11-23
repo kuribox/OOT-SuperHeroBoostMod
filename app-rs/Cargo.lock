@@ -1861,6 +1861,7 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "structured-zstd",
 ]
 
 [[package]]
@@ -1954,6 +1955,16 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "structured-zstd"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2af0d5a873b0f54b6d6b3ac949ae1ea74abf81455542c44d503c0a08c1de2c0"
+dependencies = [
+ "libc",
+ "twox-hash",
+]
 
 [[package]]
 name = "syn"
@@ -2080,6 +2091,12 @@ name = "tracing-core"
 version = "0.1.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
+
+[[package]]
+name = "twox-hash"
+version = "2.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a801b3cea342a06d468c8710662aa29e5e05e4f5c0d62f00bbb7f2ad7941c2"
 
 [[package]]
 name = "type-map"

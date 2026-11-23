@@ -23,6 +23,8 @@ pub enum Error {
     IpsOverlap(usize),
     /// Not an IPS32 file, or a record type we do not produce.
     IpsFormat(&'static str),
+    /// A compressed payload that could not be read or written (the enemy packs).
+    Codec(String),
     Io {
         path: PathBuf,
         source: std::io::Error,
@@ -35,6 +37,10 @@ impl Error {
             path: path.into(),
             source,
         }
+    }
+
+    pub fn codec(what: impl Into<String>) -> Self {
+        Error::Codec(what.into())
     }
 }
 
@@ -54,6 +60,7 @@ impl fmt::Display for Error {
             ),
             Error::IpsOverlap(off) => write!(f, "IPS files overlap at main+{off:#x}"),
             Error::IpsFormat(why) => write!(f, "bad IPS file: {why}"),
+            Error::Codec(what) => write!(f, "{what}"),
             Error::Io { path, source } => write!(f, "{}: {source}", path.display()),
         }
     }

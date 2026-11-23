@@ -140,21 +140,10 @@ pub fn install(req: &InstallRequest) -> Result<InstallResult> {
         }
     }
 
+    // The enemy components: patched speed/aggression packs plus the animation folder of the chosen level.
+    notes.extend(crate::enemy::install(&romfs, s, &req.payload)?);
+
     // Parts of the Python app that this port does not carry yet: say it instead of installing half of it.
-    if s.enemy_move != 0
-        || s.enemy_anim != 0
-        || s.enemy_attack != 0
-        || s.enemy_proj != 0
-        || s.enemy_alert != 0
-        || s.enemy_aggro != 0
-        || s.boss_move != 0
-        || s.boss_anim != 0
-    {
-        notes.push(
-            "enemy speed / aggression: not ported to the Rust app yet, the packs were not installed"
-                .to_string(),
-        );
-    }
     if s.bm_layout == BmLayout::Gamecube {
         notes.push(
             "GameCube layout: the patched UI diagram is not ported to the Rust app yet; the HUD and the button art were installed"

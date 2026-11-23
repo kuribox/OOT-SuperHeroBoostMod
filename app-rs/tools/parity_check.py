@@ -157,6 +157,13 @@ def report_diff(expected: bytes, got: bytes) -> None:
     print(f"    {len(diffs)} differing bytes, first: {diffs[:12]}")
 
 
+def zs_payload(blob: bytes, dictionary: bytes) -> bytes:
+    """The decompressed content of a `.zs` pack, read with the game's own dictionary."""
+    zstandard = importlib.import_module("zstandard")
+    decompressor = zstandard.ZstdDecompressor(dict_data=zstandard.ZstdCompressionDict(dictionary))
+    return decompressor.decompress(blob, max_output_size=400_000_000)
+
+
 def tree_digest(root: Path) -> dict[str, str]:
     out = {}
     for path in sorted(root.rglob("*")):
@@ -202,15 +209,33 @@ def install_cases(app: Path, payload: Path, shb: Path, profiles: list[str]) -> i
             marker = installer.MARKER
             py_files = {k: v for k, v in py_tree.items() if k != marker}
             rs_files = {k: v for k, v in rs_tree.items() if k != marker}
-            if py_files == rs_files:
-                identical = sum(1 for v in py_files.values() if v)
-                print(f"  install {key:<16} ok ({len(py_files)} files, module + ips + romfs identical)")
+            differing = [n for n in set(py_files) | set(rs_files) if py_files.get(n) != rs_files.get(n)]
+            # The enemy packs are compressed: what matters is the content the game decompresses, and two zstd
+            # encoders (Python's libzstd and the Rust crate) are not required to emit the same bytes.
+            recompressed = []
+            if differing and have_zstd:
+                dictionary_path = payload / "romfs_opts" / "enemy_speed_pack.zsdic"
+                dictionary = dictionary_path.read_bytes() if dictionary_path.is_file() else None
+                for name in list(differing):
+                    if dictionary is None or not name.endswith(".zs"):
+                        continue
+                    py_path = py_result.target / name
+                    rs_path = rs_emu / "user" / "load" / installer.TITLE_ID / installer.MOD_NAME / name
+                    if not (py_path.is_file() and rs_path.is_file()):
+                        continue
+                    if zs_payload(py_path.read_bytes(), dictionary) == zs_payload(
+                        rs_path.read_bytes(), dictionary
+                    ):
+                        differing.remove(name)
+                        recompressed.append(name)
+            if not differing:
+                extra = f", {len(recompressed)} packs equal after decompression" if recompressed else ""
+                print(f"  install {key:<16} ok ({len(py_files)} files, module + ips + romfs identical{extra})")
             else:
                 failures += 1
                 print(f"  install {key:<16} DIFFERENT")
-                for name in sorted(set(py_files) | set(rs_files)):
-                    if py_files.get(name) != rs_files.get(name):
-                        print(f"    {name}: py={py_files.get(name)} rs={rs_files.get(name)}")
+                for name in sorted(differing):
+                    print(f"    {name}: py={py_files.get(name)} rs={rs_files.get(name)}")
         print(f"install: {checked - failures}/{checked} trees identical")
     finally:
         shutil.rmtree(work, ignore_errors=True)
