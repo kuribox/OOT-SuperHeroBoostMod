@@ -15,3 +15,5 @@ shb-core.workspace = true
 # system-font provider. See `.cargo/config.toml` for the linker note that makes this work on windows-gnu.
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu"] }
 egui = "0.37"
+# The logo is the app's own PNG (app/assets/shb.png), decoded at startup for the header and the window icon.
+image = { version = "0.25", default-features = false, features = ["png"] }

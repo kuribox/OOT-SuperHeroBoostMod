@@ -31,6 +31,8 @@ jobs:
         run: cargo clippy --manifest-path app-rs/Cargo.toml --all-targets -- -D warnings
       - name: Test
         run: cargo test --manifest-path app-rs/Cargo.toml --workspace
+      - name: The text table matches app/i18n.py
+        run: python app-rs/tools/gen_i18n.py --check
       - name: Build
         run: cargo build --manifest-path app-rs/Cargo.toml --release
 
