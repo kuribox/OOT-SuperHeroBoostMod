@@ -661,6 +661,18 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   frame 5400, and every stale `shbdebug.bin` in `user/nand/user/save` kept its mtime.
 - Not proven: that the race caused that crash. It is the only mod-side I/O in the window and the stack shows a
   corrupt object being released, but reproducing it needs the 200 fps timing.
+- The player's own `longshot_log.txt` (same build, same crash) adds four things: the mod's **input wrapper really
+  runs there** (`hid: the game reads npad 0, lr 0x84fa04b8` = `subsdk9+0x4B8`, inside `hook_input3`); the guest
+  runs at **37 fps with Longshot's "real-time step" on, ratio 1.603** (`vi: real-time step on`), so that machine
+  never reaches 60 and the guest's frame step is scaled; the crash follows `nn::movie::Finalize`, which is an
+  **unimplemented import** (so are `movie::Initialize` and `IsInitialized`), by about a second and right after
+  `gmd::SaveDataMgr: fs: save: published 2 files`; and no other mod is installed.
+- Because of that frame step: on 0.9.x, every duration counted in frames ran **1.62x long** on that machine
+  (60/37). That is what `core/clock.c` fixes, but only if Longshot scales `CNTPCT_EL0` with the same step — one
+  test on a recomp answers it (`g_clock_dbg[1]` against the log's `game's frame rate`).
+- Test-protocol trap: on a recomp, **deleting `mods/zz-Super-Hero-Boost` removes only the RomFS**; the module and
+  the 26 hook sites are baked into `image.bin`/`bin/longshot.exe` by the rebuild. "It does not crash without the
+  mod" only clears the mod as a whole if that test rebuilt the game from a clean exefs.
 
 ## Frames are not milliseconds: the module's own clock (Nov 23)
 
