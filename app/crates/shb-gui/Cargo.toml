@@ -12,8 +12,10 @@ path = "src/lib.rs"
 [dependencies]
 shb-core.workspace = true
 # wgpu (eframe's default renderer) with only what the window needs: no accessibility bridge, no clipboard, no
-# system-font provider. See `.cargo/config.toml` for the linker note that makes this work on windows-gnu.
-eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu"] }
+# system-font provider. `x11` and `wayland` are the backends winit needs on Linux: without them winit has no platform
+# there at all ("The platform you're compiling for is not supported by winit"), which the Windows and macOS builds
+# never showed. See `.cargo/config.toml` for the linker note that makes this work on windows-gnu.
+eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu", "x11", "wayland"] }
 egui = "0.37"
 # The folder picker of "Examinar…": the OS dialog, no runtime of our own. On Windows it is the IFileDialog of the
 # shell; on macOS the NSOpenPanel of the crate. On Linux and the BSDs it needs a backend, and the desktop portal
