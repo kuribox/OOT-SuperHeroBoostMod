@@ -69,6 +69,11 @@ pub fn load_directory(emu: &Path) -> Option<PathBuf> {
 }
 
 /// The folder that holds the per-title mod folders.
+/// A payload folder: the module it installs is there (what every install starts from).
+pub fn looks_like_payload(dir: &Path) -> bool {
+    dir.join("standalone").join("subsdk9").is_file()
+}
+
 pub fn find_mods_dir(emu: &Path) -> Option<PathBuf> {
     if !emu.exists() {
         return None;

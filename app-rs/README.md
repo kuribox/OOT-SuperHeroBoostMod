@@ -159,6 +159,18 @@ returns its exit code; the window's Install page has the same action as "Recompi
 Rekarina targets, with the log in the card below. `SHB_PYTHON` picks the interpreter (`py -3.12` on Windows by
 default) and `--app` the Python folder when it is not the payload's parent.
 
+## One executable
+
+The release binaries carry the payload: `crates/shb-core/build.rs` turns `app/payload` into one `include_bytes!` per
+file when the folder is there at build time (the CI stages it with `tools/ci_payload.py`), and the app unpacks it on
+first use into `<data>/SHB-OcarinaTweaks/payload/<stamp>/` — `%LOCALAPPDATA%` on Windows, `~/Library/Caches` on macOS,
+`$XDG_CACHE_HOME` on Linux. The stamp hashes the payload's content, so a rebuilt payload unpacks into a new folder
+instead of mixing with the old one. `shb.exe` (34 MB) and `shb-gui.exe` (44 MB) install the mod with nothing beside
+them; a `payload/` folder next to the binary (or `SHB_PAYLOAD`) still wins, which is how the app is developed.
+
+`SHB_NO_EMBED_PAYLOAD=1` builds without it, `SHB_PAYLOAD_DIR` embeds another folder. The same two binaries then need
+`payload/` beside them, and the parity checker exercises that path.
+
 ## The rebuild, in this app
 
 `shb rebuild --game <folder> --profile <name>` (and the window's rebuild button) drives every build from here — no

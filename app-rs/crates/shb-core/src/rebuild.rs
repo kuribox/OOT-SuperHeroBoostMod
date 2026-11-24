@@ -35,8 +35,13 @@ pub struct RebuildRequest {
 }
 
 impl RebuildRequest {
+    /// The payload: the folder beside the app when there is one, else the one this executable carries.
     pub fn payload(&self) -> PathBuf {
-        self.app.join("payload")
+        let beside = self.app.join("payload");
+        if crate::find::looks_like_payload(&beside) || beside.join("standalone").is_dir() {
+            return beside;
+        }
+        crate::payload_root(None).unwrap_or(beside)
     }
 }
 

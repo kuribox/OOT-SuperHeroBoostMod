@@ -298,14 +298,10 @@ impl App {
             self.notes = vec![self.t("e_no_payload").to_string()];
             return;
         };
-        let app = match rebuild::app_dir(&payload) {
-            Ok(app) => app,
-            Err(err) => {
-                self.failed = true;
-                self.notes = vec![format!("{err}")];
-                return;
-            }
-        };
+        let app = payload
+            .parent()
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| payload.clone());
         let request = rebuild::RebuildRequest {
             game: PathBuf::from(self.emu.trim()),
             profile: self.profile.clone(),

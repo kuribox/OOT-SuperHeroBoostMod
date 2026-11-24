@@ -13,6 +13,7 @@
 //! - [`ips`], [`find`], [`paths`]: the small parts around it
 
 pub mod config;
+pub mod embedded;
 pub mod enemy;
 pub mod error;
 pub mod find;
@@ -66,7 +67,9 @@ pub fn payload_root(explicit: Option<&std::path::Path>) -> Option<std::path::Pat
         }
     }
     candidates.push(std::path::PathBuf::from("app/payload"));
-    candidates
-        .into_iter()
-        .find(|p| p.join("standalone").is_dir())
+    if let Some(found) = candidates.into_iter().find(|p| find::looks_like_payload(p)) {
+        return Some(found);
+    }
+    // Nothing beside the program: the payload this binary carries, unpacked into the user's data folder.
+    embedded::ensure().ok()
 }

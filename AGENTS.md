@@ -94,8 +94,10 @@ install trees, 2/2 Rekarina installs). Build: `export PATH="/c/Users/Kuri/.cargo
 `cargo build --release -p shb-gui` in `app-rs/`; the window is eframe/egui 0.37 with the **wgpu** backend (glow
 segfaults here).
 
-- **The install is native.** `shb-core` writes the module, the config block, the IPS, the romfs and the enemy packs
-  itself; nothing of the app runs in Python.
+- **The install is native, and the payload travels in the binary.** `shb-core` writes the module, the config block,
+  the IPS, the romfs and the enemy packs itself; nothing of the app runs in Python. `build.rs` embeds `app/payload`
+  (1 169 files, 27 MB) so `shb.exe` / `shb-gui.exe` work alone, unpacking it once into
+  `%LOCALAPPDATA%\SHB-OcarinaTweaks\payload\<content stamp>\`; a `payload/` folder beside the exe still wins.
 - **The rebuild is native for recompiled games** (`shb-core/src/recomp_build.rs` + `rebuild.rs`): it finds the builder
   (Longshot's launcher keeps its toolchains under `%LOCALAPPDATA%\LongshotLauncher	oolchains\<version>\`), works out
   DLSS/FSR/XeSS from the launcher's files, and drives `tools/nx2/make_game.py`, reading its `@@stage`/`@@progress`

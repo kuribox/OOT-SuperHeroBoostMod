@@ -47,6 +47,28 @@ pub fn user_config_dir() -> PathBuf {
     }
 }
 
+/// The per-user data folder: the payload unpacked from the executable lives here (a cache, not the settings).
+pub fn user_data_dir() -> PathBuf {
+    #[cfg(windows)]
+    {
+        let base = std::env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home().join("AppData/Local"));
+        base.join(APP_NAME)
+    }
+    #[cfg(target_os = "macos")]
+    {
+        home().join("Library/Caches").join(APP_NAME)
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        let base = std::env::var_os("XDG_CACHE_HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home().join(".cache"));
+        base.join(APP_NAME)
+    }
+}
+
 /// Where a new settings file goes: portable first, per-user second.
 pub fn settings_paths() -> (PathBuf, PathBuf) {
     (

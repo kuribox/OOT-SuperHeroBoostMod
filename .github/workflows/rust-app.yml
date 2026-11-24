@@ -37,6 +37,10 @@ jobs:
         run: python app-rs/tools/gen_gamecube.py --check
       - name: Every text the window asks for exists
         run: python app-rs/tools/check_gui_keys.py
+      # The payload is data, not code: the release binary carries it so one exe installs the mod. Generated here
+      # because it is not committed (it holds the built module).
+      - name: Stage the payload
+        run: python tools/ci_payload.py
       - name: Build
         run: cargo build --manifest-path app-rs/Cargo.toml --release
 

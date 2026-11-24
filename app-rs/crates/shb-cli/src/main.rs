@@ -609,9 +609,13 @@ fn run(args: &[String]) -> Result<()> {
             let payload = payload_root(o.payload.as_deref()).ok_or_else(|| {
                 Error::PayloadMissing(PathBuf::from("payload (set --payload or SHB_PAYLOAD)"))
             })?;
+            // The app folder is only where a `payload/` may sit: the executable carries one when it is not there.
             let app = match &o.app {
                 Some(dir) => dir.clone(),
-                None => rebuild::app_dir(&payload)?,
+                None => payload
+                    .parent()
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|| PathBuf::from(".")),
             };
             let profile = o
                 .profile
