@@ -415,6 +415,13 @@ pub fn apply_settings(game: &Rekarina, s: &Settings, payload: &Path) -> Result<(
     Ok(())
 }
 
+/// Say that the game was rebuilt with the module (the state's `rebuilt` flag), from what is on disk now.
+pub fn mark_rebuilt(game: &Rekarina) -> Result<()> {
+    let exe_sha = sha256(&read(&exe_path(game))?);
+    let module_sha = sha256(&read(&module_path(game))?);
+    write_state(game, &exe_sha, &module_sha, true, None)
+}
+
 /// The romfs files, plus the two things Rekarina needs beside them: the ExeFS patch set it switches its generated
 /// code on with, and a marker saying which mod folder this is.
 fn install_romfs(game: &Rekarina, s: &Settings, payload: &Path) -> Result<()> {

@@ -100,8 +100,11 @@ segfaults here).
   (Longshot's launcher keeps its toolchains under `%LOCALAPPDATA%\LongshotLauncher	oolchains\<version>\`), works out
   DLSS/FSR/XeSS from the launcher's files, and drives `tools/nx2/make_game.py`, reading its `@@stage`/`@@progress`
   lines. The recompiler itself stays an external program — that is its compiler, not ours.
-- **Rekarina's rebuild still goes through Rekarina's own pipeline** (`app/rebuild.py` drives `setup/`'s `gen.py`,
-  `build_game.py` and its interpreter): re-implementing a lifter is not the app's job.
+- **Rekarina's rebuild is native too** (`shb-core/src/rekarina_build.rs`): it runs the setup's own `gen.py`,
+  `build_game.py` and its converters (they are Rekarina's tools) but does this app's part — ExeFS staging, the
+  patch tables, the extra `main` seeds, the expected hashes, the base check — in Rust. `app/rebuild.py` is unused.
+  NSO sizes are `data`'s memory + decompressed + bss at `0x3c`, aligned to a page; modules are placed on **2 MiB**
+  boundaries, which is what makes `subsdk9` land at `main+0x5200000`.
 - Dev aids: `SHB_PAGE=<install|presets|gameplay|difficulty|controls|hud|misc|help|about>` opens a page directly,
   `SHB_WINDOW=WxH` sizes the window and `SHB_HELP=<key>` opens one help text — how the screenshots in
   `docs/capturas/` are taken. `tests` before a release build, and `Stop-Process -Name shb-gui -Force` before

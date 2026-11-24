@@ -1152,9 +1152,9 @@ impl App {
 
     /// A profile: its name, the first sentence of what it changes and the rest behind the "?".
     ///
-    /// The whole card takes the click. The interaction is registered *before* the card is drawn, from the rectangle of
-    /// the previous frame: `ui.interact` after the contents would sit on top of the "?" and eat its clicks. That is
-    /// also what gives the card the hand cursor.
+    /// The whole card takes the click, hit-tested by hand against its own rectangle: an interaction registered before
+    /// the contents ends up under them (only a corner stayed clickable) and one registered after them eats the "?".
+    /// The "?" keeps its own button, so a click there opens the text and does not select the card.
     fn profile_card(
         &mut self,
         ui: &mut egui::Ui,
@@ -1163,17 +1163,6 @@ impl App {
     ) {
         let lang = self.ui_lang;
         let selected = self.profile == key;
-        let id = ui.make_persistent_id(("profile-card", key));
-        let known = ui.data(|d| d.get_temp::<egui::Rect>(id));
-        let mut pick = false;
-        if let Some(rect) = known {
-            // The hand cursor is not automatic for a bare interaction: a button asks for it, and so does this.
-            let hit = ui.interact(rect, id.with("hit"), egui::Sense::click());
-            let _ = hit.clone().on_hover_cursor(egui::CursorIcon::PointingHand);
-            if hit.clicked() {
-                pick = true;
-            }
-        }
         let key_desc = profile_desc_key(key);
         let full = tr(lang, key_desc);
         let shown = widgets::short(full);
@@ -1194,6 +1183,7 @@ impl App {
             ))
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::symmetric(10, 6));
+        let mut help_rect = None;
         let drawn = frame.show(ui, |ui| {
             ui.set_width(width - 22.0);
             ui.horizontal(|ui| {
@@ -1220,7 +1210,7 @@ impl App {
                     widgets::star(ui, 11.0, color);
                 }
                 if shown != full {
-                    widgets::help_icon(ui, key_desc, lang, help);
+                    help_rect = Some(widgets::help_icon(ui, key_desc, lang, help).rect);
                 }
             });
             ui.horizontal_wrapped(|ui| {
@@ -1231,8 +1221,7 @@ impl App {
                 }));
             });
         });
-        ui.data_mut(|d| d.insert_temp(id, drawn.response.rect));
-        if pick {
+        if card_pressed(ui, drawn.response.rect, help_rect) {
             self.profile = key.to_string();
         }
     }
@@ -1584,13 +1573,13 @@ impl App {
                 if wide {
                     ui.columns(2, |cols| {
                         for (i, key) in PRESETS.iter().enumerate() {
-                            self.preset_card(&mut cols[i % 2], key, &mut changed);
+                            self.preset_card(&mut cols[i % 2], key, &mut help, &mut changed);
                             cols[i % 2].add_space(4.0);
                         }
                     });
                 } else {
                     for key in PRESETS {
-                        self.preset_card(ui, key, &mut changed);
+                        self.preset_card(ui, key, &mut help, &mut changed);
                         ui.add_space(4.0);
                     }
                 }
@@ -1733,9 +1722,14 @@ impl App {
 
     /// One card of the presets: its name, the first sentence of its description, and the rest behind the "?".
     ///
-    /// Same trick as the profile cards: the interaction is registered before the contents, from the previous frame's
-    /// rectangle, so the whole card clicks, the "?" keeps working, and the card shows the hand cursor.
-    fn preset_card(&mut self, ui: &mut egui::Ui, key: &'static str, changed: &mut bool) -> bool {
+    /// Same hit test as the profile cards: the whole card clicks and the "?" keeps its own button.
+    fn preset_card(
+        &mut self,
+        ui: &mut egui::Ui,
+        key: &'static str,
+        help: &mut Option<&'static str>,
+        changed: &mut bool,
+    ) -> bool {
         let lang = self.ui_lang;
         let selected = shb_core::roles::remap_preset(key)
             .map(|table| {
@@ -1743,17 +1737,6 @@ impl App {
                     == self.settings.bm_roles
             })
             .unwrap_or(false);
-        let id = ui.make_persistent_id(("preset-card", key));
-        let known = ui.data(|d| d.get_temp::<egui::Rect>(id));
-        let mut pick = false;
-        if let Some(rect) = known {
-            // The hand cursor is not automatic for a bare interaction: a button asks for it, and so does this.
-            let hit = ui.interact(rect, id.with("hit"), egui::Sense::click());
-            let _ = hit.clone().on_hover_cursor(egui::CursorIcon::PointingHand);
-            if hit.clicked() {
-                pick = true;
-            }
-        }
         let width = ui.available_width();
         let frame = egui::Frame::NONE
             .fill(if selected {
@@ -1771,18 +1754,22 @@ impl App {
             ))
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::symmetric(10, 6));
+        let mut help_rect = None;
         let drawn = frame.show(ui, |ui| {
             ui.set_width(width - 22.0);
-            ui.label(
-                egui::RichText::new(tr(lang, preset_name_key(key)))
-                    .size(12.5)
-                    .strong()
-                    .color(if selected {
-                        theme::ON_ACCENT
-                    } else {
-                        theme::TEXT
-                    }),
-            );
+            ui.horizontal(|ui| {
+                ui.label(
+                    egui::RichText::new(tr(lang, preset_name_key(key)))
+                        .size(12.5)
+                        .strong()
+                        .color(if selected {
+                            theme::ON_ACCENT
+                        } else {
+                            theme::TEXT
+                        }),
+                );
+                help_rect = Some(widgets::help_icon(ui, preset_desc_key_for(key), lang, help).rect);
+            });
             ui.horizontal_wrapped(|ui| {
                 ui.label(
                     egui::RichText::new(tr(lang, preset_desc_key_for(key)))
@@ -1795,8 +1782,7 @@ impl App {
                 );
             });
         });
-        ui.data_mut(|d| d.insert_temp(id, drawn.response.rect));
-        if pick {
+        if card_pressed(ui, drawn.response.rect, help_rect) {
             self.apply_preset(key, changed);
         }
         selected
@@ -2393,6 +2379,19 @@ impl App {
             self.start_download(found);
         }
     }
+}
+
+/// Whether the card was clicked: the pointer is inside its rectangle, the click is a press, and the "?" (a button of
+/// its own inside the card) is not what was hit. Also asks for the hand cursor over the card.
+fn card_pressed(ui: &egui::Ui, card: egui::Rect, help: Option<egui::Rect>) -> bool {
+    let Some(pos) = ui.input(|i| i.pointer.interact_pos().or_else(|| i.pointer.hover_pos())) else {
+        return false;
+    };
+    if help.is_some_and(|rect| rect.expand(2.0).contains(pos)) || !card.contains(pos) {
+        return false;
+    }
+    ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    ui.input(|i| i.pointer.primary_clicked())
 }
 
 /// Whether a click outside the help window closes it.

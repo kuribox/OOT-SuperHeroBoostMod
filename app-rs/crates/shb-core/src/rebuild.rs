@@ -10,9 +10,7 @@
 //! pipeline whole (`app/rebuild.py`), because re-implementing a lifter is not what a configurator should do; the parts
 //! this app decides — which module, which settings, which hook seeds — are already its own.
 
-use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -154,7 +152,11 @@ pub fn run(
     Ok(())
 }
 
-/// Rekarina: its own pipeline, run whole.
+/// Rekarina: the same driver, with Rekarina's own tools doing the lift and the link.
+///
+/// The steps: the settings go into a copy of the module, the mods' patches are converted by Rekarina's converters, the
+/// lifter translates `main, subsdk0, sdk, subsdk9` with the extra seeds our hooks need, the compiler builds it, the
+/// new executable replaces the old one, and the module's hash is written into it.
 fn run_rekarina(
     req: &RebuildRequest,
     settings: &Settings,
@@ -163,107 +165,33 @@ fn run_rekarina(
     mut report: impl FnMut(BuildEvent),
 ) -> Result<()> {
     let rk = crate::rekarina::find(&req.game).ok_or_else(|| Error::NotAGame(req.game.clone()))?;
-    crate::rekarina::apply_settings(&rk, settings, payload)?;
     if !req.rebuild {
+        crate::rekarina::apply_settings(&rk, settings, payload)?;
         report(BuildEvent::Note(
             "Rekarina: settings written; the game was not rebuilt".to_string(),
         ));
         return Ok(());
     }
+    let exe = crate::rekarina_build::build(&rk, settings, payload, stop.clone(), &mut report)?;
     if stop.load(Ordering::Relaxed) {
         return Err(Error::Build {
             key: "recomp_cancelled".to_string(),
             arg: String::new(),
         });
     }
-    // Rekarina's `setup/` is a toolchain of its own: a private interpreter, `gen.py`, `build_game.py`, its patches.
-    report(BuildEvent::Note(
-        "Rekarina: its own pipeline (setup/tools) compiles the game; app/rebuild.py drives it"
-            .to_string(),
-    ));
-    python_rebuild(req, stop, |line| report(BuildEvent::Line(line.to_string())))
-}
-
-/// The interpreter `app/rebuild.py` runs under: `SHB_PYTHON` when set, else `py -3.12` on Windows and `python3`.
-fn interpreter() -> (String, Vec<String>) {
-    if let Ok(custom) = std::env::var("SHB_PYTHON")
-        && !custom.is_empty()
-    {
-        return (custom, Vec::new());
-    }
-    if cfg!(windows) {
-        ("py".to_string(), vec!["-3.12".to_string()])
-    } else {
-        ("python3".to_string(), Vec::new())
-    }
-}
-
-/// Rekarina's rebuild, through the app's own driver (it hands the work to Rekarina's scripts).
-fn python_rebuild(
-    req: &RebuildRequest,
-    stop: Arc<AtomicBool>,
-    mut line: impl FnMut(&str),
-) -> Result<()> {
-    let script = req.app.join("rebuild.py");
-    if !script.is_file() {
-        return Err(Error::Rebuild(format!(
-            "{} is missing: it drives Rekarina's own build",
-            script.display()
-        )));
-    }
-    let (program, prefix) = interpreter();
-    let mut command = Command::new(&program);
-    command
-        .args(prefix)
-        .arg(&script)
-        .arg("--game")
-        .arg(&req.game)
-        .arg("--profile")
-        .arg(&req.profile)
-        .current_dir(&req.app)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .env("PYTHONUNBUFFERED", "1");
-    let mut child = command
-        .spawn()
-        .map_err(|e| Error::Rebuild(format!("could not run {program}: {e}")))?;
-    let stderr = child.stderr.take().map(|stream| {
-        std::thread::spawn(move || {
-            BufReader::new(stream)
-                .lines()
-                .map_while(std::result::Result::ok)
-                .collect::<Vec<String>>()
-        })
-    });
-    if let Some(stdout) = child.stdout.take() {
-        for text in BufReader::new(stdout)
-            .lines()
-            .map_while(std::result::Result::ok)
-        {
-            if stop.load(Ordering::Relaxed) {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(Error::Build {
-                    key: "recomp_cancelled".to_string(),
-                    arg: String::new(),
-                });
-            }
-            line(&text);
-        }
-    }
-    let status = child.wait().map_err(|e| Error::Rebuild(format!("{e}")))?;
-    if let Some(handle) = stderr
-        && let Ok(lines) = handle.join()
-    {
-        for text in lines {
-            line(&text);
-        }
-    }
-    if status.success() {
-        Ok(())
-    } else {
-        Err(Error::Rebuild(format!("the rebuild failed ({status})")))
-    }
+    // The new executable replaces the old one through a temporary name: an interrupted copy must not leave a half exe.
+    let dest = rk.root.join(crate::rekarina::EXE_NAME);
+    let tmp = dest.with_file_name(format!("{}.shb-tmp", crate::rekarina::EXE_NAME));
+    std::fs::copy(&exe, &tmp).map_err(|e| Error::io(&tmp, e))?;
+    std::fs::rename(&tmp, &dest).map_err(|e| Error::io(&dest, e))?;
+    // The settings into the module that ships beside the executable, and its hash into the executable.
+    crate::rekarina::apply_settings(&rk, settings, payload)?;
+    crate::rekarina::mark_rebuilt(&rk)?;
+    report(BuildEvent::Note(format!(
+        "Rekarina: rebuilt {}",
+        dest.display()
+    )));
+    Ok(())
 }
 
 /// The app folder (the one that holds `payload/`) from the payload path.

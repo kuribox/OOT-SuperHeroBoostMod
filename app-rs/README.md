@@ -161,7 +161,8 @@ default) and `--app` the Python folder when it is not the payload's parent.
 
 ## The rebuild, in this app
 
-`shb rebuild --game <folder> --profile <name>` (and the window's rebuild button) drives the build from here:
+`shb rebuild --game <folder> --profile <name>` (and the window's rebuild button) drives every build from here — no
+part of this app runs in Python:
 
 * a static recompilation (Longshot, Hookshot, ReLink): `shb-core/src/recomp_build.rs` finds the builder the launcher
   installed (`%LOCALAPPDATA%\<Launcher>	oolchains\<version>\LongshotBuilder`, or one beside the game, or `--builder`),
@@ -169,9 +170,12 @@ default) and `--app` the Python folder when it is not the payload's parent.
   `launcher.ini`, or the game's own `*_options.ini`), passes the builder its arguments and environment, and reads the
   `@@stage` / `@@progress` protocol it prints. The recompiler's `make_game.py` and its toolchain are external
   programs, the way a C project's compiler is: **no part of this app runs in Python** for a recompiled game.
-* a Rekarina install: Rekarina ships its own three-stage pipeline (a private interpreter, `gen.py`,
-  `build_game.py`, its patches) in its `setup/` folder. `app/rebuild.py` hands the work to it — porting a lifter is
-  not what a configurator should do — and `shb-core/src/rebuild.rs` drives that.
+* a Rekarina install: `shb-core/src/rekarina_build.rs` runs Rekarina's own three stages as Rekarina's tools (its
+  private interpreter, `recomp/gen.py`, `tools/build_game.py`, `tools/cheats.py`, `tools/exefs_patches.py`), and does
+  this app's part of it here: stage the ExeFS, convert the mods' patch tables, compute the extra `main` seeds our
+  hooks need (74 mid-function resume points, the same the Python reference computes), write the expected-hash table
+  with our module, check the base the lifter used, and replace the executable atomically. `app/rebuild.py` is no
+  longer used.
 
 ## Not ported yet
 

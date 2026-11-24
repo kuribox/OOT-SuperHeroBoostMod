@@ -105,7 +105,7 @@ pub fn help_icon(
     key: &'static str,
     lang: Lang,
     open: &mut Option<&'static str>,
-) {
+) -> egui::Response {
     // No frame: a gold "?" on the panel, quiet until the pointer is over it, and close to its text — the button's
     // padding and the item spacing are what made it look spaced out from the sentence it belongs to.
     let button = egui::Button::new(RichText::new("?").size(12.0).strong().color(theme::ACCENT))
@@ -124,6 +124,7 @@ pub fn help_icon(
     if clicked.clicked() {
         *open = Some(key);
     }
+    clicked
 }
 
 /// The flag of a language, drawn: the system fonts do not carry the flag emoji.
