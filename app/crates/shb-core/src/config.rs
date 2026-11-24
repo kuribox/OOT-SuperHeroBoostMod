@@ -603,6 +603,20 @@ mod tests {
         assert!(matches!(locate(&[0u8; 64]), Err(Error::ConfigBlock(_))));
     }
 
+    /// The difficulty ladder goes up to ×6: the block keeps both multipliers as percentages in a u16, so 600 has
+    /// to survive the patch in both fields.
+    #[test]
+    fn the_multipliers_go_up_to_x6() {
+        let s = Settings {
+            enemy_hp: 600,
+            damage: 600,
+            ..Settings::default()
+        };
+        let image = patch_config(&module(0x61), &s).unwrap();
+        let read = read_config(&image).unwrap();
+        assert_eq!((read.enemy_hp, read.damage), (600, 600));
+    }
+
     #[test]
     fn fields_land_on_their_offsets() {
         let s = Settings {

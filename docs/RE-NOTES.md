@@ -351,6 +351,10 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   pauses shorter than 60 frames; GuardFailHit (the hit went through) no longer counts.
 - Enemy health: works (g_hp_log). Small enemies with MaxLife 1 scale to 3; the large enemy with MaxLife 6 only takes
   damage on its root (IsHeadshotOnlyDamage, bone Tail_1). The starting sword has EquipmentPerformance 1.
+- Both multipliers are a plain percentage the module does the maths on (`enemy_hp_pct`, `damage_taken_pct`: u16,
+  no cap in `enemy_scale` / `hp_mul` / the damage share), so the app's ladder is the only limit: it now runs
+  ×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5, ×6 (600 %) in both apps, and ×6 was read back from a running module
+  (`SHBCFG01+26` = 600, `+28` = 600) with the game in gameplay.
 - Stamina refill wait: 0.8 s, 1.8 s in combat, 2.5 s after exhaustion.
 
 ## Great Fairy rewards and Farore's Wind outdoors (Nov 14)

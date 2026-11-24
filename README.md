@@ -11,11 +11,13 @@ work: no third-party mod is bundled or downloaded.
 Current release: **0.10.0**. **A new app**: SHB-OcarinaTweaks is a Rust program now, one executable with the
 window and the command line, that carries the mod inside it and no longer needs Python (the Python one stays in the
 repository as `app-legacy/`). The **controls** grew: a long press on **L and R** too, a **wait / no wait** choice per
-held button, **shortcut roles** that can sit on two buttons, and the game's actions that no button has are listed. The
-**HUD** hides the corner minimap and the interaction guide bar properly, and the **item HUD** is its own option. Under
-the hood, durations are **real seconds** (they no longer assume 60 frames a second) and the module **writes nothing
-into the save folder**. The module changed, so install 0.10.0 and **rebuild the game once** on Longshot, Hookshot,
-ReLink or Rekarina.
+held button (the **D-pad right** is not one of them: a tap always calls Navi and the hold is the role, so its row says
+so instead of offering a switch), **shortcut roles** that can sit on two buttons, and the game's actions that no
+button has are listed. The **enemy health and damage taken multipliers go up to ×6** (×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5,
+×6), in both apps. The **HUD** hides the corner minimap and the interaction guide bar properly, and the **item HUD** is
+its own option. Under the hood, durations are **real seconds** (they no longer assume 60 frames a second) and the
+module **writes nothing into the save folder**. The module changed, so install 0.10.0 and **rebuild the game once** on
+Longshot, Hookshot, ReLink or Rekarina.
 
 0.9.3 gave **A, B, X and Y a second action when you hold them**, with no delay on the short
 press, added a **Back** role (the game's own B, on the held B in the Triggers table), made the toggled sprint let go
@@ -269,6 +271,8 @@ module changed.
 
 **Difficulty and enemies**
 
+- **The multipliers go up to ×6:** enemy health and damage taken are ×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5 or ×6, chosen in
+  either app (the module does the maths from the percentage, so a step is a label).
 - **Aggression options:** *Alert radius* (how far an enemy that spots you alerts the others) and an *Aggression*
   level: Normal, Aggressive or Maximum (shorter shared pause, longer chases, fighting off screen). Bosses are not
   changed, and the options combine with the speed multipliers instead of replacing them.
@@ -321,7 +325,7 @@ module changed.
 - **Stamina display**: a ring next to the player or a segmented bar under the magic gauge (yellow, red while
   recharging; grows with your hearts).
 - **Sprint speed** configurable (×1.25 in the profiles and in Custom).
-- **Enemy health** and **damage taken** multipliers (×1 to ×3).
+- **Enemy health** and **damage taken** multipliers (×1 to ×6, in steps of ×0.5 / ×1).
 - **No heart drops**: hearts dropped by enemies become green rupees instead.
 - **Always-visible clock and rupee counter**, with the game's native look and 12/24-hour format.
 - **Songbook autoplay**: selecting a learned song in the native songbook (ZL) makes the hero play it and trigger

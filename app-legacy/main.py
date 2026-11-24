@@ -402,7 +402,12 @@ def gui() -> None:
         saved_costs = cfg.get("custom") if isinstance(cfg.get("custom"), dict) else {}
     costs = {k: tk.BooleanVar(value=bool(saved_costs.get(k, True))) for k in KEYS}
     combat = tk.BooleanVar(value=bool(saved_costs.get("combat_only", cfg.get("combat_only", False))))
-    MULT = (100, 150, 200, 300)
+    # Enemy health and the damage you take, as the percent of vanilla the difficulty page offers (100 = vanilla).
+    # The module does the scaling (enemy_hp_pct / damage_taken_pct in ShbConfig) from a plain percentage, so a new
+    # step in this ladder only needs a label: MULT_KEYS holds one per entry, in the same order.
+    MULT = (100, 150, 200, 250, 300, 400, 500, 600)
+    MULT_KEYS = ("mult_van", "mult_15", "mult_2", "mult_25", "mult_3", "mult_4", "mult_5", "mult_6")
+    assert len(MULT) == len(MULT_KEYS), "every multiplier needs its label"
     hp = tk.IntVar(value=cfg.get("enemy_hp", 100) if cfg.get("enemy_hp", 100) in MULT else 100)
     dmg = tk.IntVar(value=cfg.get("damage", 100) if cfg.get("damage", 100) in MULT else 100)
     SPEEDS = (100, 125, 150, 175, 200, 250, 300)
@@ -1639,7 +1644,7 @@ def gui() -> None:
         body = card(parent, L("difficulty_title"), L("difficulty_desc"))
         row = UI.Frame(body, bg=PANEL)
         row.pack(fill="x")
-        names = [L("mult_van"), L("mult_15"), L("mult_2"), L("mult_3")]
+        names = [L(k) for k in MULT_KEYS]
         ui["mult"] = []
         for n, (lab, var) in enumerate(((L("enemy_hp"), hp), (L("damage"), dmg))):
             label(row, lab + ":", size=10, bg=PANEL).grid(row=0, column=n * 2, sticky="w", padx=(0, 6))
