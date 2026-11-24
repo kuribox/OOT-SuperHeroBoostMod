@@ -461,12 +461,7 @@ pub fn apply_profile(s: &mut Settings, key: &str) {
     if let Some(preset) = p.controls.and_then(roles::remap_preset) {
         table = roles::keep_holds(&preset, &table);
     }
-    let table = roles::roles_from_flags(
-        &table,
-        Some(p.manual_shield),
-        p.target_r3,
-        p.sprint_l3,
-    );
+    let table = roles::roles_from_flags(&table, Some(p.manual_shield), p.target_r3, p.sprint_l3);
     s.bm_roles = if p.armory() {
         roles::roles_with_armory(&table)
     } else {
@@ -558,8 +553,14 @@ mod tests {
         apply_profile(&mut s, "recommended");
         assert!(!s.stamina_bar && s.target_r3 && s.sprint_l3 && s.sprint_l3_toggle);
         assert_eq!((s.enemy_hp, s.damage), (200, 200));
-        assert_eq!(s.bm_roles[&crate::roles::Button::R3], crate::roles::Role::Target);
-        assert_eq!(s.bm_roles[&crate::roles::Button::Dr], crate::roles::Role::Armory);
+        assert_eq!(
+            s.bm_roles[&crate::roles::Button::R3],
+            crate::roles::Role::Target
+        );
+        assert_eq!(
+            s.bm_roles[&crate::roles::Button::Dr],
+            crate::roles::Role::Armory
+        );
         assert_eq!(s.hud_mode, HudMode::Simple);
         // `custom` changes nothing.
         let before = serde_json::to_string(&s).unwrap();

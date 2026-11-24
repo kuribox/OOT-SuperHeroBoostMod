@@ -34,14 +34,7 @@ static EXTRA: &[(&str, [&str; 6])] = &[
     ),
     (
         "result_ok_title",
-        [
-            "Done",
-            "Listo",
-            "Concluído",
-            "Terminé",
-            "Fertig",
-            "Fatto",
-        ],
+        ["Done", "Listo", "Concluído", "Terminé", "Fertig", "Fatto"],
     ),
     (
         "result_fail_title",
@@ -56,14 +49,7 @@ static EXTRA: &[(&str, [&str; 6])] = &[
     ),
     (
         "result_close",
-        [
-            "Close",
-            "Cerrar",
-            "Fechar",
-            "Fermer",
-            "Schließen",
-            "Chiudi",
-        ],
+        ["Close", "Cerrar", "Fechar", "Fermer", "Schließen", "Chiudi"],
     ),
     (
         "path_ok",

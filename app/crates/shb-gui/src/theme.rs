@@ -231,10 +231,7 @@ pub fn ghost_button(ui: &mut egui::Ui, text: &str) -> egui::Response {
 
 /// The logo (`app/assets/shb.png`) as a texture, for the header and the window icon.
 pub fn logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
-    let bytes = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../assets/shb.png"
-    ));
+    let bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/shb.png"));
     let image = image::load_from_memory(bytes).ok()?.into_rgba8();
     let size = [image.width() as usize, image.height() as usize];
     let pixels = image.into_raw();
@@ -244,10 +241,7 @@ pub fn logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
 
 /// The same PNG as the window icon (the .ico of the Python app is Windows-only).
 pub fn icon() -> Option<egui::IconData> {
-    let bytes = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../assets/shb.png"
-    ));
+    let bytes = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/shb.png"));
     let image = image::load_from_memory(bytes).ok()?.into_rgba8();
     Some(egui::IconData {
         rgba: image.clone().into_raw(),

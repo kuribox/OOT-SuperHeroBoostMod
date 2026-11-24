@@ -433,14 +433,20 @@ impl App {
                         .color(colour),
                 );
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new(&outcome.headline).size(13.5).color(theme::TEXT));
+                ui.label(
+                    egui::RichText::new(&outcome.headline)
+                        .size(13.5)
+                        .color(theme::TEXT),
+                );
                 if !outcome.detail.is_empty() {
                     ui.add_space(8.0);
-                    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
-                        for line in &outcome.detail {
-                            ui.label(egui::RichText::new(line).size(12.0).color(theme::DIM));
-                        }
-                    });
+                    egui::ScrollArea::vertical()
+                        .max_height(220.0)
+                        .show(ui, |ui| {
+                            for line in &outcome.detail {
+                                ui.label(egui::RichText::new(line).size(12.0).color(theme::DIM));
+                            }
+                        });
                 }
                 ui.add_space(14.0);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
@@ -1568,7 +1574,8 @@ impl App {
                 // actions stay off until it is (a wrong path is the most common way to get a bare error).
                 let status = self.path_status(ui.ctx());
                 let pending = status.pending;
-                let (valid, builder_ok, installed) = (status.valid, status.builder, status.installed);
+                let (valid, builder_ok, installed) =
+                    (status.valid, status.builder, status.installed);
                 let busy = self.busy.is_some();
                 let ready = !busy && !pending && valid.is_ok() && builder_ok.is_ok();
                 ui.add_space(6.0);
@@ -2513,8 +2520,15 @@ impl App {
             // target, sprint, the selector, the armory, an item), leaves nothing to hold for.
             let owner = shb_core::roles::hold_owner(button);
             let blocked_by = owner.and_then(|own| {
-                let role = self.settings.bm_roles.get(&own).copied().unwrap_or(Role::None);
-                shb_core::roles::HOLD_BLOCK_ROLES.contains(&role).then_some(role)
+                let role = self
+                    .settings
+                    .bm_roles
+                    .get(&own)
+                    .copied()
+                    .unwrap_or(Role::None);
+                shb_core::roles::HOLD_BLOCK_ROLES
+                    .contains(&role)
+                    .then_some(role)
             });
             ui.horizontal(|ui| {
                 // The button drawn the way the preview draws it (a Switch A, an Xbox B, a PlayStation ○). A long

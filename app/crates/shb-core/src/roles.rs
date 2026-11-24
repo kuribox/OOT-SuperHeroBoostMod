@@ -223,7 +223,13 @@ const DR_ROLES: [Role; 8] = [
     Role::Back,
 ];
 /// Roles a held face button accepts.
-const HOLD_ROLES: [Role; 5] = [Role::Jump, Role::Sword, Role::Action, Role::Camera, Role::Back];
+const HOLD_ROLES: [Role; 5] = [
+    Role::Jump,
+    Role::Sword,
+    Role::Action,
+    Role::Camera,
+    Role::Back,
+];
 
 /// A role table: one entry per key, complete.
 pub type Roles = BTreeMap<Button, Role>;
@@ -338,7 +344,9 @@ pub fn normalize(roles: &Roles) -> Roles {
         }
         // The button's own role acts held or at once: no long press on it.
         if let Some(owner) = hold_owner(button)
-            && out.get(&owner).is_some_and(|own| HOLD_BLOCK_ROLES.contains(own))
+            && out
+                .get(&owner)
+                .is_some_and(|own| HOLD_BLOCK_ROLES.contains(own))
         {
             role = Role::None;
         }
@@ -408,7 +416,14 @@ pub fn roles_from_flags(
             let old = r[&Button::R3];
             r.insert(Button::R3, Role::Target);
             if let Some(t) = t {
-                r.insert(t, if role_allowed(old, t) { old } else { Role::None });
+                r.insert(
+                    t,
+                    if role_allowed(old, t) {
+                        old
+                    } else {
+                        Role::None
+                    },
+                );
             }
         } else if !want && t == Some(Button::R3) {
             let z = r[&Button::Zl];
@@ -570,7 +585,11 @@ mod tests {
         t.insert(Button::AHold, Role::Sword);
         let n = normalize(&t);
         assert_eq!(n[&Button::BHold], Role::None);
-        assert_eq!(n[&Button::AHold], Role::Sword, "A is the action: it may be held");
+        assert_eq!(
+            n[&Button::AHold],
+            Role::Sword,
+            "A is the action: it may be held"
+        );
         // The roles a hold can do are the short list, not shield, target or the selector.
         assert!(!role_allowed(Role::Shield, Button::LHold));
         assert!(role_allowed(Role::Back, Button::RHold));
@@ -581,7 +600,11 @@ mod tests {
         assert_eq!((n[&Button::X], n[&Button::R]), (Role::Jump, Role::Jump));
         t.insert(Button::Zr, Role::Target);
         let n = normalize(&t);
-        assert_eq!((n[&Button::Zr], n[&Button::R3]), (Role::Target, Role::None), "the target stays on one button");
+        assert_eq!(
+            (n[&Button::Zr], n[&Button::R3]),
+            (Role::Target, Role::None),
+            "the target stays on one button"
+        );
     }
 
     #[test]

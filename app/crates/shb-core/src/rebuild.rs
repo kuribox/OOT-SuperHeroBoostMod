@@ -419,7 +419,10 @@ mod tests {
         assert!(!game::is_installed(&found), "left installed: {notes:?}");
         assert!(!exefs.join("subsdk9").exists());
         assert_eq!(std::fs::read(game_dir.join("image.bin")).unwrap(), stock);
-        assert!(notes.iter().any(|n| n.contains("removed again")), "{notes:?}");
+        assert!(
+            notes.iter().any(|n| n.contains("removed again")),
+            "{notes:?}"
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 
