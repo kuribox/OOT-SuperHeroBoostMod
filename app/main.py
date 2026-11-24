@@ -128,6 +128,8 @@ def cli(argv) -> int:
     ap.add_argument("--no-heart-drop", action="store_true")
     ap.add_argument("--no-magic-drop", action="store_true", help="dropped magic jars become green rupees (romfs)")
     ap.add_argument("--hide-minimap", action="store_true", help="hide the minimap while playing")
+    ap.add_argument("--no-hud-items", action="store_true",
+                    help="keep the game's own item HUD (no B / L / R / ZR item buttons of ours)")
     ap.add_argument("--sprint-speed", type=int, default=None, help="sprint speed, percent (125 = default)")
     ap.add_argument("--rupees", action="store_true", help="always-visible rupee counter")
     ap.add_argument("--clock", action="store_true", help="always-visible clock")
@@ -158,6 +160,8 @@ def cli(argv) -> int:
         s.preset = a.preset
     if a.no_button_mapping:
         s.button_mapping = False
+    if a.no_hud_items:
+        s.hud_items = False
     if a.button_style:
         s.button_style = a.button_style
     if a.bm_layout:
@@ -338,6 +342,7 @@ def gui() -> None:
     busy = {"on": False}
     profile = tk.StringVar(value=cfg.get("profile") if cfg.get("profile") in PROFILE_KEYS else "custom")
     bmap = tk.BooleanVar(value=bool(cfg.get("button_mapping", True)))
+    hud_items = tk.BooleanVar(value=bool(cfg.get("hud_items", True)))   # custom item HUD (our B / L / R / ZR)
     # button style, layout and L mode: personal choices, not part of a profile
     bstyle = tk.StringVar(value=cfg.get("button_style") if cfg.get("button_style") in I.BUTTON_STYLES else "switch")
     bplace = tk.StringVar(value=cfg.get("bm_layout") if cfg.get("bm_layout") in I.BM_LAYOUTS else "nintendo")
@@ -510,6 +515,7 @@ def gui() -> None:
         guard["on"] = True
         profile.set(key)
         bmap.set(v["button_mapping"])
+        hud_items.set(v.get("hud_items", True))
         stamina.set(v["stamina"])
         songbook.set(v["songbook"])
         quick_boots.set(v["quick_boots"])
@@ -574,7 +580,7 @@ def gui() -> None:
         refresh()
         autosave()
 
-    for var in (bmap, stamina, songbook, quick_boots, quick_mask, manual_shield, target_r3, sprint_l3, sprint_l3_toggle,
+    for var in (bmap, hud_items, stamina, songbook, quick_boots, quick_mask, manual_shield, target_r3, sprint_l3, sprint_l3_toggle,
                 auto_target, switch_target,
                 hud_collectibles, hud_mode,
                 enemy_double, enemy_move, enemy_anim, enemy_attack, enemy_proj, boss_move, boss_anim, enemy_alert, enemy_aggro,
@@ -636,6 +642,7 @@ def gui() -> None:
         return I.Settings(button_mapping=bmap.get(), button_style=bstyle.get(), bm_simple=bsimple.get(),
                           bm_layout=bplace.get(), game_layout=glayout.get(),
                           bm_l_mode=blmode.get(), stamina=stamina.get(), stamina_bar=stamina_bar.get(),
+                          hud_items=hud_items.get(),
                           bm_remap=True, bm_roles=RM.roles_value(broles),
                           songbook=songbook.get(),
                           quick_boots=quick_boots.get(), quick_mask=quick_mask.get(),
@@ -668,7 +675,8 @@ def gui() -> None:
             "lang": lang.get(), "emu": emu.get(), "profile": profile.get(),
             "target": target.get(), "recomp": recomp_path.get(), "recomp_builder": recomp_builder.get(),
             "rekarina": rekarina_path.get(),
-            "button_mapping": bmap.get(), "button_style": bstyle.get(), "bm_simple": bsimple.get(),
+            "button_mapping": bmap.get(), "hud_items": hud_items.get(),
+            "button_style": bstyle.get(), "bm_simple": bsimple.get(),
             "bm_layout": bplace.get(), "game_layout": glayout.get(),
             "bm_l_mode": blmode.get(),
             "bm_roles": RM.roles_value(broles),
@@ -1246,6 +1254,14 @@ def gui() -> None:
             refresh_layout_note()
         for w in ui.get("bm", []):
             w.config(state=("readonly" if isinstance(w, UI.Select) else "normal") if on else "disabled")
+        ed = ui.get("remap")
+        if ed is not None:
+            ed.set_enabled(on)
+        for _key, card_ in ui.get("ctrl_presets", []):
+            try:
+                card_.set_enabled(on)
+            except Exception:
+                pass
         ui["note"].config(text="" if stam else L("stamina_off_note"), fg=AMBER)
         paint = ui.get("stamina_preview_paint")
         if paint is not None:
@@ -1740,9 +1756,10 @@ def gui() -> None:
         abody = card(parent, L("buttons_title"), L("ctrl_advanced_desc"),
                      help=L("buttons_desc") + "\n\n" + L("bm_note") + "\n\n" + L("rm_help"))
         build_buttons(abody, embedded=True)
-        RM.RemapEditor(abody, L, FAM, COLORS,
-                       dict(bmap=bmap, roles=broles, bstyle=bstyle, bplace=bplace, bsimple=bsimple, switch_target=switch_target,
-                            auto_target=auto_target, sprint_toggle=sprint_l3_toggle, mshield=manual_shield))
+        ui["remap"] = RM.RemapEditor(abody, L, FAM, COLORS,
+                       dict(bmap=bmap, items=hud_items, roles=broles, bstyle=bstyle, bplace=bplace, bsimple=bsimple,
+                            switch_target=switch_target, auto_target=auto_target, sprint_toggle=sprint_l3_toggle,
+                            mshield=manual_shield))
 
         for var, tid in ui.get("ctrl_trace_ids", []):
             try:
@@ -1898,6 +1915,8 @@ def gui() -> None:
             body = card(parent, L("buttons_title"), help=L("buttons_desc") + "\n\n" + L("bm_note"))
         help_check(body, L("bm_on"), bmap, L("bm_on_desc"))
         ui["bm"] = []
+        # the item side of the mapping: our own item buttons and items 1-3 on any button
+        ui["bm"].append(help_check(body, L("hud_items"), hud_items, L("hud_items_desc")))
         row = UI.Frame(body, bg=PANEL)
         row.pack(anchor="w", pady=(10, 0))
         label(row, L("variant") + ":", size=10, bg=PANEL).pack(side="left", padx=(0, 8))

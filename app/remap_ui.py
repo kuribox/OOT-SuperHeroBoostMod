@@ -415,10 +415,12 @@ class RemapEditor:
         for key in ("bmap", "bstyle", "bplace", "bsimple"):
             self._traces.append((v[key], v[key].trace_add("write", lambda *_: self.redraw())))
         self._traces.append((v["mshield"], v["mshield"].trace_add("write", lambda *_: self._shield_changed())))
+        self._traces.append((v["items"], v["items"].trace_add("write", lambda *_: self.redraw())))
         for var in v["roles"].values():
             self._traces.append((var, var.trace_add("write", lambda *_: self.redraw())))
         self.frame.bind("<Destroy>", self._drop_traces)
         self._shown_opts: dict[str, str] = {}
+        self._enabled = True
         self.redraw()
 
     # ---- helpers ----
@@ -430,6 +432,30 @@ class RemapEditor:
                 pass
         self._traces = []
 
+    def set_enabled(self, on: bool) -> None:
+        """Button mapping off: the table stays on screen but frozen (the app keeps it for when it comes back)."""
+        self._enabled = bool(on)
+        for cb in self.combos.values():
+            try:
+                cb.config(state="readonly" if on else "disabled")
+            except tk.TclError:
+                pass
+        self._freeze_all()
+
+    def _freeze_all(self) -> None:
+        for w in self.frame.winfo_children():
+            self._freeze(w)
+
+    def _freeze(self, w) -> None:
+        """Every list and box of the table follows the switch (the role options are rebuilt on each redraw)."""
+        if isinstance(w, (UI.Select, UI.Check)):
+            try:
+                w.config(state=("readonly" if isinstance(w, UI.Select) else "normal") if self._enabled else "disabled")
+            except tk.TclError:
+                pass
+        for c in w.winfo_children():
+            self._freeze(c)
+
     def role_name(self, role: str) -> str:
         return self.L("role_" + role)
 
@@ -437,10 +463,14 @@ class RemapEditor:
         s = self.v["bstyle"].get()
         return s if s in GLYPHS else "switch"
 
+    def _items_on(self) -> bool:
+        """The item side: our own item buttons and the item roles (both switches on)."""
+        return bool(self.v["bmap"].get() and self.v["items"].get())
+
     def _roles(self) -> dict:
         roles = roles_value(self.v["roles"])
-        if not self.v["bmap"].get():   # no item buttons: the slots and the selector do nothing
-            roles = {b: ("none" if r in ("item1", "item2", "item3", "selector") else r) for b, r in roles.items()}
+        # (with the custom item HUD off the module lets an item role's press through untouched: the game's own
+        #  item buttons, so the table keeps them and everything else is remapped as usual)
         return roles
 
     # ---- editing ----
@@ -514,8 +544,11 @@ class RemapEditor:
             return
         roles = self._roles()
         on = self.v["bmap"].get()
+        items = self._items_on()
         for b, cb in self.combos.items():
-            ch = [r for r in self.choices[b] if (on or r not in ("item1", "item2", "item3", "selector"))
+            # the item roles are only offered with the custom item HUD; without it the table's own stays visible
+            ch = [r for r in self.choices[b] if ((on or r not in ("item1", "item2", "item3", "selector"))
+                                                and (items or r not in I.ITEM_ROLES or r == roles[b]))
                   and (r != "shield" or self.v["mshield"].get() or roles[b] == "shield")]
             cb.config(values=[self.role_name(r) for r in ch])
             self.choices[b] = ch + [r for r in self.choices[b] if r not in ch]   # (hidden ones stay pickable by index)
@@ -528,7 +561,7 @@ class RemapEditor:
                 self._chip(self.chips[b], 20, 14, b, 12)
             self._options_for(b, roles[b])
         n_items = sum(1 for r in roles.values() if r in I.ITEM_ROLES)
-        self.count.config(text=self.L("rm_items", n=n_items))
+        self.count.config(text=self.L("rm_items", n=n_items) if items else "")
         notes = []
         missing = [self.role_name(r) for r in I.roles_missing(roles)]
         if missing:
@@ -541,9 +574,10 @@ class RemapEditor:
         pairs = [f"{self._gt(glyph[mb[r]])} → {self.role_name(r)}" for r in ("item1", "item2", "item3") if r in mb]
         if "item_main" in roles.values():
             pairs.append(f"{self._gt(glyph['A'])} → {self.role_name('item_main')}")
-        self.info.config(text=self.L("rm_menu", a="   ".join(pairs)) if pairs else "")
+        self.info.config(text=self.L("rm_menu", a="   ".join(pairs)) if pairs and items else "")
         self._draw_pad(roles)
         self._draw_hud(roles)
+        self._freeze_all()
 
     @staticmethod
     def _gt(g: str) -> str:
@@ -624,6 +658,8 @@ class RemapEditor:
             return ox + x * sc, oy - y * sc
 
         hud_roles = ["item2", "jump", "item3", "sword", "action", "item_main", "item1"]
+        if not self._items_on():
+            hud_roles = [r for r in hud_roles if r not in I.ITEM_ROLES]   # the game's own item HUD
         if self.v["mshield"].get():
             hud_roles.append("shield")   # core/hud.c parts 12 / 13: the shield button and the equipped shield
         for role in hud_roles:

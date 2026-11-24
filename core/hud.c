@@ -96,10 +96,14 @@ static char g_anames[SEG_N][16] = {"PaShbSeg_000", "PaShbSeg_001", "PaShbSeg_002
 static const u64 g_phash[SEG_N] = {HASH_PART0, HASH_PART1, HASH_PART2, HASH_PART3, HASH_PART4, HASH_PART5, HASH_PART6, HASH_PART7, HASH_PART8, HASH_PART9, HASH_PART10, HASH_PART11, HASH_PART12, HASH_PART13, HASH_PART14, HASH_PART15, HASH_PART16, HASH_PART17, HASH_PART18, HASH_PART19, HASH_PART20, HASH_PART21, HASH_PART22, HASH_PART23, HASH_PART24, HASH_PART25, HASH_PART26, HASH_PART27, HASH_PART28, HASH_PART29, HASH_PART30, HASH_PART31, HASH_PART32, HASH_PART33, HASH_PART34, HASH_PART35, HASH_PART36, HASH_PART37, HASH_PART38, HASH_PART39, HASH_PART40, HASH_PART41, HASH_PART42, HASH_PART43, HASH_PART44, HASH_PART45, HASH_PART46, HASH_PART47, HASH_PART48, HASH_PART49, HASH_PART50, HASH_PART51, HASH_PART52, HASH_PART53, HASH_PART54, HASH_PART55, HASH_PART56, HASH_PART57, HASH_PART58, HASH_PART59, HASH_PART60, HASH_PART61, HASH_PART62, HASH_PART63, HASH_PART64, HASH_PART65, HASH_PART66, HASH_PART67, HASH_PART68, HASH_PART69, HASH_PART70, HASH_PART71, HASH_PART72, HASH_PART73, HASH_PART74, HASH_PART75, HASH_PART76, HASH_PART77, HASH_PART78, HASH_PART79, HASH_PART80, HASH_PART81, HASH_PART82, HASH_PART83, HASH_PART84, HASH_PART85, HASH_PART86, HASH_PART87, HASH_PART88, HASH_PART89, HASH_PART90, HASH_PART91, HASH_PART92, HASH_PART93, HASH_PART94, HASH_PART95, HASH_PART96, HASH_PART97, HASH_PART98, HASH_PART99, HASH_PART100, HASH_PART101, HASH_PART102, HASH_PART103, HASH_PART104, HASH_PART105, HASH_PART106, HASH_PART107, HASH_PART108, HASH_PART109, HASH_PART110, HASH_PART111, HASH_PART112, HASH_PART113, HASH_PART114, HASH_PART115, HASH_PART116, HASH_PART117, HASH_PART118, HASH_PART119, HASH_PART120, HASH_PART121, HASH_PART122, HASH_PART123, HASH_PART124, HASH_PART125, HASH_PART126, HASH_PART127};
 #ifdef BUTTON_MAPPING      /* built with features/button_mapping */
 int hud_shield_parts(void);
-#define PART_TOT (g_shbcfg.button_mapping ? (hud_shield_parts() ? PART_N : PART_BASE) : 0)   /* parts appended to PlayerStatus_00 */
-#define BTNMAP (g_shbcfg.button_mapping != 0)
+/* The remap (button_mapping) and its item side (hud_custom_items) are two switches: without the item side our item
+ * buttons are not built at all and the game's own item HUD is what the player sees. */
+#define BMREMAP (g_shbcfg.button_mapping != 0)
+#define BTNMAP (BMREMAP && g_shbcfg.hud_custom_items != 0)
+#define PART_TOT (BTNMAP ? (hud_shield_parts() ? PART_N : PART_BASE) : 0)   /* parts appended to PlayerStatus_00 */
 #else
 #define PART_TOT 0         /* built without features/button_mapping: no button parts at all */
+#define BMREMAP 0
 #define BTNMAP 0
 #endif
 static const char *part_name(u32 i) { return g_pnames[i % SEG_N]; }
@@ -1209,9 +1213,11 @@ static const float RAY_DX[8] = {0.0f, 0.70711f, 1.0f, 0.70711f, 0.0f, -0.70711f,
 static const float RAY_DY[8] = {1.0f, 0.70711f, 0.0f, -0.70711f, -1.0f, -0.70711f, 0.0f, 0.70711f};
 u32 g_hud_show[2] = {0x10000000u, 0x10000000u};   /* clock, rupees: 1 = drawn this frame */
 static u64 g_pic_rec[PIC_N];
-/* Simple layout's bar (plates == 2), tunable live with tools/hud_tune.py: 0 = x shift, 1 = extra width on the
- * right (negative shortens), 2 = alpha, 3 = height. */
+/* Simple layout's bar (plates == 2), tunable live with tools/hud_tune.py: 0 = x shift (tuned so the bar's left
+ * edge sits against the screen), 1 = room right of the last number, 2 = alpha, 3 = height. The width follows the
+ * row that is drawn (plates_update). */
 float g_bg_tune[4] = {-165.0f, 10.0f, 0.42f, 1.05f};
+float g_hud_bg_dbg[4];   /* diagnostic: the simple bar's x0 / x1 and the first / last visible block x */
 static u32 g_plates_shown;
 static void bar_reset(void);
 /* the layout was rebuilt: drop cached pane records and force the texts to be set again */
@@ -1434,6 +1440,19 @@ static u32 hud_clock_text(char *b, int sec) {
     b[n] = 0;
     return n;
 }
+/* The simple / plain row is packed, so a fixed icon offset is wrong: a short number left its icon far away and a
+ * long one ran past the end of the soft bar. The texts are measured (digit advance at the current text scale) and
+ * the icons sit right before their numbers; the bar is then placed over what was actually drawn. */
+static float g_row_l, g_row_r;      /* extents of the visible row this frame (layout units) */
+static float row_text_w(const char *s, float adv) {
+    float w = 0.0f;
+    for (u32 i = 0; s[i]; i++) w += (s[i] >= '0' && s[i] <= '9') ? adv : adv * 0.62f;
+    return w;
+}
+static void row_ext(float x, float half) {
+    if (x - half < g_row_l) g_row_l = x - half;
+    if (x + half > g_row_r) g_row_r = x + half;
+}
 static void plates_update(u64 frame) {
     for (u32 k = 0; k < PIC_N; k++)
         if (!g_pic_rec[k]) g_pic_rec[k] = pane_record(frame, g_pinames[k]);
@@ -1481,15 +1500,38 @@ static void plates_update(u64 frame) {
     u32 show_s = active && g_shbcfg.hud_collectibles && bxs != -32768;
     u32 show_h = active && g_shbcfg.hud_collectibles && bxh != -32768;
     const float counter_origin = counters_x();
-    if (plates == 2) {   /* simple: one soft translucent bar behind the row of counters */
-        int xl = bxr != -32768 ? bxr : bxc;
-        int xr = bxh != -32768 ? bxh : (bxs != -32768 ? bxs : bxc);
-        float x0 = (float)xl - 233.0f + g_bg_tune[0], x1 = (float)xr + 213.0f + g_bg_tune[0] + g_bg_tune[1];
-        place(g_pic_rec[PIC_BG], (x0 + x1) * 0.5f - counter_origin, BY, (x1 - x0) / 100.0f, g_bg_tune[3], 0.0f);
-        tint_rec(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, g_bg_tune[2]);
-    } else {
-        place(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    if (sec < 0) sec = 0;
+    sec %= 86400;
+    /* every text this frame, with its width: the packed row needs both before it can place an icon or the bar */
+    char clk_txt[16], rup_a[16], rup_b[16], sk_txt[16], hp_txt[16];
+    hud_clock_text(clk_txt, sec);
+    int cur = 0, mxv = 0;
+    if (rup) hud_rupee_values(&cur, &mxv);
+    u32 na = put_int(rup_a, cur), nb = 0;
+    rup_a[na] = 0;
+    rup_b[nb++] = '/';
+    nb += put_int(rup_b + nb, mxv);
+    rup_b[nb] = 0;
+    u32 sna = put_int(sk_txt, (int)sd), hna = put_int(hp_txt, (int)hd);
+    sk_txt[sna++] = '/'; sna += put_int(sk_txt + sna, (int)st); sk_txt[sna] = 0;
+    hp_txt[hna++] = '/'; hna += put_int(hp_txt + hna, (int)ht); hp_txt[hna] = 0;
+    float w_rup_a = adv * (float)na, w_rup_b = adv * ((float)(nb - 1) + 0.55f);
+    float w_rup = w_rup_a + w_rup_b;
+    float w_clk = row_text_w(clk_txt, adv);
+    float w_sk = row_text_w(sk_txt, adv), w_hp = row_text_w(hp_txt, adv);
+    const u32 packed = plates != 1;      /* simple / plain: the row is packed, no wide plates */
+    const float ICON_GAP = 30.0f;        /* layout units between an icon's centre and its number */
+    const float ICON_HALF = 26.0f;       /* what an icon takes on each side, for the bar */
+    float ix_r = (float)bxr + ioff, ix_c = (float)bxc + ioff2;
+    float ix_s = (float)bxs + ioff2, ix_h = (float)bxh + ioff2;
+    if (packed) {
+        ix_r = (float)bxr + txo - w_rup * 0.5f - ICON_GAP;
+        ix_c = (float)bxc + txo - w_clk * 0.5f - ICON_GAP;
+        ix_s = (float)bxs + txo - w_sk * 0.5f - ICON_GAP;
+        ix_h = (float)bxh + txo - w_hp * 0.5f - ICON_GAP;
     }
+    g_row_l = 1.0e9f; g_row_r = -1.0e9f;
+    if (plates != 2) place(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);   /* the bar goes last, from the row */
     if (plates == 1 && show_r) {
         float cx = (float)bxr;
         for (u32 j = 0; j < 4; j++) {
@@ -1524,20 +1566,21 @@ static void plates_update(u64 frame) {
         int bi = sec2 ? bxh : bxs;
         if (bi == -32768 || !(sec2 ? show_h : show_s)) continue;
         u64 icn = g_pic_rec[PIC_COLL + 8 + sec2];
-        place(icn, (float)bi + ioff2 - counter_origin, BY, cisc, cisc, 0.0f);
+        float ix = sec2 ? ix_h : ix_s;
+        place(icn, ix - counter_origin, BY, cisc, cisc, 0.0f);
         tint_rec(icn, 1.0f, 1.0f, 1.0f, 1.0f);
+        if (packed) { row_ext(ix, ICON_HALF); row_ext((float)bi + txo, (sec2 ? w_hp : w_sk) * 0.5f); }
     }
     if (show_r) {
-        place(g_pic_rec[8], (float)bxr + ioff - counter_origin, BY, isc, isc, 0.0f);
+        place(g_pic_rec[8], ix_r - counter_origin, BY, isc, isc, 0.0f);
         tint_rec(g_pic_rec[8], 1.0f, 1.0f, 1.0f, 1.0f);
+        if (packed) { row_ext(ix_r, ICON_HALF); row_ext((float)bxr + txo, w_rup * 0.5f); }
     }
-    if (sec < 0) sec = 0;
-    sec %= 86400;
     if (plates || g_shbcfg.hud_mode >= 1) {   /* wide plate, or the simple / plain row (no plate) */
         u32 day = sec >= 6 * 3600 && sec < 18 * 3600;
         if (P[16] > 0.5f) day = P[16] < 1.5f;
         u32 sun = show_c && day, moon = show_c && !day;
-        float ix = show_c ? (float)bxc + ioff2 : counter_origin, iy = BY;
+        float ix = show_c ? ix_c : counter_origin, iy = BY;
         float ssc = plates == 1 ? 1.0f : isc;
         float ray = plates == 1 ? P[12] : P[12] * (isc / P[6]);
         float msc = plates == 1 ? P[17] : isc;
@@ -1545,6 +1588,7 @@ static void plates_update(u64 frame) {
         float mof = plates == 1 ? P[14] : P[14] * (isc / P[6]);
         static const float SUN[3] = {1.0f, 0.86f, 0.42f};
         place(g_pic_rec[9], ix - counter_origin, iy, sun ? ssc : 0.0f, sun ? ssc : 0.0f, 0.0f);
+        if (packed && show_c) { row_ext(ix, ICON_HALF); row_ext((float)bxc + txo, w_clk * 0.5f); }
         tint_rec(g_pic_rec[9], SUN[0], SUN[1], SUN[2], 1.0f);
         for (u32 j = 0; j < 8; j++) {
             u64 rec = g_pic_rec[10 + j];
@@ -1563,35 +1607,26 @@ static void plates_update(u64 frame) {
     static const float GREEN[3] = {0.38f, 0.95f, 0.25f};
     /* text panes are centre-aligned: P[7] is the centre of the text area (right of the icon) */
     float ty = P[8];
-    {   /* clock */
-        char b[16];
-        hud_clock_text(b, sec);
-        put_text(frame, 0, b, (float)bxc + txo, BY + ty, show_c, WHITE);
-    }
-    {   /* rupees: current / wallet capacity */
-        int cur, mx;
-        hud_rupee_values(&cur, &mx);
-        char a[16], b[16];
-        u32 na = put_int(a, cur), nb = 0;
-        a[na] = 0;
-        b[nb++] = '/';
-        nb += put_int(b + nb, mx);
-        b[nb] = 0;
-        /* "1234/5000" centred on tx as a whole: green part and white part side by side (fixed digit advance;
-        * ("/" is narrower than a digit: it counts as SLASH_W digits) */
-        const float SLASH_W = 0.55f;
-        float wa = (float)na, wb = (float)(nb - 1) + SLASH_W;
+    put_text(frame, 0, clk_txt, (float)bxc + txo, BY + ty, show_c, WHITE);   /* clock */
+    {   /* rupees: current / wallet capacity, centred as a whole (green part and white part side by side) */
         float tx = (float)bxr + txo;
-        float x0 = tx - adv * (wa + wb) * 0.5f;
-        put_text(frame, 1, a, x0 + adv * wa * 0.5f, BY + ty, show_r, GREEN);
-        put_text(frame, 2, b, x0 + adv * (wa + wb * 0.5f), BY + ty, show_r, WHITE);
+        float x0 = tx - w_rup * 0.5f;
+        put_text(frame, 1, rup_a, x0 + w_rup_a * 0.5f, BY + ty, show_r, GREEN);
+        put_text(frame, 2, rup_b, x0 + w_rup_a + w_rup_b * 0.5f, BY + ty, show_r, WHITE);
     }
-    {   /* per-area Skulltulas / heart pieces: collected / total, one section each */
-        char b[16]; u32 n;
-        n = put_int(b, (int)sd); b[n++] = '/'; n += put_int(b + n, (int)st); b[n] = 0;
-        put_text(frame, 3, b, (float)bxs + txo, BY + ty, show_s, WHITE);
-        n = put_int(b, (int)hd); b[n++] = '/'; n += put_int(b + n, (int)ht); b[n] = 0;
-        put_text(frame, 6, b, (float)bxh + txo, BY + ty, show_h, WHITE);
+    put_text(frame, 3, sk_txt, (float)bxs + txo, BY + ty, show_s, WHITE);    /* Skulltulas */
+    put_text(frame, 6, hp_txt, (float)bxh + txo, BY + ty, show_h, WHITE);    /* heart pieces */
+    /* The simple layout's soft bar goes over what is drawn, not over fixed blocks (a counter turned off takes its
+     * room with it, so the bar shrinks and follows the row). */
+    if (plates == 2 && g_row_r > g_row_l) {
+        /* The left edge stays where it was tuned (against the screen edge, so the row keeps its corner) and
+         * the right one follows what is drawn. */
+        int xl = bxr != -32768 ? bxr : (bxc != -32768 ? bxc : (bxs != -32768 ? bxs : bxh));
+        float x0 = (float)xl - 233.0f + g_bg_tune[0], x1 = g_row_r + 34.0f + g_bg_tune[1];
+        if (x1 < x0 + 120.0f) x1 = x0 + 120.0f;
+        place(g_pic_rec[PIC_BG], (x0 + x1) * 0.5f - counter_origin, BY, (x1 - x0) / 100.0f, g_bg_tune[3], 0.0f);
+        tint_rec(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, g_bg_tune[2]);
+        g_hud_bg_dbg[0] = x0; g_hud_bg_dbg[1] = x1; g_hud_bg_dbg[2] = g_row_l; g_hud_bg_dbg[3] = g_row_r;
     }
 }
 static void txt_update(u64 frame) {
@@ -2874,6 +2909,7 @@ static void dc_glyphs(void) {
     }
 }
 static void dc_update(void) {
+    if (!BMREMAP) return;   /* no button mapping: the game's own prompt keys */
     u64 fr = g_aguide_frame;
     if (!vptr(fr) || !vptr(ptr(fr, 0x80))) return;
     if (fr != g_dc_frame) {   /* a new layout: find its panes again */
@@ -3018,7 +3054,7 @@ static void hud_frame(void) {
     slots_update(g_frame_node);
     slots_labels(g_frame_node);
     dc_update();
-    if (BTNMAP) gi_update();
+    if (BMREMAP) gi_update();
     hud_group_scale(g_frame_node);
 }
 /* -------- observation of the stock item box (to learn icon frames) -------- */
@@ -3128,7 +3164,7 @@ static void hud_on_settext(u64 pane, const u64 *ref, u64 lr, const u64 *regs) {
         for (i = 0; i < len && i < 47 && s[i]; i++) g_aguide_text[i] = s[i];
         g_aguide_text[i] = 0;
     }
-    if (BTNMAP && nm && vptr((u64)nm) && nm[0] == 'T' && nm[1] == '_' &&
+    if (BMREMAP && nm && vptr((u64)nm) && nm[0] == 'T' && nm[1] == '_' &&
         ((nm[2] == 'I' && nm[3] == 'c' && nm[6] == '_') || (nm[2] == 'G' && nm[3] == 'u' && nm[7] == '_') ||
          (nm[2] == 'B' && nm[3] == 't' && nm[5] == '_'))) {   /* T_Icon_NN / T_Guide_NN / T_Btn_NN: the guide bar */
         u64 fr = regs[0xF8 / 8];

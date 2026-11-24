@@ -102,9 +102,13 @@ implausible, every helper returns the old 1/60-per-frame value and the module be
   R3. Guard uses the stock locomotion path: the feature only decides whether it is allowed.
 - **Controls** — `features/controls/`: ZL↔R3 swap, L3 sprint. Runs **before** manual shield and stamina so they
   see the swapped buttons.
-- **Button mapping** — `features/button_mapping/`: own B/L/R/ZR item buttons, per-age, per-save. The game keeps
+- **Button mapping** — `features/button_mapping/` + `core/remap.c`: the remap of every button (`ShbConfig.bm_role`,
+  needs `ShbConfig.button_mapping`) and, as a second switch, its item side: own B/L/R/ZR item buttons, per-age,
+  per-save (`ShbConfig.hud_custom_items`, `remap_items()`). The game keeps
   the item box (ZR) in `PlayerStatus.AssignableItem.Child/Adult`; assignments persist in the mod's own
   `slot_NN/ootmaster.bin` written when the game opens `progress.sav` (hook on `nn::fs::OpenFile`).
+  Without the item side `remap_apply()` lets an item role's press through untouched and `core/hud.c` appends no
+  button parts (`PART_TOT`), so the game's own item HUD and item logic run as stock.
   Quantities come from `PouchData.<item>.StockNum` (Int table, live value `+0x1C`), allowlisted by stackable item.
 - **Quick select** — `features/quick_select/`: D-pad down = Iron/Hover boots, up = Lens/mask. Writes the
   GameData `Equip*` String64 **value and copy** (`+0x74` and `+0xC4`) — value alone only changes the menu icon.

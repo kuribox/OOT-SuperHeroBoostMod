@@ -9,7 +9,13 @@ const u64 REMAP_BIT[PB_N] = {BTN_L, BTN_X, BTN_R, BTN_Y, BTN_A, BTN_ZR, BTN_B, B
 
 int hud_button_swap(void);   /* core/hud.c: the game's Jump/B swap option is on */
 
-int remap_on(void) { return g_shbcfg.bm_remap == 1; }
+int remap_on(void) { return g_shbcfg.bm_remap == 1 && g_shbcfg.button_mapping != 0; }
+int remap_items(void) { return g_shbcfg.button_mapping != 0 && g_shbcfg.hud_custom_items != 0; }
+/* The roles that belong to the item side (the custom item HUD): without remap_items() they are not assignable and
+ * the button that holds one of them keeps the game's own press. */
+static int item_role(u32 r) {
+    return r == ROLE_ITEM1 || r == ROLE_ITEM2 || r == ROLE_ITEM3 || r == ROLE_ITEM_MAIN || r == ROLE_SELECTOR;
+}
 int remap_l_selector(void) { return !remap_on() && g_shbcfg.bm_l_mode != 0; }
 /* (the HUD places its button parts by remap_role_phys, which knows the short roles only: a hold role has no HUD art) */
 static int hold_has(u32 role) {
@@ -17,7 +23,7 @@ static int hold_has(u32 role) {
     return 0;
 }
 int remap_selector_on(void) {
-    if (remap_on()) return remap_role_phys(ROLE_SELECTOR) != PB_NONE || hold_has(ROLE_SELECTOR);
+    if (remap_on()) return remap_items() && (remap_role_phys(ROLE_SELECTOR) != PB_NONE || hold_has(ROLE_SELECTOR));
     return g_shbcfg.bm_l_mode == 2;
 }
 
@@ -60,7 +66,8 @@ u32 remap_hold_role(u32 p) {
 
 u32 remap_role_phys(u32 role) {
     if (role == ROLE_NONE || role >= ROLE_N) return PB_NONE;
-    if (!remap_on()) return classic_phys(role);
+    /* no remap, or no item side: the classic button (the item buttons stay where the game has them) */
+    if (!remap_on() || (item_role(role) && !remap_items())) return classic_phys(role);
     for (u32 p = 0; p < PB_N; p++) if (remap_role_of(p) == role) return p;
     return PB_NONE;
 }
@@ -79,7 +86,7 @@ u64 remap_role_virt(u32 role) {
     case ROLE_CAMERA:    return BTN_R3;
     case ROLE_SPRINT:    return BTN_L3;
     case ROLE_SHIELD:    return g_shbcfg.manual_shield ? (remap_on() ? VBTN_SHIELD : BTN_L) : 0;
-    case ROLE_SELECTOR:  return remap_on() ? VBTN_SELECTOR : BTN_L;
+    case ROLE_SELECTOR:  return (remap_on() && remap_items()) ? VBTN_SELECTOR : BTN_L;
     case ROLE_ARMORY:    return VBTN_ARMORY;
     case ROLE_BACK:      return VBTN_BACK;
     default:             return 0;
@@ -89,8 +96,14 @@ u64 remap_role_virt(u32 role) {
 u64 remap_apply(u64 b) {
     if (!remap_on()) return b;
     u64 out = b & ~(REMAP_ALL | VBTN_SHIELD | VBTN_ARMORY | VBTN_SELECTOR | VBTN_BACK);
-    for (u32 p = 0; p < PB_DR; p++)   /* (PB_DR is the long press, button_mapping.c) */
-        if (b & REMAP_BIT[p]) out |= remap_role_virt(g_shbcfg.bm_role[p]);
+    int items = remap_items();
+    for (u32 p = 0; p < PB_DR; p++) {   /* (PB_DR is the long press, button_mapping.c) */
+        if (!(b & REMAP_BIT[p])) continue;
+        u32 role = g_shbcfg.bm_role[p];
+        /* no item side: a button that holds an item role keeps the game's own press (the item HUD is the game's) */
+        if (!items && item_role(role)) { out |= REMAP_BIT[p]; continue; }
+        out |= remap_role_virt(role);
+    }
     return out;
 }
 

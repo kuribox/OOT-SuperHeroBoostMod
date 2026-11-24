@@ -15,7 +15,12 @@
  *
  * ShbConfig.bm_remap = 0 keeps the classic layout (the game's Jump/B swap moves item 1 to X, as before);
  * 1 uses ShbConfig.bm_role[physical] = role. At most four buttons hold an item: there are four item roles and
- * each role is on one button at most (the app enforces it, remap_role_phys() takes the first one). */
+ * each role is on one button at most (the app enforces it, remap_role_phys() takes the first one).
+ *
+ * Two switches gate it, both from the app: ShbConfig.button_mapping (the whole feature: with it off nothing is
+ * remapped and remap_on() is 0) and ShbConfig.hud_custom_items (the item side: our item buttons on the HUD and
+ * the item roles). Without the item side the item buttons keep the game's own behaviour - the remap ignores an
+ * item role, the press passes through - and the player's item HUD is not drawn (remap_items()). */
 
 typedef unsigned int u32;
 typedef unsigned long long u64;
@@ -74,7 +79,12 @@ u32 remap_role_of(u32 phys);        /* the role on a physical button (bm_role_dr
  * released before, its short role goes to the game as a short pulse; held longer, the hold role is pressed and the
  * short one never is. 0 = the button has no hold role. */
 u32 remap_hold_role(u32 phys);
-int remap_on(void);                 /* the player's own table is in use */
+int remap_on(void);                 /* the player's own table is in use (needs ShbConfig.button_mapping) */
+/* The item side of the remap: our own item buttons on the HUD and the item roles (1, 2, 3, the selector and the
+ * main item) assignable. ShbConfig.button_mapping gates the whole feature; the app writes
+ * ShbConfig.hud_custom_items = 0 to keep the player's item HUD and the game's item logic untouched, with the
+ * remap of every other button still on. */
+int remap_items(void);
 u32 remap_role_phys(u32 role);      /* the physical button holding a role, PB_NONE if none */
 u64 remap_role_virt(u32 role);      /* the virtual (game) button of a role */
 u64 remap_apply(u64 buttons);       /* physical -> virtual buttons (only the remapped bits change) */

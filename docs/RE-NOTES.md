@@ -745,3 +745,44 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   durations.
 - Unverified: Longshot/ReLink. If a translator ever refuses `mrs CNTPCT_EL0` the value cannot be plausible
   (1..100 ms per frame) and every helper falls back to 1/60 per frame, i.e. exactly the old behaviour.
+
+## Button mapping: the feature and its item side (Nov 24)
+
+- The card was one switch (`ShbConfig.button_mapping`) doing two things, and turning it off only removed the item
+  HUD: the app still wrote `bm_remap = 1` and the whole table, so the target, the L3 sprint and the manual shield
+  kept working. It is now **two switches**:
+  - `button_mapping` — the whole remap. `remap_on()` is `bm_remap == 1 && button_mapping`, so with it off nothing
+    is remapped at all; the app writes `bm_remap = 0` and zeroes the options that ride on the table
+    (`manual_shield`, `target_r3`, `sprint_l3`, `sprint_l3_toggle`, `auto_target`, `switch_target`, `bm_role_dr`,
+    `bm_hold`). The table itself stays in the app's settings file, so turning it back on restores it.
+  - `hud_custom_items` (Custom item HUD, `ShbConfig` offset 97, app `f + 81`) — the item side: our own
+    B / L / R / ZR buttons (`core/hud.c` `BTNMAP` / `PART_TOT`) and items 1, 2 and 3 assignable. `remap_items()` is
+    `button_mapping && hud_custom_items`. Off, `remap_apply()` leaves the press of a button that holds an *item*
+    role exactly as pressed (the game's own item button) and every other role is still remapped; the editor does
+    not offer the item roles and the game's item HUD is not touched.
+- The item logic of `features/button_mapping/` (slot presses, the ZR borrow, the menu assignment) is gated on
+  `remap_items()`, not on the master switch; the guide bar hiding and the context-prompt keys follow the remap
+  (`core/hud.c` `BMREMAP`).
+- **`sizeof(ShbConfig)` is 0x64 both before and after the new byte** (97 bytes rounded to the struct's 4-byte
+  alignment), so an installer size check cannot tell them apart: `f + 81` is tail padding on an older module and
+  writing 0/1 there is harmless, and an older module reads it as 0 (no item side).
+- The `manual-shield` profile used to be `button_mapping = False` with `manual_shield = True`; with the master
+  switch off that no longer exists, so it is `button_mapping = True, hud_items = False` (the shield role on L, no
+  item buttons of ours).
+
+## Simple / plain HUD row: the counters the player turns off (Nov 24)
+
+- The installer used to force all four blocks on in the simple and plain layouts (`rupees = clock = collectibles =
+  True`, positions -1685 / -1435 / -1195 / -965): the switches in the HUD card did nothing there. Each block now
+  follows its own switch and the visible ones are packed from `HUD_SIMPLE_X0 = -1685` with `HUD_SIMPLE_ADV =
+  (250, 240, 230, 230)` (the room each block takes in that row: rupee 250, clock 240, skull 230), so turning one off
+  moves the rest left.
+- The soft bar of the simple layout no longer uses fixed pads around the first and last block: the icons and
+  texts are measured first (`row_text_w`, digit advance at the current text scale), each icon sits a fixed
+  30 layout units left of its own number (`row_ext` records what is drawn) and the bar is placed over those
+  extents plus 34 + `g_bg_tune[1]` each side. With the old formula a short number left its rupee icon far
+  away and a long one (a clock time) ran past the end of the bar. `g_bg_tune[0]` is now a 0-centred shift
+  (it was -165, a compensation for the old formula).
+- The block switches drive `show_r` / `show_c` / `show_s` / `show_h`, which hide the text, icons and plates;
+  the wide layout keeps its per-block plates and the tuned icon offsets.
+- Diagnostic: `g_hud_bg_dbg[0..3]` = the bar's x0, x1 and the first and last visible block x.
