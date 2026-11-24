@@ -58,14 +58,18 @@ def is_newer(tag: str, current: str) -> bool:
 
 
 def _platform_assets() -> tuple[str, ...]:
+    """This app's own asset names first: since 0.10.0 the plain names are the Rust app's, and updating the Python app
+    into a Rust binary would replace it with something it cannot run from inside itself."""
     if sys.platform == "win32":
-        return ("SHB-OcarinaTweaks.exe", "SuperHeroBoostConfig.exe")
+        return ("SHB-OcarinaTweaks-legacy.exe", "SHB-OcarinaTweaks.exe", "SuperHeroBoostConfig.exe")
     if sys.platform == "darwin":
-        return ("SHB-OcarinaTweaks-macos.dmg", "SHB-OcarinaTweaks.app.zip", "SHB-OcarinaTweaks-macos.zip",
+        return ("SHB-OcarinaTweaks-legacy-macos.dmg", "SHB-OcarinaTweaks-legacy-macos.zip",
+                "SHB-OcarinaTweaks-macos.dmg", "SHB-OcarinaTweaks.app.zip", "SHB-OcarinaTweaks-macos.zip",
                 "SHB-OcarinaTweaks.dmg", "SHB-OcarinaTweaks",
                 "SuperHeroBoostConfig-macos.dmg", "SuperHeroBoostConfig.app.zip",    # names up to 0.8.x
                 "SuperHeroBoostConfig-macos.zip", "SuperHeroBoostConfig.dmg", "SuperHeroBoostConfig")
-    return ("SHB-OcarinaTweaks-linux", "SHB-OcarinaTweaks", "SuperHeroBoostConfig-linux", "SuperHeroBoostConfig")
+    return ("SHB-OcarinaTweaks-legacy-linux", "SHB-OcarinaTweaks-linux", "SHB-OcarinaTweaks",
+            "SuperHeroBoostConfig-linux", "SuperHeroBoostConfig")
 
 
 def _pick_asset(assets: list) -> dict | None:

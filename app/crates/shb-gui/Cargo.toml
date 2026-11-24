@@ -16,7 +16,13 @@ shb-core.workspace = true
 eframe = { version = "0.37", default-features = false, features = ["default_fonts", "wgpu"] }
 egui = "0.37"
 # The folder picker of "Examinar…": the OS dialog, no runtime of our own. On Windows it is the IFileDialog of the
-# shell; the GTK/portal backends of Linux are left out (they need C libraries this build cannot link).
+# shell; on macOS the NSOpenPanel of the crate. On Linux and the BSDs it needs a backend, and the desktop portal
+# (D-Bus, see the target section below) is pure Rust, so it builds where GTK's headers are not installed.
 rfd = { version = "0.15", default-features = false }
 # The logo is the app's own PNG (app/assets/shb.png), decoded at startup for the header and the window icon.
 image = { version = "0.25", default-features = false, features = ["png"] }
+
+# Linux and the BSDs: the folder picker through the XDG desktop portal (D-Bus). Pure Rust — no GTK headers, which is
+# what the CI runner has — and the dialog is the desktop's own.
+[target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal"] }
