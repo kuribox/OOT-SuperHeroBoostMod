@@ -47,8 +47,9 @@ target, the L3 sprint, the button style, the layout, the language and the HUD si
   why and is greyed out. The D-pad right keeps its hold: its short press is Navi's call, not a role of ours.
 - **Wait or no wait, per held button.** *Skip the tap action when held* decides how a press is told apart. On: the tap
   waits about a third of a second to know it is not a hold, so every tap is a little late and a hold never also fires
-  the tap. Off: the tap acts at once and the hold comes on top. The arrow waits by default (a hold does not call Navi);
-  the face buttons, L and R act at once, as they always did.
+  the tap. Off: the tap acts at once and the hold comes on top. The face buttons, L and R act at once, as they always
+  did. **The D-pad right is not a choice:** a tap always calls Navi and the hold does the role, so that row has no
+  checkbox, only the note that explains it.
 - **Shortcut roles may repeat.** Jump, Sword, the item selector, the Armory and Back can sit on two buttons (jump on X
   and on R, for instance), and the HUD draws each one on its first button. The Controls card also lists, in amber, the
   game's own actions that **no** button has (jump, sword, action, target), or says that all of them have one.

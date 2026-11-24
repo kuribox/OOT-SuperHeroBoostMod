@@ -78,7 +78,6 @@ fn glyph(style: ButtonStyle, button: Button) -> &'static str {
             Button::Zr => "ZR",
             Button::L3 => "L3",
             Button::R3 => "R3",
-            Button::Dr => "▶",
             _ => "",
         },
         ButtonStyle::Xbox => match button {
@@ -92,7 +91,6 @@ fn glyph(style: ButtonStyle, button: Button) -> &'static str {
             Button::Zr => "RT",
             Button::L3 => "LS",
             Button::R3 => "RS",
-            Button::Dr => "▶",
             _ => "",
         },
         ButtonStyle::PlayStation => match button {
@@ -106,7 +104,6 @@ fn glyph(style: ButtonStyle, button: Button) -> &'static str {
             Button::Zr => "R2",
             Button::L3 => "L3",
             Button::R3 => "R3",
-            Button::Dr => "▶",
             _ => "",
         },
     }
@@ -270,19 +267,37 @@ fn draw_chip(paint: &Canvas, at: Pos2, style: ButtonStyle, button: Button, radiu
                 Stroke::new(2.0, Color32::from_rgb(0x7A, 0x8A, 0x80)),
             );
         }
-        _ => {
-            let w = if button == Button::Dr {
-                radius * 0.8
-            } else {
-                radius * 1.35
-            };
-            let h = if button == Button::Dr {
-                radius * 0.8
-            } else {
-                radius * 0.72
-            };
-            paint.rect(at, egui::vec2(w, h), fill, outline, 3.0);
+        Button::Dr => {
+            // The D-pad's right key: a cross with the arrow drawn in its right arm. The glyph is painted, not set in a
+            // font, because this window's fonts have no "▶" and an empty box took its place.
+            let arm = radius * 0.95;
+            let half = radius * 0.31;
+            paint.rect(at, egui::vec2(half, arm), fill, outline, 2.0);
+            paint.rect(at, egui::vec2(arm, half), fill, outline, 2.0);
         }
+        _ => {
+            paint.rect(
+                at,
+                egui::vec2(radius * 1.35, radius * 0.72),
+                fill,
+                outline,
+                3.0,
+            );
+        }
+    }
+    if button == Button::Dr {
+        let s = radius * 0.3;
+        let c = at + egui::vec2(radius * 0.44, 0.0) * paint.scale;
+        paint.polygon(
+            vec![
+                c + egui::vec2(s, 0.0) * paint.scale,
+                c + egui::vec2(-s * 0.7, -s * 0.9) * paint.scale,
+                c + egui::vec2(-s * 0.7, s * 0.9) * paint.scale,
+            ],
+            Color32::from_rgb(0xC8, 0xC8, 0xCC),
+            Stroke::NONE,
+        );
+        return;
     }
     let key = glyph(style, button);
     if let Some(color) = ps_color(key) {
@@ -652,6 +667,8 @@ pub fn stamina(ui: &mut egui::Ui, on: bool, bar: bool) {
 
 #[cfg(test)]
 mod geometry {
+    use super::{Button, ButtonStyle};
+
     /// `app-legacy/remap_ui.py` `_draw_hud`: the layout units of `core/hud.c` mapped onto the 400 × 228 box.
     fn to_px(x: f32, y: f32) -> (f32, f32) {
         let scale = 0.37;
@@ -684,5 +701,35 @@ mod geometry {
             (px - 200.0).abs() < 0.5 && (py - 129.84).abs() < 0.5,
             "({px}, {py})"
         );
+    }
+
+    /// The D-pad right key used to be the "▶" character, which this window's fonts do not carry: the chip came out
+    /// as an empty box. It is painted now (a cross with the arrow in its right arm), so its chip must draw shapes and
+    /// set no text at all.
+    #[test]
+    fn the_dpad_right_key_is_painted_not_set_in_a_font() {
+        let ctx = egui::Context::default();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(120.0, 60.0),
+            )),
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            super::chip(ui, ButtonStyle::Switch, Button::Dr, None);
+        });
+        output.textures_delta.clear();
+        let mut arrows = 0;
+        let mut texts = 0;
+        for clipped in &output.shapes {
+            match &clipped.shape {
+                egui::Shape::Path(path) if path.closed => arrows += 1,
+                egui::Shape::Text(_) => texts += 1,
+                _ => {}
+            }
+        }
+        assert_eq!(arrows, 1, "the arrow of the D-pad key was not painted");
+        assert_eq!(texts, 0, "the D-pad key still sets a glyph in a font");
     }
 }

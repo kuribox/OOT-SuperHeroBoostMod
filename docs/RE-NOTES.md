@@ -800,8 +800,12 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   bytes (`f` = struct offset - 16).
 - Wait (bit 1) is the old behaviour of the arrow generalised: the short press is cleared from the read while it may
   still be a hold and replayed as a 3-read pulse if released early. No wait (bit 0) is the old behaviour of A / B / X / Y.
-  The arrow used to wait unconditionally; it is now the app's default (`DEFAULT_HOLD_WAIT`), and a module that reads
-  `bm_hold_wait == 0` lets Navi answer at once and the hold comes after.
+  The arrow used to wait unconditionally and that is what it is again: bit 0 of the byte is not a choice of the
+  player's (both apps force it in `hold_wait_byte`, and the D-pad right row offers no checkbox, only a note), because
+  its short press is the game's Navi call. A config that still reads `bm_hold_wait == 0` lets Navi answer at once and
+  the hold come after, which is why the byte is forced rather than defaulted.
+- The Rust window's D-pad right key is painted (a cross with the arrow in its right arm): the "▶" character is not in
+  the window's fonts and came out as an empty box where the button should be.
 - Verified over the debug server (L short = camera with Back held, wait on; R short = sword with jump held, wait
   off): a 6-frame tap of L bumps `g_remap_dr[0]` (replayed), a 6-frame tap of R does not; a 70-frame hold of either
   bumps its own `g_remap_hold[]` slot (5 and 6).

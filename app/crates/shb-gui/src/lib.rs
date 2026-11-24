@@ -2609,26 +2609,38 @@ impl App {
                     );
                     ui.label(egui::RichText::new(text).size(11.0).color(theme::DIM));
                 });
-            } else if let Some(wait_key) = owner.or((button == Button::Dr).then_some(Button::Dr))
-                && role != Role::None
-            {
-                // How the short press tells itself from the long one: wait for the hold, or act at once.
-                let (label, help_key) = if button == Button::Dr {
-                    ("opt_hwait_dr", "opt_hwait_dr_help")
-                } else {
-                    ("opt_hwait", "opt_hwait_help")
-                };
+            } else if let Some(wait_key) = owner.filter(|_| role != Role::None) {
+                // How the short press tells itself from the long one: wait for the hold, or act at once. Only a face
+                // button or L / R has this choice: the D-pad right's short press is the game's Navi call, so it always
+                // waits for the hold (the note below says so).
                 let mut wait = self
                     .settings
                     .bm_hold_wait
                     .get(&wait_key)
                     .copied()
-                    .unwrap_or(wait_key == Button::Dr);
+                    .unwrap_or(false);
                 ui.indent(("hold-wait", button), |ui| {
-                    if widgets::check(ui, &mut wait, tr(lang, label), "", Some(help_key), help) {
+                    if widgets::check(
+                        ui,
+                        &mut wait,
+                        tr(lang, "opt_hwait"),
+                        "",
+                        Some("opt_hwait_help"),
+                        help,
+                    ) {
                         self.settings.bm_hold_wait.insert(wait_key, wait);
                         *changed = true;
                     }
+                });
+            }
+            if button == Button::Dr {
+                // The arrow is the game's Navi call: its short press is not ours to configure, only the long one.
+                ui.indent(("dpad-note", button), |ui| {
+                    ui.label(
+                        egui::RichText::new(tr(lang, "dr_note"))
+                            .size(11.0)
+                            .color(theme::DIM),
+                    );
                 });
             }
             if role == Role::Target {

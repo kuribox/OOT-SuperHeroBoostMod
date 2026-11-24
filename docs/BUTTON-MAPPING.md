@@ -59,8 +59,11 @@ struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no rol
   good and the role's virtual button is set for as long as it is held. State is reset whenever the remap is off
   (menus, dialogues, `Evt*`). With no role it passes through untouched.
 - Diagnostics: `g_remap_dr[0]` counts replayed short presses, `[1]` long presses that fired the role.
-- The app lists the arrow as the last row of Controls, with a note under it. It is not part of the presets: choosing
-  one keeps the arrow's role, and the preset buttons ignore it when they decide which preset is active.
+- The short press is **not configurable**: it is the game's Navi call and always waits to be told apart from the hold
+  (`bm_hold_wait` bit 0 is forced by both apps, there is no "skip the tap action" checkbox on that row), and a hold
+  never also calls Navi. The app lists the arrow as the last row of Controls, with a note under it saying so. It is
+  not part of the presets: choosing one keeps the arrow's role, and the preset buttons ignore it when they decide
+  which preset is active.
 
 ## Roles that may repeat (jump, sword, selector, armory, Back)
 
@@ -101,8 +104,10 @@ them with the arrow's code (`HOLD_PB` = DR, A, B, X, Y, L, R, `remap_hold_role()
   - **Wait** (bit 1): the short press is held back until it is known which press it is: released before 20 frames it is
     replayed to the game as a three-read pulse (the short role answers a little late), held longer only the hold role
     is pressed and the short one never is. A small delay on every tap of that button; the app's help says so.
-  - D-pad right waits by default (its short press is Navi's call, which would otherwise fire on every hold); the rest
-    do not, as a first version that waited felt late on the sword and the jump. `DEFAULT_HOLD_WAIT` in the installer.
+  - D-pad right always waits: its short press is Navi's call, which would otherwise fire on every hold, and that
+    press is not the player's to configure (both apps force bit 0 of the byte). The face buttons, L and R do not wait
+    by default, as a first version that waited felt late on the sword and the jump. `DEFAULT_HOLD_WAIT` in the
+    installer.
 - **A button whose own role acts held or at once has no hold**, and those roles are no hold role either
   (`hold_blocked()` in `core/remap.c`, `HOLD_BLOCK_ROLES` in the installer): shield, target, sprint, selector, armory,
   items 1 / 2 / 3 and the main item. The module returns `ROLE_NONE` for such a hold whatever the config says;

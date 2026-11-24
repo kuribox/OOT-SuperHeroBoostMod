@@ -84,8 +84,11 @@ module changed (its configuration block grew to 0x68 bytes).
   right keeps its hold: its short press is Navi's call, not a role of ours.
 - **Wait or no wait, per held button.** *Skip the tap action when held* decides how a press is told apart: on, the tap
   waits about a third of a second to know it is not a hold (every tap is a little late, and a hold never also fires
-  the tap); off, the tap acts at once and a hold comes on top. The arrow waits by default (so a hold does not call
-  Navi); the face buttons, L and R act at once, as they always did.
+  the tap); off, the tap acts at once and a hold comes on top. The face buttons, L and R act at once, as they always
+  did. **The D-pad right is not a choice:** a tap always calls Navi and the hold is the role, so its row has no
+  checkbox but a note that says so (the install writes that bit either way).
+- **The D-pad right row draws its key.** The arrow was the "▶" character, which the window's fonts do not carry: the
+  chip came out as an empty box. It is painted now, a D-pad with the arrow in its right arm.
 - **Shortcut roles may repeat.** Jump, Sword, the item selector, the Armory and Back can sit on two buttons (jump on X
   and on R, say). The HUD draws each on its first button. The Controls card also lists, in amber, the game's own
   actions that no button has (jump, sword, action, target), or says that all of them have one.
