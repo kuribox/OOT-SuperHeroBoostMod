@@ -539,10 +539,12 @@ pub fn settings_for(key: &str) -> Settings {
 mod tests {
     #[test]
     fn choosing_a_profile_keeps_what_the_profile_does_not_choose() {
-        let mut s = Settings::default();
-        s.stamina_bar = true;
-        s.hud_ctrl_scale = 140;
-        s.no_magic_drop = true;
+        let mut s = Settings {
+            stamina_bar: true,
+            hud_ctrl_scale: 140,
+            no_magic_drop: true,
+            ..Settings::default()
+        };
         // `base` says nothing about the stamina display, the R3 target or the L3 sprint.
         apply_profile(&mut s, "base");
         assert!(s.stamina_bar, "the display is the player's");
