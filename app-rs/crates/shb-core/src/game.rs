@@ -1,0 +1,568 @@
+//! A statically recompiled game (Longshot, Hookshot, ReLink).
+//!
+//! Those ports compile the game's code ahead of time (`bin/longshot.exe` …), so an `exefs` mod is ignored: the
+//! module has to be inside the game. The Python app writes the module into `<game>/.longshot_exefs/subsdk9`, patches
+//! `exefs/main` with our IPS and the config block into `image.bin`, copies the romfs files to
+//! `<game>/mods/zz-Super-Hero-Boost/romfs`, and then runs the builder to compile it.
+//!
+//! This module does the first half: everything except the build. `apply` refuses to invent a working executable,
+//! and says when a rebuild is needed; `uninstall` puts the original files back.
+
+use crate::config::{MAGIC, patch_config};
+use crate::error::{Error, Result, read, write};
+use crate::find::MOD_NAME;
+use crate::settings::Settings;
+use std::path::{Path, PathBuf};
+
+pub const EXEFS_NAMES: [&str; 3] = [".longshot_exefs", ".hookshot_exefs", ".relink_exefs"];
+pub const EXES: [&str; 6] = [
+    "bin/longshot.exe",
+    "bin/longshot",
+    "bin/hookshot.exe",
+    "bin/hookshot",
+    "bin/relink-game.exe",
+    "bin/relink-game",
+];
+pub const BACKUP: &str = ".shb-backup";
+/// The game build the payload's IPS and module are made for (the first half of `main`'s module id).
+pub const MODULE_BUILD: &str = "e0f3ccfa";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flavor {
+    Longshot,
+    Hookshot,
+    ReLink,
+}
+
+impl Flavor {
+    pub fn name(self) -> &'static str {
+        match self {
+            Flavor::Longshot => "longshot",
+            Flavor::Hookshot => "hookshot",
+            Flavor::ReLink => "relink",
+        }
+    }
+
+    /// ReLink needs its own module build (its translator mis-handles the standalone one), so the payload has a
+    /// second variant for it.
+    pub fn payload_variant(self) -> &'static str {
+        match self {
+            Flavor::ReLink => "relink",
+            _ => "standalone",
+        }
+    }
+}
+
+/// A recompiled game folder.
+#[derive(Debug, Clone)]
+pub struct Game {
+    pub root: PathBuf,
+    pub exefs: PathBuf,
+    pub flavor: Flavor,
+}
+
+/// Whether the folder looks like a Rekarina install (`rekarina.ini` + `exefs/main`, or it under `game/`).
+///
+/// Rekarina is a different model (it patches the module in place, updates the executable's module hash and keeps
+/// its own state), so this port only reports what it found.
+pub fn looks_like_rekarina(path: &Path) -> bool {
+    let mut base = path.to_path_buf();
+    if base.is_file() {
+        base = match base.parent() {
+            Some(p) => p.to_path_buf(),
+            None => return false,
+        };
+    }
+    let mut candidates = vec![base.clone()];
+    if base
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.eq_ignore_ascii_case("game"))
+        == Some(true)
+        && let Some(parent) = base.parent()
+    {
+        candidates.push(parent.to_path_buf());
+    }
+    candidates.push(base.join("game"));
+    candidates.iter().any(|dir| {
+        (dir.join("rekarina.ini").is_file() || dir.join("Rekarina.exe").is_file())
+            && dir.join("exefs").join("main").is_file()
+    })
+}
+
+/// The game folder (the one with an exefs folder and `bin/longshot.exe` or the like).
+pub fn find(path: &Path) -> Option<Game> {
+    if !path.exists() {
+        return None;
+    }
+    let mut base = path.to_path_buf();
+    if base.is_file() {
+        base = base.parent()?.to_path_buf();
+    }
+    let mut candidates = vec![base.clone()];
+    if base
+        .file_name()
+        .and_then(|n| n.to_str())
+        .map(|n| n.eq_ignore_ascii_case("bin"))
+        == Some(true)
+        && let Some(parent) = base.parent()
+    {
+        candidates.push(parent.to_path_buf());
+    }
+    for root in &candidates {
+        if let (Some(exefs), Some(flavor)) = (exefs_of(root), flavor_of(root))
+            && EXES.iter().any(|exe| root.join(exe).is_file())
+        {
+            return Some(Game {
+                root: root.clone(),
+                exefs,
+                flavor,
+            });
+        }
+    }
+    // Prepared but never run: accept it when the exefs is there.
+    for root in &candidates {
+        if let (Some(exefs), Some(flavor)) = (exefs_of(root), flavor_of(root)) {
+            return Some(Game {
+                root: root.clone(),
+                exefs,
+                flavor,
+            });
+        }
+    }
+    None
+}
+
+fn exefs_of(root: &Path) -> Option<PathBuf> {
+    EXEFS_NAMES
+        .iter()
+        .map(|name| root.join(name))
+        .find(|dir| dir.join("main").is_file())
+}
+
+pub fn flavor_of(root: &Path) -> Option<Flavor> {
+    EXEFS_NAMES.iter().find_map(|name| {
+        root.join(name)
+            .join("main")
+            .is_file()
+            .then_some(match *name {
+                ".hookshot_exefs" => Flavor::Hookshot,
+                ".relink_exefs" => Flavor::ReLink,
+                _ => Flavor::Longshot,
+            })
+    })
+}
+
+/// The NSO module id of `main` (hex); the builders call its first half "the build".
+pub fn main_build_id(main: &Path) -> String {
+    let Ok(data) = read(main) else {
+        return String::new();
+    };
+    data.get(0x40..0x60).map(hex).unwrap_or_default()
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Where a recompiled game keeps its mods: `<game>/mods`, each one in its own folder with a `romfs` inside.
+pub fn mods_dir(game: &Game) -> PathBuf {
+    game.root.join("mods")
+}
+
+/// Our own folder inside `mods/`, whether or not it holds the files right now.
+pub fn our_mod_dir(game: &Game) -> PathBuf {
+    mods_dir(game).join(MOD_NAME)
+}
+
+/// The game holds our module (installed, whether or not it was compiled).
+pub fn is_installed(game: &Game) -> bool {
+    game.exefs.join("subsdk9").is_file()
+}
+
+/// Patch the module's config block and the copy in `image.bin`, and refresh the romfs files. This is what the
+/// Python app's `apply_settings` does, and it needs the game to have been built with the module already (the code
+/// lives in the executable).
+pub fn apply_settings(game: &Game, s: &Settings, payload: &Path) -> Result<bool> {
+    if !is_installed(game) {
+        return Err(Error::NeedsBuild(game.root.clone()));
+    }
+    stage(game, s, payload)
+}
+
+/// Write the module, its settings block, `image.bin` and the romfs — without requiring that the module is already
+/// there. A rebuild needs this: the module has to be in `exefs/` *before* the recompiler lifts the game.
+pub fn stage(game: &Game, s: &Settings, payload: &Path) -> Result<bool> {
+    let bid = main_build_id(&game.exefs.join("main"));
+    if !bid.is_empty() && !bid.starts_with(MODULE_BUILD) {
+        return Err(Error::WrongBuild(bid));
+    }
+    // Read the payload first: a missing file must fail here, before the backup is taken and the folders are made,
+    // so a failed install leaves the game exactly as it was.
+    let variant = game.flavor.payload_variant();
+    let source = payload.join(variant).join("subsdk9");
+    if !source.is_file() {
+        return Err(Error::PayloadMissing(source));
+    }
+    let module = read(&source)?;
+    let module = patch_config(&module, s)?;
+
+    // The hooks: the module's entry points are branches written into `main` (the IPS is relative to the text with the
+    // 0x100 header). Without them the module is loaded but never called, and what runs is a game with a stray module.
+    let ips_path = payload.join(variant).join("ours.ips");
+    let ips = crate::ips::read(&read(&ips_path)?)?;
+
+    backup_once(game)?;
+
+    patch_main(&game.exefs.join("main"), &ips)?;
+
+    // exefs/subsdk9: the payload's module of this flavor, with the settings written into it.
+    write(&game.exefs.join("subsdk9"), &module)?;
+
+    // image.bin carries the same block for the compiled executable.
+    let image = game.root.join("image.bin");
+    let mut image_patched = false;
+    if image.is_file() {
+        let data = read(&image)?;
+        if data.windows(MAGIC.len()).any(|w| w == MAGIC) {
+            write(&image, &patch_config(&data, s)?)?;
+            image_patched = true;
+        }
+    }
+
+    install_romfs(game, s, payload)?;
+    Ok(image_patched)
+}
+
+/// Write the IPS records into the NSO `main` (an uncompressed image: the text starts at the offset its header gives, and
+/// the records are relative to a text that begins at 0x100). Returns how many records changed something.
+fn patch_main(main: &Path, records: &[(u32, Vec<u8>)]) -> Result<usize> {
+    if records.is_empty() {
+        return Ok(0);
+    }
+    let mut data = read(main)?;
+    if data.len() < 0x14 || &data[..4] != b"NSO0" {
+        return Err(Error::IpsFormat("main is not an NSO image"));
+    }
+    let text_off = u32::from_le_bytes([data[0x10], data[0x11], data[0x12], data[0x13]]) as usize;
+    let delta = text_off.wrapping_sub(0x100);
+    let mut changed = 0;
+    for (offset, patch) in records {
+        let at = *offset as usize + delta;
+
+        let Some(window) = data.get_mut(at..at + patch.len()) else {
+            return Err(Error::IpsFormat("a hook lies outside main"));
+        };
+        if window != patch.as_slice() {
+            window.copy_from_slice(patch);
+            changed += 1;
+        }
+    }
+    if changed > 0 {
+        write(main, &data)?;
+    }
+    Ok(changed)
+}
+
+/// The recompilers read their mods from `<game>/mods/<name>/romfs`: wipe our folder and write it again.
+fn install_romfs(game: &Game, s: &Settings, payload: &Path) -> Result<()> {
+    let mods = game.root.join("mods");
+    let target = mods.join(MOD_NAME);
+    std::fs::create_dir_all(&mods).map_err(|e| Error::io(&mods, e))?;
+    // Older versions used other folder names: ours go away, other mods stay.
+    if let Ok(entries) = std::fs::read_dir(&mods) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join(crate::find::MARKER).is_file() && path != target {
+                let _ = std::fs::remove_dir_all(&path);
+            }
+        }
+    }
+    if target.exists() {
+        std::fs::remove_dir_all(&target).map_err(|e| Error::io(&target, e))?;
+    }
+    std::fs::create_dir_all(&target).map_err(|e| Error::io(&target, e))?;
+    crate::error::write(&target.join(crate::find::MARKER), b"{}")?;
+    crate::romfs::populate(
+        &target.join("romfs"),
+        s,
+        payload,
+        &game.root,
+        crate::romfs::Variant::Recompiled,
+    )?;
+    Ok(())
+}
+
+/// Copy, once, every file this app writes: the uninstall puts them back.
+fn backup_once(game: &Game) -> Result<()> {
+    let backup = game.root.join(BACKUP);
+    let files = backup.join("files");
+    let manifest = backup.join("manifest.json");
+    if manifest.is_file() {
+        return Ok(()); // the first snapshot is the original game: never overwrite it
+    }
+    std::fs::create_dir_all(&files).map_err(|e| Error::io(&files, e))?;
+    let exefs_name = game
+        .exefs
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let mut entries: Vec<serde_json::Value> = Vec::new();
+    for rel in [
+        format!("{exefs_name}/main"),
+        format!("{exefs_name}/subsdk9"),
+        "image.bin".to_string(),
+    ] {
+        let src = game.root.join(&rel);
+        let entry = if src.is_file() {
+            let dst = files.join(&rel);
+            if let Some(parent) = dst.parent() {
+                std::fs::create_dir_all(parent).map_err(|e| Error::io(parent, e))?;
+            }
+            std::fs::copy(&src, &dst).map_err(|e| Error::io(&dst, e))?;
+            serde_json::json!({ "path": rel, "kind": "file" })
+        } else {
+            serde_json::json!({ "path": rel, "kind": "created" })
+        };
+        entries.push(entry);
+    }
+    let doc = serde_json::json!({ "version": 1, "exefs": exefs_name, "files": entries });
+    write(&manifest, doc.to_string().as_bytes())?;
+    Ok(())
+}
+
+/// Put the original files back and drop what the install created.
+pub fn uninstall(game: &Game) -> Result<bool> {
+    let backup = game.root.join(BACKUP);
+    let manifest = backup.join("manifest.json");
+    let mut changed = false;
+    // What the backup put back: a module it restored is the game's own and must not be deleted afterwards.
+    let mut restored_files: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // 1. The files the install replaced go back exactly as they were.
+    if let Ok(text) = std::fs::read_to_string(&manifest)
+        && let Ok(doc) = serde_json::from_str::<serde_json::Value>(&text)
+    {
+        for entry in doc
+            .get("files")
+            .and_then(|f| f.as_array())
+            .cloned()
+            .unwrap_or_default()
+        {
+            let Some(rel) = entry.get("path").and_then(|p| p.as_str()) else {
+                continue;
+            };
+            let dst = game.root.join(rel);
+            match entry
+                .get("kind")
+                .and_then(|k| k.as_str())
+                .unwrap_or("created")
+            {
+                "file" => {
+                    let src = backup.join("files").join(rel);
+                    if src.is_file() {
+                        if let Some(parent) = dst.parent() {
+                            let _ = std::fs::create_dir_all(parent);
+                        }
+                        std::fs::copy(&src, &dst).map_err(|e| Error::io(&dst, e))?;
+                        restored_files.insert(rel.replace('\\', "/"));
+                        changed = true;
+                    }
+                }
+                _ => {
+                    if dst.is_file() {
+                        std::fs::remove_file(&dst).map_err(|e| Error::io(&dst, e))?;
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Our mods folder always goes — with the mod merged into the build, the backup may not even mention it.
+    let mods = mods_dir(game);
+    if let Ok(entries) = std::fs::read_dir(&mods) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let ours = path.file_name().and_then(|n| n.to_str()) == Some(MOD_NAME)
+                || path.join(crate::find::MARKER).is_file();
+            if path.is_dir() && ours {
+                std::fs::remove_dir_all(&path).map_err(|e| Error::io(&path, e))?;
+                changed = true;
+            }
+        }
+    }
+
+    // 3. And the module the mod loads as: an install records whether it created it, a rebuild does not. The module
+    // carries our config block, so it can be recognised without the manifest — an uninstall always has to reach a
+    // state without the mod.
+    let module = game.exefs.join("subsdk9");
+    let rel = module
+        .strip_prefix(&game.root)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    if module.is_file() && !restored_files.contains(&rel) && module_is_ours(&module) {
+        std::fs::remove_file(&module).map_err(|e| Error::io(&module, e))?;
+        changed = true;
+    }
+
+    // 4. What the install left behind: the backup (a later install takes a fresh one) and the work folder.
+    if changed {
+        let _ = std::fs::remove_dir_all(&backup);
+        let _ = std::fs::remove_dir_all(game.root.join(".shb-work"));
+    }
+    Ok(changed)
+}
+
+/// Whether a module carries our config block (the magic of `ShbConfig`), i.e. it is the mod's own `subsdk9`.
+fn module_is_ours(module: &Path) -> bool {
+    let Ok(data) = read(module) else {
+        return false;
+    };
+    // The block lives in the module's data section, which an NSO0 does not compress: a plain search finds it.
+    let magic = crate::config::MAGIC;
+    data.windows(magic.len()).any(|w| w == magic)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("shb-rs-game-{}-{}", std::process::id(), tag));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    /// A Longshot-shaped game: an exefs with `main` (build id e0f3ccfa…) and the module, plus `image.bin`.
+    fn game(root: &Path) {
+        let exefs = root.join(".longshot_exefs");
+        std::fs::create_dir_all(root.join("bin")).unwrap();
+        std::fs::create_dir_all(&exefs).unwrap();
+        std::fs::write(root.join("bin/longshot.exe"), b"exe").unwrap();
+        let mut main = vec![0u8; 0x100];
+        // The module id is raw bytes; `main_build_id` prints them as hex.
+        main[0x40..0x44].copy_from_slice(&[0xE0, 0xF3, 0xCC, 0xFA]);
+        std::fs::write(exefs.join("main"), &main).unwrap();
+        let mut module = vec![0x22u8; 0x400];
+        module[0x100..0x108].copy_from_slice(MAGIC);
+        module[0x108..0x10C].copy_from_slice(&1u32.to_le_bytes());
+        module[0x10C..0x110].copy_from_slice(&0x61u32.to_le_bytes());
+        std::fs::write(exefs.join("subsdk9"), &module).unwrap();
+        std::fs::write(root.join("image.bin"), &module).unwrap();
+    }
+
+    fn payload(root: &Path) {
+        for variant in ["standalone", "relink"] {
+            let dir = root.join(variant);
+            std::fs::create_dir_all(&dir).unwrap();
+            let mut module = vec![0x33u8; 0x400];
+            module[0x100..0x108].copy_from_slice(MAGIC);
+            module[0x108..0x10C].copy_from_slice(&1u32.to_le_bytes());
+            module[0x10C..0x110].copy_from_slice(&0x61u32.to_le_bytes());
+            std::fs::write(dir.join("subsdk9"), &module).unwrap();
+            std::fs::write(dir.join("ours.ips"), b"IPS32EEOF").unwrap();
+        }
+        let art = root.join("button_romfs/switch/Layouts");
+        std::fs::create_dir_all(&art).unwrap();
+        std::fs::write(art.join("a.bntx"), b"x").unwrap();
+    }
+
+    #[test]
+    fn the_hooks_are_written_into_main_and_only_once() {
+        let root = temp_dir("hooks");
+        let main = root.join("main");
+        let mut data = vec![0u8; 0x200];
+        data[..4].copy_from_slice(b"NSO0");
+        data[0x10..0x14].copy_from_slice(&0x104u32.to_le_bytes());
+        std::fs::write(&main, &data).unwrap();
+        // Record offsets count from a text that starts at 0x100; this file's text starts at 0x104.
+        let records = vec![(0x20u32, vec![1u8, 2, 3, 4])];
+        assert_eq!(patch_main(&main, &records).unwrap(), 1);
+        let patched = std::fs::read(&main).unwrap();
+        assert_eq!(&patched[0x24..0x28], &[1, 2, 3, 4]);
+        assert_eq!(patch_main(&main, &records).unwrap(), 0);
+        assert!(patch_main(&main, &[(0x1000u32, vec![0u8; 4])]).is_err());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn detection() {
+        let root = temp_dir("find");
+        game(&root);
+        let found = find(&root).expect("the game folder");
+        assert_eq!(found.flavor, Flavor::Longshot);
+        assert!(main_build_id(&found.exefs.join("main")).starts_with(MODULE_BUILD));
+        // The `bin` folder is accepted too.
+        assert_eq!(find(&root.join("bin")).map(|g| g.root), Some(root.clone()));
+        assert!(find(&root.join("nowhere")).is_none());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn apply_writes_the_module_image_and_romfs_then_uninstall_restores() {
+        let root = temp_dir("apply");
+        game(&root);
+        let pay = root.join("payload");
+        payload(&pay);
+        let found = find(&root).unwrap();
+        let original = std::fs::read(root.join(".longshot_exefs/subsdk9")).unwrap();
+
+        let mut s = Settings {
+            enemy_hp: 200,
+            ..Settings::default()
+        };
+        s.button_mapping = true;
+        apply_settings(&found, &s, &pay).unwrap();
+
+        let module = std::fs::read(root.join(".longshot_exefs/subsdk9")).unwrap();
+        let cfg = crate::config::read_config(&module).unwrap();
+        assert_eq!(cfg.enemy_hp, 200);
+        let image = std::fs::read(root.join("image.bin")).unwrap();
+        assert_eq!(crate::config::read_config(&image).unwrap().enemy_hp, 200);
+        assert!(
+            root.join("mods/zz-Super-Hero-Boost/romfs/Layouts/a.bntx")
+                .is_file()
+        );
+        assert!(root.join(BACKUP).join("manifest.json").is_file());
+
+        assert!(uninstall(&found).unwrap());
+        // This game had a module before the install, so an uninstall puts that one back instead of deleting the file.
+        assert_eq!(
+            std::fs::read(root.join(".longshot_exefs/subsdk9")).unwrap(),
+            original,
+            "the module that was there before comes back byte for byte"
+        );
+        assert!(!root.join(BACKUP).exists(), "and the backup is gone");
+        assert!(!root.join("mods/zz-Super-Hero-Boost").exists());
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_game_without_the_module_needs_a_build() {
+        let root = temp_dir("nobuild");
+        game(&root);
+        std::fs::remove_file(root.join(".longshot_exefs/subsdk9")).unwrap();
+        let pay = root.join("payload");
+        payload(&pay);
+        let found = find(&root).unwrap();
+        let err = apply_settings(&found, &Settings::default(), &pay).unwrap_err();
+        assert!(matches!(err, Error::NeedsBuild(_)));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_different_game_build_is_refused() {
+        let root = temp_dir("build");
+        game(&root);
+        let mut main = std::fs::read(root.join(".longshot_exefs/main")).unwrap();
+        main[0x40..0x44].copy_from_slice(&[0xDE, 0xAD, 0xBE, 0xEF]);
+        std::fs::write(root.join(".longshot_exefs/main"), &main).unwrap();
+        let pay = root.join("payload");
+        payload(&pay);
+        let err = apply_settings(&find(&root).unwrap(), &Settings::default(), &pay).unwrap_err();
+        assert!(matches!(err, Error::WrongBuild(_)));
+        let _ = std::fs::remove_dir_all(root);
+    }
+}

@@ -44,8 +44,12 @@ app/payload/romfs_opts/
 *.ips
 .longshot*
 
+# Rust port of the companion app
+app-rs/target/
+
 # macOS / Windows / Linux desktop noise
 .DS_Store
 Thumbs.db
 desktop.ini
 .venv/
+app-rs/target-dev/
