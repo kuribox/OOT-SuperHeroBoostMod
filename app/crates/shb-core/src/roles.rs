@@ -118,14 +118,17 @@ pub fn default_hold_wait() -> BTreeMap<Button, bool> {
 }
 
 /// `bm_hold_wait` as the module reads it: a bit per `HOLD_WAIT_KEYS` entry (a missing button takes its default).
+/// Bit 0 (D-pad right) is always set: its short press is the game's Navi call and has to wait for the hold to know
+/// which press it is, so that is not a choice of the player's.
 pub fn hold_wait_byte(wait: &BTreeMap<Button, bool>) -> u8 {
     let mut have = default_hold_wait();
     have.extend(wait.iter().map(|(b, v)| (*b, *v)));
-    HOLD_WAIT_KEYS
+    let bits = HOLD_WAIT_KEYS
         .iter()
         .enumerate()
         .filter(|(_, button)| have.get(button).copied().unwrap_or(false))
-        .fold(0u8, |bits, (i, _)| bits | (1 << i))
+        .fold(0u8, |bits, (i, _)| bits | (1 << i));
+    bits | 1
 }
 
 /// The button a long press belongs to (`A_hold` -> `A`).
@@ -613,8 +616,10 @@ mod tests {
         assert_eq!(hold_wait_byte(&default_hold_wait()), 1);
         let mut w = default_hold_wait();
         w.insert(Button::R, true);
+        assert_eq!(hold_wait_byte(&w), 1 | (1 << 6));
+        // D-pad right is not a choice: its short press is the game's Navi call, so it always waits.
         w.insert(Button::Dr, false);
-        assert_eq!(hold_wait_byte(&w), 1 << 6);
+        assert_eq!(hold_wait_byte(&w), 1 | (1 << 6));
         // A missing button takes its default.
         assert_eq!(hold_wait_byte(&BTreeMap::new()), 1);
     }

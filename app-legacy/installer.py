@@ -40,17 +40,20 @@ ROLES = ("none", "jump", "sword", "action", "target", "item1", "item2", "item3",
 # A, B, X, Y, L and R can also have a role for their LONG press (config bytes bm_hold[0..3] and bm_hold_lr[0..1]). The
 # table keeps them under these keys, next to the buttons'; they are not buttons of the pad (no HUD art, no item roles).
 HOLD_KEYS = ("A_hold", "B_hold", "X_hold", "Y_hold", "L_hold", "R_hold")
-# Each held button (and D-pad right) also chooses how the press is told apart (bm_hold_wait, a bit per button in this
-# order): True = the short press WAITS for the hold (a small delay, a hold never fires it), False = it acts at once and
-# the hold comes on top. D-pad right waits by default: its short press is the game's Navi call.
+# Each held button (and D-pad right) has a bit in bm_hold_wait, in this order: True = the short press WAITS for the
+# hold (a small delay, a hold never fires it), False = it acts at once and the hold comes on top. Only the face
+# buttons and L / R are the player's choice; D-pad right always waits (bit 0 is forced), because its short press is
+# the game's Navi call and has to be told apart from the hold the player configured.
 HOLD_WAIT_KEYS = ("DR", "A", "B", "X", "Y", "L", "R")
 DEFAULT_HOLD_WAIT = {"DR": True, "A": False, "B": False, "X": False, "Y": False, "L": False, "R": False}
 
 
 def hold_wait_byte(wait) -> int:
-    """bm_hold_wait: the HOLD_WAIT_KEYS bits of a {button: bool} dict (a missing button takes its default)."""
+    """bm_hold_wait: the HOLD_WAIT_KEYS bits of a {button: bool} dict (a missing button takes its default), with the
+    D-pad right bit always set: its short press is the game's Navi call, not a choice the apps offer."""
     w = {**DEFAULT_HOLD_WAIT, **(wait if isinstance(wait, dict) else {})}
-    return sum(1 << i for i, k in enumerate(HOLD_WAIT_KEYS) if w.get(k))
+    bits = sum(1 << i for i, k in enumerate(HOLD_WAIT_KEYS) if w.get(k))
+    return bits | (1 << HOLD_WAIT_KEYS.index("DR"))
 
 
 # Roles that act held or at once: a button that has one has no hold, and none of them is a hold role (core/remap.c

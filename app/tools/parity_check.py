@@ -83,6 +83,9 @@ def random_settings(installer, rng: random.Random):
     settings.bm_layout = rng.choice(list(installer.BM_LAYOUTS))
     settings.bm_simple = rng.random() < 0.3
     settings.bm_l_mode = rng.choice(list(installer.L_MODES))
+    # Every held button's wait, the D-pad right included: the apps force its bit, so a False there must still come
+    # out as 1 in both.
+    settings.bm_hold_wait = {k: rng.random() < 0.5 for k in installer.HOLD_WAIT_KEYS}
     settings.stamina_bar = rng.random() < 0.5
     settings.manual_shield = rng.random() < 0.6
     settings.target_r3 = rng.random() < 0.5
