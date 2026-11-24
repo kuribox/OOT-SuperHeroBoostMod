@@ -682,9 +682,13 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   with the Jump/B swap / sword), gated on `g_remap_live`; `dc_key_override()` catches the game writing those panes.
   A second writer for the same panes (`guide_keys_update`, commit c173c15) fought it - it ignored `g_remap_live`,
   so a dialogue showed a world glyph - and was removed.
-- The interaction guide (the "Blandir ZR" / "Guardar B" bar) still draws the game's own buttons. Rewriting those
-  keys and hiding the bar were both tried and reverted: the game re-sets the panes (two writers blink), a shared
-  glyph buffer made every entry show the same letter, and the plate is not always in the same layout as the text.
+- The interaction guide (the "Blandir ZR" / "Guardar B" bar): rewriting its keys was tried and reverted (the game
+  re-sets the panes, two writers blink; a shared glyph buffer made every entry show the same letter). It is now
+  **hidden by default whenever the button-mapping HUD is on, with no option** (`gi_*` in core/hud.c, branch
+  feat/hide-interaction-guide). The text hook remembers the layout of any `T_Icon_NN` / `T_Guide_NN` / `T_Btn_NN`
+  write (validated: the layout must hold a `T_Guide_NN` pane, so `T_GuideA_00` and menus are untouched), and every
+  frame all its panes get scale 0, tint alpha 0 and y = 4000; the plate, shadow and end masks that live in the parent
+  layout (`W_GuideBg*`, `W_GuideBgSh*`, `P_MaskL/R_00`) get the same. `g_gi_hidden` = panes hidden last frame.
 
 ## HUD counts: the ZR button followed the borrowed item (Nov 23)
 

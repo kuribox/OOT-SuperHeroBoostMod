@@ -570,6 +570,7 @@ static int action_field(u32 field) { return field == 4 || field == 5; }
  * is (local corner offset L: position = base + (1 - s) * L). A position another writer set (a widescreen
  * planner) becomes the new base, so it is never undone. At 100% nothing is written. */
 static u64 pane_record(u64 frame, const char *name);
+static u64 layout_pane(u64 layout, const char *name);
 static void place(u64 rec, float x, float y, float sx, float sy, float rot);
 static const char HG_NAME[2][20] = {"N_ShbActions_00", "N_ShbCounters_00"};
 static const float HG_CORNER[2][2] = {{120.0f, 1080.0f}, {-120.0f, -1080.0f}};   /* top right / bottom left */
@@ -928,8 +929,7 @@ void hud_set_slot(u32 i, float icon, float count, float show) {
 
 static u64 ptr(u64 p, u32 off) { return *(u64 *)(p + off); }
 
-static u64 pane_record(u64 frame, const char *name) {
-    u64 layout = ptr(frame, 0x80);
+static u64 layout_pane(u64 layout, const char *name) {
     if (!layout || !vptr(layout)) return 0;
     const u8 *r = (const u8 *)ptr(layout, 0xF8);
     if (!r || !vptr((u64)r)) return 0;
@@ -938,6 +938,7 @@ static u64 pane_record(u64 frame, const char *name) {
     if (i < 0 || !arr || !vptr(arr)) return 0;
     return arr + (u64)i * 0xB0;
 }
+static u64 pane_record(u64 frame, const char *name) { return layout_pane(ptr(frame, 0x80), name); }
 
 static void set_pane_show(u64 pane, float scale_y) {
     *(float *)(pane + 0x64) = scale_y;   /* local Y scale: 0 hides */
@@ -2890,6 +2891,70 @@ static const char *dc_key_override(const char *nm) {
         if (str_eq(nm, DC_KEY[b])) return g_dc_glyph[b][0] && (u8)g_dc_glyph[b][2] != (u8)(0x80 + b) ? g_dc_glyph[b] : 0;
     return 0;
 }
+/* ---- the interaction guide bar under Link ("Guardar B", "Lanzar A" ... while an item is held or lifted) ----
+ * Always hidden while the button-mapping HUD is on (not an option): our own cluster already names the buttons and
+ * the game's keys in this bar would not match the remap. Each entry is its own part layout whose panes are RootPane,
+ * N_IconGuide_00, W_GuideBgSh_01, W_GuideBg_01, A_Align_00, T_Guide_00, T_Icon_00: the layout is remembered when the
+ * game writes one of its texts, and every pane of it is hidden each frame (scale 0, tint alpha 0, moved out of the
+ * frame), plus the bar's plate, shadow and end masks when they live in the parent layout. */
+#define GI_N 8
+static u64 g_gi_lay[GI_N];
+static u32 g_gi_next;
+u32 g_gi_hidden;   /* diagnostic: panes hidden last frame (0 with the bar on screen = wrong layout captured) */
+static const char GI_PLATE[6][16] = {"W_GuideBg_00", "W_GuideBg_01", "W_GuideBgSh_00", "W_GuideBgSh_01",
+                                     "P_MaskL_00", "P_MaskR_00"};
+/* a guide entry's layout: it holds a T_Guide_NN text (and not T_GuideA_00, the context prompt) */
+static int gi_entry(u64 lay) {
+    if (!vptr(lay)) return 0;
+    const u8 *r = (const u8 *)ptr(lay, 0xF8);
+    if (!r || !vptr((u64)r)) return 0;
+    u32 n = w(r, 0x38);
+    const u64 *names = (const u64 *)q(r, 0x20);
+    if (n > 64 || !names || !vptr((u64)names)) return 0;
+    for (u32 i = 0; i < n; i++) {
+        const char *s = (const char *)names[i];
+        if (!vptr((u64)s)) continue;
+        if (s[0] == 'T' && s[1] == '_' && s[2] == 'G' && s[3] == 'u' && s[4] == 'i' && s[5] == 'd' && s[6] == 'e' &&
+            s[7] == '_')
+            return 1;
+    }
+    return 0;
+}
+static void gi_hide_rec(u64 r) {
+    *(float *)(r + 0x60) = 0.0f; *(float *)(r + 0x64) = 0.0f;
+    *(float *)(r + 0x70) = 4000.0f;
+    *(u32 *)r |= 0x6F;
+    tint_rec(r, 1.0f, 1.0f, 1.0f, 0.0f);
+}
+static u32 gi_hide_layout(u64 lay) {
+    u32 n = 0;
+    const u8 *r = (const u8 *)ptr(lay, 0xF8);
+    u64 arr = ptr(lay, 0x100);
+    u32 cnt = w(r, 0x38);
+    if (vptr(arr)) for (u32 i = 0; i < cnt && i < 64; i++) { gi_hide_rec(arr + (u64)i * 0xB0); n++; }
+    u64 par = ptr(lay, 0);
+    if (par != lay && vptr(par)) {
+        for (u32 i = 0; i < 6; i++) {
+            u64 pr = layout_pane(par, GI_PLATE[i]);
+            if (pr) { gi_hide_rec(pr); n++; }
+        }
+    }
+    return n;
+}
+static void gi_note(u64 lay) {
+    if (!gi_entry(lay)) return;
+    for (u32 i = 0; i < GI_N; i++) if (g_gi_lay[i] == lay) return;
+    g_gi_lay[g_gi_next++ % GI_N] = lay;
+}
+static void gi_update(void) {
+    u32 n = 0;
+    for (u32 i = 0; i < GI_N; i++) {
+        if (!g_gi_lay[i]) continue;
+        if (!gi_entry(g_gi_lay[i])) { g_gi_lay[i] = 0; continue; }   /* rebuilt or freed */
+        n += gi_hide_layout(g_gi_lay[i]);
+    }
+    g_gi_hidden = n;
+}
 static void slots_reset(void) {
     g_ps_frame = 0; for (u32 k = 0; k < PART_N; k++) g_sb[k].part = 0; g_stock_box_rec = 0; g_stock_dots_rec = 0; }
 
@@ -2925,6 +2990,7 @@ static void hud_frame(void) {
     slots_update(g_frame_node);
     slots_labels(g_frame_node);
     dc_update();
+    if (BTNMAP) gi_update();
     hud_group_scale(g_frame_node);
 }
 /* -------- observation of the stock item box (to learn icon frames) -------- */
@@ -3033,6 +3099,14 @@ static void hud_on_settext(u64 pane, const u64 *ref, u64 lr, const u64 *regs) {
         u32 i;
         for (i = 0; i < len && i < 47 && s[i]; i++) g_aguide_text[i] = s[i];
         g_aguide_text[i] = 0;
+    }
+    if (BTNMAP && nm && vptr((u64)nm) && nm[0] == 'T' && nm[1] == '_' &&
+        ((nm[2] == 'I' && nm[3] == 'c' && nm[6] == '_') || (nm[2] == 'G' && nm[3] == 'u' && nm[7] == '_') ||
+         (nm[2] == 'B' && nm[3] == 't' && nm[5] == '_'))) {   /* T_Icon_NN / T_Guide_NN / T_Btn_NN: the guide bar */
+        u64 fr = regs[0xF8 / 8], lay = vptr(fr) ? ptr(fr, 0x80) : 0;
+        if (!vptr(lay)) lay = ui_owner_layout(pane + 0x40);
+        gi_note(lay);
+        if (gi_entry(lay)) gi_hide_layout(lay);
     }
     if (nm && vptr((u64)nm) && nm[0] == 'T' && nm[2] == 'K') {   /* T_Key?_00: the prompt's key glyph */
         const char *g = dc_key_override(nm);
