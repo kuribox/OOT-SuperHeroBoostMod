@@ -1743,6 +1743,11 @@ def gui() -> None:
             if "shield" in table.values() and not manual_shield.get():
                 manual_shield.set(True)
             RM.set_roles(broles, table)
+            # A hold a preset names fires after the normal action, so no wait on that button (the "avoid the first
+            # action" check stays off): holding it does the action and then the hold.
+            for b, r in table.items():
+                if b in I.HOLD_KEYS and r != "none" and b in hwait:
+                    hwait[b].set(False)
             paint_presets()
 
         for i, key in enumerate((*I.REMAP_PRESET_KEYS, "gamecube")):
@@ -1756,6 +1761,8 @@ def gui() -> None:
         srow.pack(fill="x", pady=(2, 0))
         ui["ctrl_summary"] = label(srow, "", size=9, color=DIM, bg=PANEL, wrap=1000)
         ui["ctrl_summary"].pack(side="left", fill="x", expand=True)
+        ui["ctrl_missing"] = label(pbody, "", size=9, color=DIM, bg=PANEL, wrap=1000)
+        ui["ctrl_missing"].pack(anchor="w", pady=(2, 0))
 
         abody = card(parent, L("buttons_title"), L("ctrl_advanced_desc"),
                      help=L("buttons_desc") + "\n\n" + L("bm_note") + "\n\n" + L("rm_help"))
@@ -1776,6 +1783,12 @@ def gui() -> None:
             if not ui.get("ctrl_summary"):
                 return
             roles = RM.roles_value(broles)
+            # The game's own actions that no button has (the list says so, in amber, right under the summary).
+            missing = [L("role_" + r) for r in I.roles_missing(roles)]
+            if ui.get("ctrl_missing") is not None:
+                ui["ctrl_missing"].config(text=(L("ctrl_missing") + "  " + ", ".join(missing)) if missing
+                                          else L("ctrl_all_assigned"),
+                                          fg=AMBER if missing else DIM)
             if not bmap.get():
                 roles = {b: ("none" if r in ("item1", "item2", "item3", "selector") else r)
                          for b, r in roles.items()}

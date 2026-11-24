@@ -495,8 +495,9 @@ class RemapEditor:
         if new == old:
             return
         table = {b: var.get() for b, var in rv.items()}
-        if new != "none":
-            # each role on one button: the button that had it takes this one's old role (if it may), else nothing.
+        if new != "none" and new not in I.DUP_ROLES:
+            # each role on one button (the shortcut roles excepted: those may repeat): the button that had it
+            # takes this one's old role (if it may), else nothing.
             for other, r in table.items():
                 if other == btn:
                     continue

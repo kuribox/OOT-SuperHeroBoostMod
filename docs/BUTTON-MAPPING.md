@@ -62,6 +62,29 @@ struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no rol
 - The app lists the arrow as the last row of Controls, with a note under it. It is not part of the presets: choosing
   one keeps the arrow's role, and the preset buttons ignore it when they decide which preset is active.
 
+## Roles that may repeat (jump, sword, selector, armory, Back)
+
+One role is on one button at most, except these: `DUP_ROLES` in `app/installer.py` lets jump, sword, the item
+selector, the armory and Back sit on two (or more) buttons at once, so a shortcut can be added without taking the
+role away from its usual button. `normalize_roles()` keeps the repeats; the editor does not move the role away
+from the other button when one of them is picked.
+
+- Input needs nothing new: `remap_apply()` maps every physical button by its own role, so both fire.
+- The HUD parts are **one per role**, so a duplicated role is drawn once, on the first button that holds it
+(the second button acts, but has no part of its own). Extra parts for the duplicates were built and reverted:
+they broke the parts' pane grouping (icons, letters and quantities ended up on the wrong buttons), so the
+duplicate side waits for a design that does not add panes.
+
+## Item slots and the table
+
+The save keeps one item per slot (B, L, R and the game's own box on ZR). The mod **never clears those slots**:
+`hud_slot_item()` publishes each slot to the HUD part of its role (part 11 = item 1, 7 = item 2, 8 = item 3), and
+those parts are drawn on whichever button holds that role, so the item follows the button the player assigned.
+An item whose role has no button is simply not drawn (the slot keeps its item). A save written for an older table
+therefore loads as it was: reassigning a role does not drop the item, and the mod does not rewrite the save's
+slots. Two item roles on the same button are prevented by the app (`normalize_roles()`), not at run time.
+The hold of an item button stays blocked (`hold_blocked()`, `HOLD_BLOCK_ROLES`).
+
 ## Held buttons (A, B, X, Y, L, R) and the Back role
 
 **Hold roles.** A, B, X, Y, L and R can also have a role for their long press: `ShbConfig.bm_hold[4]` (A, B, X, Y,

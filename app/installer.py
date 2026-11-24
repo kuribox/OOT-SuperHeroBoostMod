@@ -58,6 +58,12 @@ def hold_wait_byte(wait) -> int:
 HOLD_BLOCK_ROLES = ("shield", "target", "sprint", "selector", "armory", "item1", "item2", "item3", "item_main")
 ROLE_KEYS = (*REMAP_BUTTONS, *HOLD_KEYS)
 ITEM_ROLES = ("item1", "item2", "item3", "item_main")
+# Roles that may sit on more than one button at once: the game only needs one of each, so a second one is a
+# shortcut (jump on X and R, the sword on Y and L3, the selector / the armory / Back twice). The HUD draws the
+# ones that have art (jump and sword): the module keeps a second part for each.
+DUP_ROLES = ("jump", "sword", "selector", "armory", "back")
+# The game's own basic actions: the controls list says which of them have no button at all.
+BASE_ROLES = ("jump", "sword", "action", "target")
 # Roles limited to some buttons (everything else goes anywhere)
 _NO_STICKS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL")
 _DR_ROLES = ("jump", "sword", "camera", "sprint", "shield", "selector", "armory", "back")
@@ -73,8 +79,9 @@ CLASSIC_ROLES = {"L": "item2", "X": "jump", "R": "item3", "Y": "sword", "A": "ac
 # Ready-made tables (the app's preset list). Options (toggle sprint, switch target...) are kept apart.
 REMAP_PRESETS = {
     "classic": dict(CLASSIC_ROLES),
-    # (B no longer sends the game's B in the two tables where it is not item 1: holding it does, as the Back role)
-    "action_down": dict(CLASSIC_ROLES, A="item1", B="action", B_hold="back"),
+    # (B no longer sends the game's B in the two tables where it is not item 1: a held button does, as the Back role.
+    #  Here the action sits on B, so Back is on the held X: a preset never asks for a wait on the button it holds.)
+    "action_down": dict(CLASSIC_ROLES, A="item1", B="action", X_hold="back"),
     "shield": dict(CLASSIC_ROLES, L="shield", L3="sprint"),   # item 2 gives L to the shield
     "souls": {"L": "shield", "X": "jump", "R": "item2", "Y": "sword", "A": "action", "ZR": "item_main",
               "B": "item1", "ZL": "item3", "L3": "sprint", "R3": "target"},
@@ -97,7 +104,7 @@ def roles_with_armory(roles) -> dict:
 
 def keep_holds(table: dict, current: dict) -> dict:
     """A preset's table with the user's long-press roles (the arrow's and A / B / X / Y's). A preset only sets the holds it
-    names (Back on the held B where B is not item 1); every other hold keeps what the user had, and so does the arrow."""
+    names (Back on the held X where B is the action); every other hold keeps what the user had, and so does the arrow."""
     out = dict(table)
     out["DR"] = current.get("DR", "none")
     for k in HOLD_KEYS:
@@ -125,17 +132,17 @@ def normalize_roles(roles) -> dict:
             r = "none"
         if b in HOLD_KEYS and out[b[:-5]] in HOLD_BLOCK_ROLES:
             r = "none"                   # the button's own role acts held or at once: no hold on it
-        if r != "none" and r in used:
-            r = "none"
+        if r != "none" and r in used and r not in DUP_ROLES:
+            r = "none"                 # one button per role, but the shortcut roles may repeat
         out[b] = r
         used.add(r)
     return out
 
 
 def roles_missing(roles) -> list:
-    """The basic roles no button has (jump, sword, action, target): the game cannot do those then."""
+    """The game's basic roles no button has (jump, sword, action, target): the game cannot do those then."""
     have = set(normalize_roles(roles).values())
-    return [r for r in ("jump", "sword", "action", "target") if r not in have]
+    return [r for r in BASE_ROLES if r not in have]
 
 
 def roles_flags(roles) -> dict:

@@ -619,7 +619,9 @@ static int group_hud_panes(u8 *root, u8 *first, u32 nc, u32 parts, u8 **part_des
     }
     /* The UIL stores a parent's descendants in one contiguous subtree.
      * Picture, text and part table indices stay independent of this order. */
-    u32 order[PART_N + PIC_N + TXT_N + 3], next = 0;
+    /* slack: the group entries are counted twice below, and a count that lands exactly on the size used to make
+     * an off-by-one write into the next array. */
+    u32 order[PART_N + PIC_N + TXT_N + 8], next = 0;
     order[next++] = groups;
     for (u32 k = 0; k < parts; k++) order[next++] = nc + k;
     for (u32 k = 0; k < TXT_N; k++) if (action_field(k % FLD_N)) order[next++] = texts + k;
@@ -637,7 +639,8 @@ static int group_hud_panes(u8 *root, u8 *first, u32 nc, u32 parts, u8 **part_des
 
     for (u32 j = 0; j < 3; j++) {
         u64 *table = (u64 *)q(root, 0x20 + j * 8);
-        u64 reordered[PART_N + PIC_N + TXT_N + 3];
+        u64 reordered[PART_N + PIC_N + TXT_N + 8];
+        if (next > PART_N + PIC_N + TXT_N + 8) next = PART_N + PIC_N + TXT_N + 8;   /* never past the array */
         for (u32 k = 0; k < next; k++) reordered[k] = table[order[k]];
         memcpy(table + nc, reordered, next * sizeof(*table));
     }
