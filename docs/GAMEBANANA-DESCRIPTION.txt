@@ -1,10 +1,33 @@
-SHB-OcarinaTweaks 0.9.3 - REBUILD ONCE
-The module changed: reinstall the profile (emulator) or rebuild the game once with 0.9.3 (Longshot / Hookshot / ReLink / Rekarina). If a crash remains, attach logs/longshot_log.txt (or the Rekarina log) and the new file in bug-reports/.
+SHB-OcarinaTweaks 0.10.0 - REBUILD ONCE
+The module changed: reinstall the profile (emulator) or rebuild the game once with 0.10.0 (Longshot / Hookshot / ReLink / Rekarina). If a crash remains, attach logs/longshot_log.txt (or the Rekarina log) and the new file in bug-reports/.
 
 SHB-OcarinaTweaks (Super Hero Boost) is a gameplay and HUD module for the Ocarina of Time remake (update v131072): stamina, difficulty, an extended HUD, a full button remap, item buttons, quick select and more. Everything is a switch in the companion app, SHB-OcarinaTweaks, and the installer patches the module with the profile you pick: no recompiling, no manual file editing.
 
 WHAT YOU ARE DOWNLOADING
-The file in the Files tab is SuperHeroBoost-0.9.3-presets.zip: the mod itself, with all 15 named profiles of the app ready to install in an emulator. It contains no executable. The configuration app is a separate download (see "Emulator - custom settings" below); it is not in the Files tab.
+The file in the Files tab is SuperHeroBoost-0.10.0-presets.zip: the mod itself, with all 15 named profiles of the app ready to install in an emulator. It contains no executable. The configuration app is a separate download (see "Emulator - custom settings" below); it is not in the Files tab.
+
+NEW IN 0.10.0 (everything since 0.9.3)
+REBUILD ONCE
+- The module changed (the configuration block grew): reinstall the profile or rebuild the game once.
+CONTROLS
+- A long press on L and R too: every button that can be held has a row now (A, B, X, Y, L, R and the D-pad right). A hold can be Jump, Sword, Action, Center camera or Back.
+- Wait or no wait, per held button: with "Skip the tap action when held" the tap waits about a third of a second to know it is not a hold, and a hold never also fires it; off, the tap acts at once and the hold comes on top.
+- The D-pad right is not a choice: its tap always calls Navi and the hold is the role you gave it, so its row shows a note instead of that switch.
+- Shortcut roles may repeat: Jump, Sword, the item selector, the Armory and Back can sit on two buttons at once, and the Controls card lists the game's own actions that no button has.
+- Back moved to the held X in the Triggers and Action at the bottom tables (the held B is the action or the item there).
+- Button mapping off turns its whole card off, and the custom item HUD is its own option: off, your item HUD and the game's item logic are untouched.
+HUD
+- The corner minimap hides properly (it used to blank the map screen) and the interaction guide bar is hidden while the button-mapping HUD is on.
+- The simple and plain rows pack from the left, each icon right before its number.
+DIFFICULTY AND ENEMIES
+- Enemy health and damage taken multipliers go up to x6: x1, x1.5, x2, x2.5, x3, x4, x5 and x6, the same ladder in both apps.
+- Aggression options (alert radius, Normal / Aggressive / Maximum) combine with the enemy speed multipliers instead of replacing them.
+MODULE
+- Durations are real seconds now: the sprint drain, the action costs, the recharge and the 0.3 s hold last what they say whatever the frame rate.
+- The module writes nothing into your save folder any more (the shbdebug.bin diagnostic exists only in test builds).
+- The ZR button keeps its own item, an item used from a slot stays in hand, and the context prompt has a single writer.
+APP
+- The app is in Rust now: one executable, no Python, and it builds the game itself on Longshot / Hookshot / ReLink and Rekarina, with a progress bar and a Cancel. Linux and macOS downloads are built again.
 
 NEW IN 0.9.3 (everything since 0.9.1)
 CONTROLS
@@ -65,6 +88,7 @@ DIFFICULTY
 HUD
 - Always-visible rupee counter and clock (off / 12 h / 24 h). Per-area Skulltula and heart-piece counter. Option to hide the corner minimap.
 CONTROLS
+- A second action on every button that can be held: A, B, X, Y, L, R and the D-pad right. The short press acts at once (off by default), the hold does its own role, and shortcut roles can sit on two buttons.
 - B, L, R and ZR item buttons on the HUD with the quantity of consumables, assignable from the pause menu's Items tab.
 - Switch, PlayStation and Xbox button styles; Nintendo, A/B swapped, Xbox and Switch GameCube positions; extended or simple layout. PlayStation and Xbox prompts download their archive once (~70 MB) from the GameBanana controller-UI mod; Switch needs nothing.
 - Target with R3 (swaps ZL and R3), switch target, next target when the locked enemy dies, hold or toggle L3 to sprint, manual shield.
@@ -82,14 +106,14 @@ REQUIREMENTS
 - Back up your saves. On Windows the app closes a running game before installing and during a rebuild; save first.
 
 EMULATOR - QUICK INSTALL (PRESETS ZIP)
-1. Download SuperHeroBoost-0.9.3-presets.zip from the Files tab and extract it.
+1. Download SuperHeroBoost-0.10.0-presets.zip from the Files tab and extract it.
 2. Open the folder of the profile you want (01 Recommended, 02 Recommended (no beta enemies), ...).
 3. Copy its zz-Super-Hero-Boost folder into user/load/0400486024DEC000 (merge it if that folder already exists).
 4. Start the game.
 Only one profile can be installed at a time: they all use the same folder name, so replace the previous one.
 
 EMULATOR - CUSTOM SETTINGS (APP)
-1. Download SHB-OcarinaTweaks.exe from GitHub Releases: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/tag/v0.9.3 (Linux and macOS builds are there too). The module is bundled inside the app: you do not need Python.
+1. Download SHB-OcarinaTweaks.exe from GitHub Releases: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/tag/v0.10.0 (the Rust app is built for Windows, Linux and macOS there; the Python app is published next to it as the -legacy files). The module is bundled inside the app: you do not need Python.
 2. Save your progress. On Windows the app closes the game for you before installing.
 3. Pick a profile or adjust each section: Gameplay, Difficulty, Controls, HUD.
 4. Choose your emulator folder (the one that contains "user") and press Install.
