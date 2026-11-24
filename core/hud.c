@@ -2116,33 +2116,53 @@ u32 g_game_paused;
  * is not steady through the whole pause menu, so the + tracking counts too. */
 int hud_game_covered(void) { return g_game_paused || (hud_ingame_known() && !hud_ingame()); }
 /* Corner minimap (MapMenu_00): the layout is captured at its part instantiation (hook id 4) and its frame is
- * layout + 0xB0 (the PlayerStatus layout uses the same field). While playing, the scale of every map node is zeroed;
- * the map screen (hud_ingame() == 0) keeps them. */
+ * layout + 0xB0 (the PlayerStatus layout uses the same field). While playing the map's panes are moved DOWN out of
+ * the screen (position only: the scale is never touched) and put back where they were as soon as a menu covers the
+ * game. The map screen draws with these same panes, so zeroing their scale - what this did first - left the map
+ * screen blank; keeping the rest of the transform alone is what makes the corner map the only thing that goes. */
 static u64 g_map_frame, g_mm_frame;
 static u64 g_map_layout;
-u64 g_minimap_dbg[3];   /* 0: the captured MapMenu frame, 1/2: two of its pane records */
+u64 g_minimap_dbg[4];   /* 0: the captured MapMenu frame, 1/2: two of its pane records, 3: 1 while moved out */
 /* The nodes that make up the corner map: the paper map, its caps, the player arrow and map icons, the frame and the
  * world-map thumbnail. Arrays, not pointer tables (the module has no relocations). */
 #define MM_N 6
 static const char g_mm_names[MM_N][20] = {"N_MiniMap_00", "N_MiniMapCap_00", "N_Common_00",
                                           "N_MapIcon_00", "P_MiniMapFrame_00", "N_WorldMap_00"};
 static u64 g_mm_rec[MM_N];
+static float g_mm_y[MM_N];   /* the y each pane had when it was bound: the value to put back */
+static u32 g_mm_ok;          /* bit per pane: its y was saved */
+static u32 g_mm_off;         /* 1: the panes are moved out right now */
+#define MM_DOWN 4000.0f      /* enough to leave the screen from the corner it sits in (negative y goes down) */
 static void hide_minimap(void) {
     if (g_map_layout) {
         u64 f = ptr(g_map_layout, 0xB0);
         if (f && vptr(f) && ptr(f, 0x80) == g_map_layout) g_map_frame = f;
     }
     g_minimap_dbg[0] = g_map_frame;
-    if (!g_shbcfg.hide_minimap || !g_map_frame || !hud_ingame()) return;
-    if (g_mm_frame != g_map_frame) {
+    if (!g_map_frame) return;
+    if (g_mm_frame != g_map_frame) {   /* new frame: bind the panes and remember where they sit */
         g_mm_frame = g_map_frame;
-        for (u32 i = 0; i < MM_N; i++) g_mm_rec[i] = pane_record(g_map_frame, g_mm_names[i]);
+        g_mm_ok = 0; g_mm_off = 0;
+        for (u32 i = 0; i < MM_N; i++) {
+            g_mm_rec[i] = pane_record(g_map_frame, g_mm_names[i]);
+            if (g_mm_rec[i]) { g_mm_y[i] = *(float *)(g_mm_rec[i] + 0x70); g_mm_ok |= 1u << i; }
+        }
         g_minimap_dbg[1] = g_mm_rec[0]; g_minimap_dbg[2] = g_mm_rec[1];
     }
-    for (u32 i = 0; i < MM_N; i++) if (g_mm_rec[i]) {
-        *(float *)(g_mm_rec[i] + 0x60) = 0.0f; *(float *)(g_mm_rec[i] + 0x64) = 0.0f;
-        *(u32 *)g_mm_rec[i] |= 0x6F;
+    if (g_shbcfg.hide_minimap && hud_ingame()) {
+        for (u32 i = 0; i < MM_N; i++) if (g_mm_ok & (1u << i)) {
+            *(float *)(g_mm_rec[i] + 0x70) = g_mm_y[i] - MM_DOWN;
+            *(u32 *)g_mm_rec[i] |= 0x6F;
+        }
+        g_mm_off = 1;
+    } else if (g_mm_off) {            /* a menu covers the game (or the option was turned off) */
+        for (u32 i = 0; i < MM_N; i++) if (g_mm_ok & (1u << i)) {
+            *(float *)(g_mm_rec[i] + 0x70) = g_mm_y[i];
+            *(u32 *)g_mm_rec[i] |= 0x6F;
+        }
+        g_mm_off = 0;
     }
+    g_minimap_dbg[3] = g_mm_off;
 }
 /* Pause menu, Items tab: its caption panel (hooked at main+0x2CBD20) has byte +0x28 == 2 only while that tab is
  * open, and the highlighted cell's item index at +0x90 (our item numbering). The cell is owned when its
