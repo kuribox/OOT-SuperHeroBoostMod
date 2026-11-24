@@ -13,9 +13,9 @@ Both carry `app/payload` (the prebuilt module, the button art, the romfs options
 a machine with the game dump, or tools/ci_payload.py in CI. The Rust build needs `cargo` (rustup); the legacy one
 needs PyInstaller (`pip install pyinstaller zstandard`) and, on Linux, python3-tk.
 
-Output (release/ is not committed):
-    Rust     release/SHB-OcarinaTweaks.exe            (Linux/macOS: release/SHB-OcarinaTweaks)
-    Python   release/legacy/SHB-OcarinaTweaks.exe     (macOS: .app, Linux: no extension)
+Output (release/ is not committed), one file per app, told apart by the `-legacy` suffix:
+    Rust     release/SHB-OcarinaTweaks.exe               (Linux/macOS: release/SHB-OcarinaTweaks)
+    Python   release/SHB-OcarinaTweaks-legacy.exe        (macOS: .app, Linux: no extension)
     --legacy and --all also write release/SuperHeroBoost-<version>-presets.zip (every profile, no executables)
 """
 from __future__ import annotations
@@ -89,11 +89,20 @@ def build_legacy() -> Path:
     ]
     subprocess.run(args, check=True, cwd=ROOT)
     if sys.platform == "win32":
-        out = dist / f"{NAME}.exe"
+        built = dist / f"{NAME}.exe"
     elif sys.platform == "darwin":
-        out = dist / f"{NAME}.app"
+        built = dist / f"{NAME}.app"
     else:
-        out = dist / NAME
+        built = dist / NAME
+    # Named apart from the current app, which sits in the same folder: PyInstaller keeps its own name inside (the
+    # settings file is `SHB-OcarinaTweaks.json` either way), so the bundle is only renamed on its way out.
+    legacy = DIST / f"{NAME}-legacy{built.suffix}"
+    if legacy.is_dir():
+        shutil.rmtree(legacy)
+    elif legacy.exists():
+        legacy.unlink()
+    shutil.move(str(built), str(legacy))
+    out = legacy
     print("built", out)
     # A single zip with every profile of the app, ready for a GameBanana Mods upload (no executables).
     subprocess.run([sys.executable, str(ROOT / "tools" / "make_presets.py")], check=True, cwd=ROOT)

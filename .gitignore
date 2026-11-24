@@ -36,6 +36,7 @@ venv/
 
 # What the apps write beside themselves when they run from the sources
 app/SHB-OcarinaTweaks.json
+app/SuperHeroBoostConfig.json
 app-legacy/SuperHeroBoostConfig.json
 app-legacy/SHB-OcarinaTweaks.json
 

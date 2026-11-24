@@ -42,7 +42,7 @@ Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**
 
 ```bash
 python tools/build_app.py            # the current app (cargo build --release -p shb-cli) -> release/SHB-OcarinaTweaks.exe
-python tools/build_app.py --legacy   # the Python app (PyInstaller) -> release/legacy/ + the presets zip
+python tools/build_app.py --legacy   # the Python app (PyInstaller) -> release/SHB-OcarinaTweaks-legacy.exe + the presets zip
 python tools/build_app.py --all      # both
 ```
 
