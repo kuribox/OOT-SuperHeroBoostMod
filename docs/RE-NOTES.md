@@ -23,6 +23,22 @@ its configured `LoadDir` (see the `load_directory` entry in `qt-config.ini`).
   config block at `0x84FB2010`. `hos_image.c` leaves subsdk9 out of the DT_INIT list (init 0), which is fine: the
   hooks enter its code directly.
 - Installing means rebuilding (`nx2/make_game.py --update`), not copying files. See [LONGSHOT.md](LONGSHOT.md).
+- **A rebuilt module needs its hooks re-applied to `main`, or the game jumps into the middle of a function.** The
+  branches live in `.longshot_exefs/main` and hard-code each hook symbol's address; `rebuild --mode recompile`
+  compiles whatever `main` holds and does not patch it. Any code change can move a function (measured with the kset
+  guard below: 23 of the 49 sites, targets up to 0x100 bytes away), and the rebuilt game then runs something else
+  entirely — in that build a null read in `BaseProcExecutor` (guest 0, LR inside `subsdk9`) that looked like a
+  brand-new bug. After building a module, write the new `ours.ips` into `main` (records at `offset + 4`: the text
+  starts at file `0x104`) before rebuilding, or use `rebuild --mode install`, which stages `main`, the module and the
+  settings first.
+- **`kset_refresh`'s save-slot guard was too loose for Longshot + HylianSurvivors (Nov 24).** With HylianSurvivors'
+  romfs installed, one slot of the GameData manager's save-image array (`mgr+0xE00 + i*0x80`) holds
+  `0x114a7366a43` (1.1 TB: past Longshot's 1 TB heap, inside the module's 6 TB `vptr` window), and the magic read
+  faulted — `exception 0xc0000005 (read 0x1114a7366a43, guest 0x114a7366a43)`, thread `BaseProcExecutor`, guest
+  LR `0x84FA60B0` = `hud_on_code+0x358`, the `bl kset_refresh` at `0x84FA60AC`. The extra `1` in the read address
+  is Longshot's 16 TB host offset. `kset_slot()` now demands word alignment and a slot within 16 GB of the manager
+  (a save image is a heap object next to it), and the odd garbage fails the first gate. Turning the collectibles
+  counter off avoids the walk, but the guard is the fix.
 - HUD crash on a map load (HyruleField_Child): `hud_frame → plates_update → name_index` dereferenced a name pointer
   (`0x6a4cff8b47b`) from a game layout that was being rebuilt (guest LR `0x84FA6D24`). Fixed by range-checking the
   name-table entries in `name_index`/`pane_record`. (An extra HUD-init gate was tried and removed: it could leave the
