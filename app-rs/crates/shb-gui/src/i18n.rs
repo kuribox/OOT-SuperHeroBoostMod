@@ -11,6 +11,28 @@ include!("i18n_table.rs");
 /// Keys this port has that the Python app does not (its own extra labels).
 static EXTRA: &[(&str, [&str; 6])] = &[
     (
+        "hold_tag",
+        [
+            "Hold",
+            "Mantener",
+            "Segurar",
+            "Maintenir",
+            "Halten",
+            "Tieni",
+        ],
+    ),
+    (
+        "hold_intro",
+        [
+            "A row marked \"Hold\" belongs to the button above it: it is what that button does when you keep it pressed for about a third of a second.",
+            "Una fila marcada \"Mantener\" es del botón de arriba: lo que hace ese botón cuando lo mantienes pulsado cerca de un tercio de segundo.",
+            "Uma linha marcada \"Segurar\" pertence ao botão de cima: o que esse botão faz quando você o mantém pressionado por cerca de um terço de segundo.",
+            "Une ligne marquée \"Maintenir\" appartient au bouton du dessus : ce que fait ce bouton quand on le maintient environ un tiers de seconde.",
+            "Eine Zeile mit \"Halten\" gehört zur Taste darüber: Das macht die Taste, wenn du sie etwa eine Drittelsekunde gedrückt hältst.",
+            "Una riga con \"Tieni\" appartiene al tasto sopra: cosa fa quel tasto se lo tieni premuto circa un terzo di secondo.",
+        ],
+    ),
+    (
         "result_ok_title",
         [
             "Done",

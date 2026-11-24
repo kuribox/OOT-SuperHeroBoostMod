@@ -1187,7 +1187,7 @@ fn role_help_key(role: Role) -> Option<&'static str> {
 fn take_role(current: &Roles, button: Button, picked: Role) -> Roles {
     let mut table = current.clone();
     let old = table.get(&button).copied().unwrap_or(Role::None);
-    if picked != Role::None && picked != old {
+    if picked != Role::None && picked != old && !shb_core::roles::DUP_ROLES.contains(&picked) {
         let holder = table
             .iter()
             .find(|(other, role)| **other != button && **role == picked)
@@ -2446,6 +2446,14 @@ impl App {
         let table_key = if key == "gamecube" { "classic" } else { key };
         if let Some(table) = shb_core::roles::remap_preset(table_key) {
             let table = shb_core::roles::keep_holds(&table, &self.settings.bm_roles);
+            // A hold a preset names fires after the normal action, so that button does not wait for it.
+            for (button, role) in &table {
+                if let Some(owner) = shb_core::roles::hold_owner(*button)
+                    && *role != Role::None
+                {
+                    self.settings.bm_hold_wait.insert(owner, false);
+                }
+            }
             if table.values().any(|r| *r == Role::Shield) {
                 self.settings.manual_shield = true;
             }
@@ -2474,7 +2482,7 @@ impl App {
                     .color(theme::DIM),
             );
         }
-        let rows: [Button; 15] = [
+        let rows: [Button; 17] = [
             Button::X,
             Button::XHold,
             Button::Y,
@@ -2484,29 +2492,46 @@ impl App {
             Button::B,
             Button::BHold,
             Button::L,
+            Button::LHold,
             Button::R,
+            Button::RHold,
             Button::Zl,
             Button::Zr,
             Button::L3,
             Button::R3,
             Button::Dr,
         ];
+        // One sentence for the whole list: a row marked "Hold" belongs to the button above it.
+        ui.label(
+            egui::RichText::new(tr(lang, "hold_intro"))
+                .size(11.5)
+                .color(theme::DIM),
+        );
+        ui.add_space(2.0);
         for button in rows {
+            // A long press is the row of the button above it: its own role, when it acts held or at once (shield,
+            // target, sprint, the selector, the armory, an item), leaves nothing to hold for.
+            let owner = shb_core::roles::hold_owner(button);
+            let blocked_by = owner.and_then(|own| {
+                let role = self.settings.bm_roles.get(&own).copied().unwrap_or(Role::None);
+                shb_core::roles::HOLD_BLOCK_ROLES.contains(&role).then_some(role)
+            });
             ui.horizontal(|ui| {
-                // The button drawn the way the preview draws it (a Switch A, an Xbox B, a PlayStation ○), with the
-                // long press of a face button marked "+": the list is the pad, not its names.
-                // A long press is drawn as its face button with a "+".
-                let (drawn, extra) = match button {
-                    Button::AHold => (Button::A, Some("+")),
-                    Button::BHold => (Button::B, Some("+")),
-                    Button::XHold => (Button::X, Some("+")),
-                    Button::YHold => (Button::Y, Some("+")),
-                    other => (other, None),
-                };
-                let chip_response = preview::chip(ui, self.settings.button_style, drawn, extra);
-                if extra.is_some() {
-                    // The button with the "+" is the one above held down: say it on hover.
-                    chip_response.on_hover_text(tr(lang, "hold_help"));
+                // The button drawn the way the preview draws it (a Switch A, an Xbox B, a PlayStation ○). A long
+                // press is that same button, indented and tagged "Hold": the list is the pad, not its names.
+                if owner.is_some() {
+                    ui.add_space(26.0);
+                }
+                let drawn = owner.unwrap_or(button);
+                preview::chip(ui, self.settings.button_style, drawn, None);
+                if owner.is_some() {
+                    ui.label(
+                        egui::RichText::new(tr(lang, "hold_tag"))
+                            .size(11.5)
+                            .strong()
+                            .color(theme::ACCENT),
+                    );
+                    widgets::help_icon(ui, "hold_help", lang, help);
                 }
                 let current = self
                     .settings
@@ -2524,6 +2549,7 @@ impl App {
                     .iter()
                     .copied()
                     .filter(|role| shb_core::roles::role_allowed(*role, button))
+                    .filter(|role| blocked_by.is_none() || *role == Role::None)
                     .filter(|role| {
                         let item = matches!(
                             role,
@@ -2534,14 +2560,19 @@ impl App {
                     })
                     .map(|role| (role, into_role_name(lang, role)))
                     .collect();
-                if widgets::combo_row(
-                    ui,
-                    "",
-                    &format!("role-{button:?}"),
-                    &mut picked,
-                    &choices,
-                    150.0,
-                ) {
+                let moved = ui
+                    .add_enabled_ui(blocked_by.is_none(), |ui| {
+                        widgets::combo_row(
+                            ui,
+                            "",
+                            &format!("role-{button:?}"),
+                            &mut picked,
+                            &choices,
+                            150.0,
+                        )
+                    })
+                    .inner;
+                if moved {
                     self.settings.bm_roles = take_role(&self.settings.bm_roles, button, picked);
                     *changed = true;
                 }
@@ -2556,6 +2587,36 @@ impl App {
                 .get(&button)
                 .copied()
                 .unwrap_or(Role::None);
+            if let Some(blocking) = blocked_by {
+                ui.indent(("hold-blocked", button), |ui| {
+                    let text = fill(
+                        tr(lang, "hold_blocked"),
+                        &[("a", &into_role_name(lang, blocking))],
+                    );
+                    ui.label(egui::RichText::new(text).size(11.0).color(theme::DIM));
+                });
+            } else if let Some(wait_key) = owner.or((button == Button::Dr).then_some(Button::Dr))
+                && role != Role::None
+            {
+                // How the short press tells itself from the long one: wait for the hold, or act at once.
+                let (label, help_key) = if button == Button::Dr {
+                    ("opt_hwait_dr", "opt_hwait_dr_help")
+                } else {
+                    ("opt_hwait", "opt_hwait_help")
+                };
+                let mut wait = self
+                    .settings
+                    .bm_hold_wait
+                    .get(&wait_key)
+                    .copied()
+                    .unwrap_or(wait_key == Button::Dr);
+                ui.indent(("hold-wait", button), |ui| {
+                    if widgets::check(ui, &mut wait, tr(lang, label), "", Some(help_key), help) {
+                        self.settings.bm_hold_wait.insert(wait_key, wait);
+                        *changed = true;
+                    }
+                });
+            }
             if role == Role::Target {
                 ui.indent(("target-options", button), |ui| {
                     if widgets::check(
@@ -2608,7 +2669,13 @@ impl App {
             .iter()
             .map(|role| into_role_name(lang, *role))
             .collect();
-        if !missing.is_empty() {
+        if missing.is_empty() {
+            ui.label(
+                egui::RichText::new(tr(lang, "ctrl_all_assigned"))
+                    .size(11.5)
+                    .color(theme::DIM),
+            );
+        } else {
             ui.label(
                 egui::RichText::new(fill(tr(lang, "rm_missing"), &[("a", &missing.join(", "))]))
                     .size(11.5)

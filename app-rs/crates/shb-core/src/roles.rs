@@ -81,6 +81,8 @@ string_enum! {
         BHold => "B_hold",
         XHold => "X_hold",
         YHold => "Y_hold",
+        LHold => "L_hold",
+        RHold => "R_hold",
     }
 }
 
@@ -97,9 +99,87 @@ pub const REMAP_BUTTONS: [Button; 11] = [
     Button::R3,
     Button::Dr,
 ];
-pub const HOLD_KEYS: [Button; 4] = [Button::AHold, Button::BHold, Button::XHold, Button::YHold];
+/// The long press of A, B, X, Y, L and R: rows of the table, not buttons of the pad.
+pub const HOLD_KEYS: [Button; 6] = [
+    Button::AHold,
+    Button::BHold,
+    Button::XHold,
+    Button::YHold,
+    Button::LHold,
+    Button::RHold,
+];
+
+/// The defaults of `bm_hold_wait`: the arrow waits (its short press is the Navi call), the others act at once.
+pub fn default_hold_wait() -> BTreeMap<Button, bool> {
+    HOLD_WAIT_KEYS
+        .iter()
+        .map(|button| (*button, *button == Button::Dr))
+        .collect()
+}
+
+/// `bm_hold_wait` as the module reads it: a bit per `HOLD_WAIT_KEYS` entry (a missing button takes its default).
+pub fn hold_wait_byte(wait: &BTreeMap<Button, bool>) -> u8 {
+    let mut have = default_hold_wait();
+    have.extend(wait.iter().map(|(b, v)| (*b, *v)));
+    HOLD_WAIT_KEYS
+        .iter()
+        .enumerate()
+        .filter(|(_, button)| have.get(button).copied().unwrap_or(false))
+        .fold(0u8, |bits, (i, _)| bits | (1 << i))
+}
+
+/// The button a long press belongs to (`A_hold` -> `A`).
+pub fn hold_owner(button: Button) -> Option<Button> {
+    match button {
+        Button::AHold => Some(Button::A),
+        Button::BHold => Some(Button::B),
+        Button::XHold => Some(Button::X),
+        Button::YHold => Some(Button::Y),
+        Button::LHold => Some(Button::L),
+        Button::RHold => Some(Button::R),
+        _ => None,
+    }
+}
+
+/// The buttons that choose how a short press is told from a long one (`bm_hold_wait`, one bit each, in this order).
+/// D-pad right waits by default: its short press is the game's Navi call.
+pub const HOLD_WAIT_KEYS: [Button; 7] = [
+    Button::Dr,
+    Button::A,
+    Button::B,
+    Button::X,
+    Button::Y,
+    Button::L,
+    Button::R,
+];
+
+/// Roles that act held or at once: a button that has one has no long press, and none of them is a hold role.
+/// D-pad right is the exception: its short press is Navi's, not a role of ours.
+pub const HOLD_BLOCK_ROLES: [Role; 9] = [
+    Role::Shield,
+    Role::Target,
+    Role::Sprint,
+    Role::Selector,
+    Role::Armory,
+    Role::Item1,
+    Role::Item2,
+    Role::Item3,
+    Role::ItemMain,
+];
+
+/// Roles that may sit on two buttons: the game needs one of each, so a second one is a shortcut.
+pub const DUP_ROLES: [Role; 5] = [
+    Role::Jump,
+    Role::Sword,
+    Role::Selector,
+    Role::Armory,
+    Role::Back,
+];
+
+/// The game's own basic actions: the controls list says which of them have no button at all.
+pub const BASE_ROLES: [Role; 4] = [Role::Jump, Role::Sword, Role::Action, Role::Target];
 /// Every key of a role table: the buttons, then the long presses.
-pub const ROLE_KEYS: [Button; 15] = [
+pub const ROLE_KEYS: [Button; 17] = [
     Button::L,
     Button::X,
     Button::R,
@@ -115,6 +195,8 @@ pub const ROLE_KEYS: [Button; 15] = [
     Button::BHold,
     Button::XHold,
     Button::YHold,
+    Button::LHold,
+    Button::RHold,
 ];
 pub const ITEM_ROLES: [Role; 4] = [Role::Item1, Role::Item2, Role::Item3, Role::ItemMain];
 
@@ -141,17 +223,7 @@ const DR_ROLES: [Role; 8] = [
     Role::Back,
 ];
 /// Roles a held face button accepts.
-const HOLD_ROLES: [Role; 9] = [
-    Role::Jump,
-    Role::Sword,
-    Role::Action,
-    Role::Camera,
-    Role::Sprint,
-    Role::Shield,
-    Role::Selector,
-    Role::Armory,
-    Role::Back,
-];
+const HOLD_ROLES: [Role; 5] = [Role::Jump, Role::Sword, Role::Action, Role::Camera, Role::Back];
 
 /// A role table: one entry per key, complete.
 pub type Roles = BTreeMap<Button, Role>;
@@ -175,6 +247,8 @@ pub fn classic_roles() -> Roles {
         (Button::BHold, Role::None),
         (Button::XHold, Role::None),
         (Button::YHold, Role::None),
+        (Button::LHold, Role::None),
+        (Button::RHold, Role::None),
     ] {
         t.insert(button, role);
     }
@@ -187,11 +261,12 @@ pub fn remap_preset(key: &str) -> Option<Roles> {
     let mut t = classic.clone();
     match key {
         "classic" => {}
-        // B no longer sends the game's B in the tables where it is not item 1: holding it does, as the Back role.
+        // B no longer sends the game's B in the tables where it is not item 1: a held button does, as the Back role.
+        // Here the action sits on B, so Back is on the held X: a preset never asks for a wait on the button it holds.
         "action_down" => {
             t.insert(Button::A, Role::Item1);
             t.insert(Button::B, Role::Action);
-            t.insert(Button::BHold, Role::Back);
+            t.insert(Button::XHold, Role::Back);
         }
         "shield" => {
             t.insert(Button::L, Role::Shield);
@@ -221,7 +296,7 @@ pub fn remap_preset(key: &str) -> Option<Roles> {
             t.insert(Button::Zl, Role::Item2);
             t.insert(Button::L3, Role::Sprint);
             t.insert(Button::R3, Role::Target);
-            t.insert(Button::BHold, Role::Back);
+            t.insert(Button::XHold, Role::Back);
         }
         _ => return None,
     }
@@ -261,8 +336,14 @@ pub fn normalize(roles: &Roles) -> Roles {
         if !role_allowed(role, button) {
             role = Role::None;
         }
-        // `None` means "no role", so it may repeat.
-        if role != Role::None && !used.insert(role) {
+        // The button's own role acts held or at once: no long press on it.
+        if let Some(owner) = hold_owner(button)
+            && out.get(&owner).is_some_and(|own| HOLD_BLOCK_ROLES.contains(own))
+        {
+            role = Role::None;
+        }
+        // One button per role, but the shortcut roles may repeat. `None` means "no role", so it may repeat too.
+        if role != Role::None && !DUP_ROLES.contains(&role) && !used.insert(role) {
             role = Role::None;
         }
         out.insert(button, role);
@@ -377,7 +458,7 @@ pub fn roles_from_flags(
 /// The basic roles no button has: the game cannot do those then.
 pub fn roles_missing(roles: &Roles) -> Vec<Role> {
     let have = normalize(roles);
-    [Role::Jump, Role::Sword, Role::Action, Role::Target]
+    BASE_ROLES
         .into_iter()
         .filter(|r| !have.values().any(|v| v == r))
         .collect()
@@ -477,8 +558,42 @@ mod tests {
         user.insert(Button::YHold, Role::Camera);
         let preset = remap_preset("action_down").unwrap();
         let t = keep_holds(&preset, &user);
-        assert_eq!(t[&Button::BHold], Role::Back, "the preset sets this hold");
+        assert_eq!(t[&Button::XHold], Role::Back, "the preset sets this hold");
         assert_eq!(t[&Button::YHold], Role::Camera, "the user's hold survives");
+    }
+
+    #[test]
+    fn a_button_that_acts_held_has_no_hold_and_shortcut_roles_repeat() {
+        let mut t = classic_roles();
+        // B is item 1 in the classic table: an item acts held, so its long press goes.
+        t.insert(Button::BHold, Role::Back);
+        t.insert(Button::AHold, Role::Sword);
+        let n = normalize(&t);
+        assert_eq!(n[&Button::BHold], Role::None);
+        assert_eq!(n[&Button::AHold], Role::Sword, "A is the action: it may be held");
+        // The roles a hold can do are the short list, not shield, target or the selector.
+        assert!(!role_allowed(Role::Shield, Button::LHold));
+        assert!(role_allowed(Role::Back, Button::RHold));
+        // Jump on X and on R is a shortcut; two buttons for the target are not.
+        t.insert(Button::R, Role::Jump);
+        t.insert(Button::R3, Role::Target);
+        let n = normalize(&t);
+        assert_eq!((n[&Button::X], n[&Button::R]), (Role::Jump, Role::Jump));
+        t.insert(Button::Zr, Role::Target);
+        let n = normalize(&t);
+        assert_eq!((n[&Button::Zr], n[&Button::R3]), (Role::Target, Role::None), "the target stays on one button");
+    }
+
+    #[test]
+    fn the_wait_byte_has_a_bit_per_held_button() {
+        // Only the arrow waits by default.
+        assert_eq!(hold_wait_byte(&default_hold_wait()), 1);
+        let mut w = default_hold_wait();
+        w.insert(Button::R, true);
+        w.insert(Button::Dr, false);
+        assert_eq!(hold_wait_byte(&w), 1 << 6);
+        // A missing button takes its default.
+        assert_eq!(hold_wait_byte(&BTreeMap::new()), 1);
     }
 
     #[test]

@@ -591,7 +591,7 @@ mod tests {
             crate::roles::Role::Armory
         );
         assert_eq!(
-            s.bm_roles[&crate::roles::Button::BHold],
+            s.bm_roles[&crate::roles::Button::XHold],
             crate::roles::Role::Back
         );
     }

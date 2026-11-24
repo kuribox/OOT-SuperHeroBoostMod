@@ -477,10 +477,7 @@ pub fn hud(
             .find(|(button, r)| {
                 **r == role
                     && !matches!(**r, Role::None)
-                    && !matches!(
-                        button,
-                        Button::AHold | Button::BHold | Button::XHold | Button::YHold
-                    )
+                    && !shb_core::roles::HOLD_KEYS.contains(button)
             })
             .map(|(button, _)| *button)
     };

@@ -74,8 +74,11 @@ pub mod off {
     pub const BM_HOLD: usize = 93; // u8[4]
     /// Custom item HUD (our B / L / R / ZR buttons); 0 when the button mapping is off.
     pub const HUD_CUSTOM_ITEMS: usize = 97;
-    /// `sizeof(ShbConfig)`: the last byte we write is `HUD_CUSTOM_ITEMS`.
-    pub const SIZE: usize = 98;
+    /// Long press of L and R (`bm_hold_lr[2]`), then `bm_hold_wait` (a bit per held button).
+    pub const BM_HOLD_LR: usize = 98;
+    pub const BM_HOLD_WAIT: usize = 100;
+    /// `sizeof(ShbConfig)` without its tail padding: the last byte we write is `BM_HOLD_WAIT`.
+    pub const SIZE: usize = 101;
 }
 
 /// The simple / plain row is drawn at full size with its own spacing: the x of the first block and how much room each
@@ -289,6 +292,9 @@ pub fn patch_config(nso: &[u8], s: &Settings) -> Result<Vec<u8>> {
                         if size >= 0x61 {
                             f.u8s(off::BM_HOLD, &[0; 4]);
                         }
+                        if size >= 0x65 {
+                            f.u8s(off::BM_HOLD_LR, &[0; 3]);
+                        }
                     }
                 }
             }
@@ -332,10 +338,21 @@ fn write_remap(f: &mut Fields<'_>, s: &Settings) {
         f.u8(off::BM_ROLE_DR, role.index());
     }
     if block_len >= off::BM_HOLD + 4 {
-        for (i, key) in roles::HOLD_KEYS.iter().enumerate() {
+        for (i, key) in roles::HOLD_KEYS[..4].iter().enumerate() {
             let role = table.get(key).copied().unwrap_or(Role::None);
             f.u8(off::BM_HOLD + i, role.index());
         }
+    }
+    // The long press of L and R, and how each held button tells a short press from a long one.
+    if block_len >= off::SIZE {
+        for (i, key) in [crate::roles::Button::LHold, crate::roles::Button::RHold]
+            .iter()
+            .enumerate()
+        {
+            let role = table.get(key).copied().unwrap_or(Role::None);
+            f.u8(off::BM_HOLD_LR + i, role.index());
+        }
+        f.u8(off::BM_HOLD_WAIT, roles::hold_wait_byte(&s.bm_hold_wait));
     }
     // The options the table implies (they used to be separate switches).
     let flags = roles::roles_flags(&table);
@@ -672,7 +689,8 @@ mod tests {
         assert_eq!(read_u8(&image, off::BM_ROLE), Role::Shield.index()); // L
         assert_eq!(read_u8(&image, off::BM_ROLE + 6), Role::Selector.index()); // B
         assert_eq!(read_u8(&image, off::BM_ROLE_DR), Role::None.index());
-        assert_eq!(read_u8(&image, off::BM_HOLD + 1), Role::Back.index()); // held B
+        assert_eq!(read_u8(&image, off::BM_HOLD + 1), Role::None.index()); // held B: B is the selector, no hold
+        assert_eq!(read_u8(&image, off::BM_HOLD + 2), Role::Back.index()); // held X
         // The table implies the sprint (triggers has one on L3) and drops the separate options.
         assert_eq!(read_u8(&image, off::SPRINT_L3), 1);
         assert_eq!(read_u8(&image, off::TARGET_R3), 0);

@@ -196,6 +196,9 @@ pub struct Settings {
     pub sprint_l3_toggle: bool,
     pub bm_remap: bool,
     pub bm_roles: BTreeMap<Button, Role>,
+    /// Per held button (`roles::HOLD_WAIT_KEYS`): `true` = the short press waits for the hold, `false` = it acts at
+    /// once and the hold comes on top. A missing button takes its default (D-pad right waits, the rest act).
+    pub bm_hold_wait: BTreeMap<Button, bool>,
     /// size of the button cluster HUD, percent
     pub hud_ctrl_scale: u8,
     /// size of the counter row (rupees, clock, collectibles), percent
@@ -257,6 +260,7 @@ impl Default for Settings {
             sprint_l3_toggle: false,
             bm_remap: true,
             bm_roles: roles::classic_roles(),
+            bm_hold_wait: roles::default_hold_wait(),
             hud_ctrl_scale: 100,
             hud_count_scale: 100,
         }
