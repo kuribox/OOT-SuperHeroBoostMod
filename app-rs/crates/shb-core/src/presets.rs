@@ -403,6 +403,77 @@ fn profile_key(key: &str) -> &'static str {
         .unwrap_or("custom")
 }
 
+/// What choosing a profile does to the settings on the window (`main.py`'s `apply_profile`): its values go in, the
+/// choices a profile does not make — the style, the layout, the L mode, the language, the scales, the magic drops —
+/// stay the user's, and so do the stamina display, the R3 target and the L3 sprint when the profile does not say.
+/// The button table is the user's, with the profile's own table over it when it has one.
+pub fn apply_profile(s: &mut Settings, key: &str) {
+    if key == "custom" || !PROFILE_KEYS.contains(&key) {
+        return;
+    }
+    let p = profile(key);
+    s.button_mapping = p.button_mapping;
+    s.hud_items = p.hud_items;
+    s.stamina = p.stamina;
+    s.songbook = p.songbook;
+    s.preset = p.mode;
+    s.combat_only = p.combat_only;
+    [s.jump, s.attack, s.sprint, s.block, s.shoot, s.roll] = p.costs;
+    s.enemy_hp = p.enemy_hp;
+    s.damage = p.damage;
+    s.no_heart_drop = p.no_heart_drop;
+    s.sprint_speed = p.sprint_speed;
+    s.hud_rupees = p.hud_rupees;
+    s.hud_clock = p.hud_clock;
+    s.clock_24h = p.clock_24h;
+    s.quick_boots = p.quick_boots;
+    s.quick_mask = p.quick_mask;
+    s.hud_collectibles = p.hud_collectibles;
+    s.hud_mode = p.hud_mode;
+    s.enemy_double = p.enemy_double;
+    s.enemy_move = p.enemy_move;
+    s.enemy_anim = p.enemy_anim;
+    s.enemy_attack = p.enemy_attack;
+    s.enemy_proj = p.enemy_proj;
+    s.enemy_alert = p.enemy_alert;
+    s.enemy_aggro = p.enemy_aggro;
+    s.boss_move = p.boss_move;
+    s.boss_anim = p.boss_anim;
+    s.great_fairy = p.great_fairy;
+    s.farore_outdoor = p.farore_outdoor;
+    s.manual_shield = p.manual_shield;
+    s.auto_target = p.auto_target;
+    s.switch_target = p.switch_target;
+    // Personal preferences: only a profile that sets them changes them.
+    if let Some(v) = p.stamina_bar {
+        s.stamina_bar = v;
+    }
+    if let Some(v) = p.target_r3 {
+        s.target_r3 = v;
+    }
+    if let Some(v) = p.sprint_l3 {
+        s.sprint_l3 = v;
+    }
+    if let Some(v) = p.sprint_l3_toggle {
+        s.sprint_l3_toggle = v;
+    }
+    let mut table = s.bm_roles.clone();
+    if let Some(preset) = p.controls.and_then(roles::remap_preset) {
+        table = roles::keep_holds(&preset, &table);
+    }
+    let table = roles::roles_from_flags(
+        &table,
+        Some(p.manual_shield),
+        p.target_r3,
+        p.sprint_l3,
+    );
+    s.bm_roles = if p.armory() {
+        roles::roles_with_armory(&table)
+    } else {
+        table
+    };
+}
+
 /// The settings a profile means, ready to patch.
 pub fn settings_for(key: &str) -> Settings {
     let p = profile(key);
@@ -471,6 +542,31 @@ pub fn settings_for(key: &str) -> Settings {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn choosing_a_profile_keeps_what_the_profile_does_not_choose() {
+        let mut s = Settings::default();
+        s.stamina_bar = true;
+        s.hud_ctrl_scale = 140;
+        s.no_magic_drop = true;
+        // `base` says nothing about the stamina display, the R3 target or the L3 sprint.
+        apply_profile(&mut s, "base");
+        assert!(s.stamina_bar, "the display is the player's");
+        assert_eq!(s.hud_ctrl_scale, 140);
+        assert!(s.no_magic_drop);
+        assert!(!s.stamina && s.hud_collectibles);
+        // `recommended` sets them.
+        apply_profile(&mut s, "recommended");
+        assert!(!s.stamina_bar && s.target_r3 && s.sprint_l3 && s.sprint_l3_toggle);
+        assert_eq!((s.enemy_hp, s.damage), (200, 200));
+        assert_eq!(s.bm_roles[&crate::roles::Button::R3], crate::roles::Role::Target);
+        assert_eq!(s.bm_roles[&crate::roles::Button::Dr], crate::roles::Role::Armory);
+        assert_eq!(s.hud_mode, HudMode::Simple);
+        // `custom` changes nothing.
+        let before = serde_json::to_string(&s).unwrap();
+        apply_profile(&mut s, "custom");
+        assert_eq!(serde_json::to_string(&s).unwrap(), before);
+    }
+
     use super::*;
 
     #[test]

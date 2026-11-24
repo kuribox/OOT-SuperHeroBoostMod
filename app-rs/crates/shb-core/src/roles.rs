@@ -303,6 +303,77 @@ pub fn keep_holds(table: &Roles, current: &Roles) -> Roles {
     out
 }
 
+/// Bring a table in line with the options a profile sets (`installer.roles_from_flags`): `None` leaves that part as it
+/// is. The target on R3 (or back on ZL), the shield on L, the sprint on L3.
+pub fn roles_from_flags(
+    roles: &Roles,
+    manual_shield: Option<bool>,
+    target_r3: Option<bool>,
+    sprint_l3: Option<bool>,
+) -> Roles {
+    let mut r = normalize(roles);
+    fn holder(r: &Roles, role: Role) -> Option<Button> {
+        r.iter().find(|(_, v)| **v == role).map(|(b, _)| *b)
+    }
+    fn free_for(r: &Roles, role: Role, prefer: &[Button]) -> Option<Button> {
+        prefer
+            .iter()
+            .copied()
+            .find(|b| matches!(r[b], Role::None | Role::Camera) && role_allowed(role, *b))
+    }
+    if let Some(want) = target_r3 {
+        let t = holder(&r, Role::Target);
+        if want && t != Some(Button::R3) {
+            let old = r[&Button::R3];
+            r.insert(Button::R3, Role::Target);
+            if let Some(t) = t {
+                r.insert(t, if role_allowed(old, t) { old } else { Role::None });
+            }
+        } else if !want && t == Some(Button::R3) {
+            let z = r[&Button::Zl];
+            r.insert(Button::Zl, Role::Target);
+            r.insert(
+                Button::R3,
+                if role_allowed(z, Button::R3) {
+                    z
+                } else {
+                    Role::Camera
+                },
+            );
+        }
+    }
+    if let Some(want) = manual_shield {
+        let sh = holder(&r, Role::Shield);
+        if want && sh.is_none() {
+            let displaced = r[&Button::L];
+            r.insert(Button::L, Role::Shield);
+            if ITEM_ROLES.contains(&displaced) || displaced == Role::Selector {
+                let dst = if displaced == Role::Selector {
+                    (role_allowed(Role::Selector, Button::R) && r[&Button::R] == Role::None)
+                        .then_some(Button::R)
+                } else {
+                    free_for(&r, displaced, &[Button::Zl, Button::L3, Button::R3])
+                };
+                if let Some(dst) = dst {
+                    r.insert(dst, displaced);
+                }
+            }
+        } else if !want && let Some(sh) = sh {
+            let item2_free = !r.values().any(|v| *v == Role::Item2);
+            r.insert(sh, if item2_free { Role::Item2 } else { Role::None });
+        }
+    }
+    if let Some(want) = sprint_l3 {
+        let sp = holder(&r, Role::Sprint);
+        if want && sp.is_none() && r[&Button::L3] == Role::None {
+            r.insert(Button::L3, Role::Sprint);
+        } else if !want && let Some(sp) = sp {
+            r.insert(sp, Role::None);
+        }
+    }
+    normalize(&r)
+}
+
 /// The basic roles no button has: the game cannot do those then.
 pub fn roles_missing(roles: &Roles) -> Vec<Role> {
     let have = normalize(roles);

@@ -166,6 +166,84 @@ impl Problem {
     }
 }
 
+type StatusKey = (Target, String, String);
+
+/// What looking at the folders on the install page found.
+#[derive(Clone, Debug)]
+struct PathStatus {
+    /// The program the folder would open, or what is wrong with it.
+    valid: Result<std::path::PathBuf, Problem>,
+    builder: Result<(), Problem>,
+    /// The mod is in the folder (what the actions depend on).
+    installed: bool,
+    /// Still being looked at: nothing can be done yet.
+    pending: bool,
+}
+
+impl PathStatus {
+    fn pending() -> Self {
+        PathStatus {
+            valid: Err(Problem::Emulator),
+            builder: Ok(()),
+            installed: false,
+            pending: true,
+        }
+    }
+}
+
+/// Look at the folders: the slow part of what the install page shows. Runs in a thread.
+fn inspect_paths(target: Target, emu: &str, builder: &str) -> PathStatus {
+    let path = PathBuf::from(emu);
+    let valid = if emu.is_empty() {
+        Err(match target {
+            Target::Emulator => Problem::Emulator,
+            Target::Recomp => Problem::Game,
+            Target::Rekarina => Problem::Rekarina,
+        })
+    } else {
+        match target {
+            Target::Emulator => shb_core::find::emulator_exe(&path).ok_or(Problem::Emulator),
+            Target::Recomp => shb_core::find::launcher_of(&path)
+                .filter(|_| shb_core::game::find(&path).is_some())
+                .ok_or(Problem::Game),
+            Target::Rekarina => rekarina_launcher(&path),
+        }
+    };
+    // The builder field only applies to a recompiled game (Rekarina brings its own toolchain).
+    let builder_ok = if target != Target::Recomp || builder.is_empty() {
+        Ok(())
+    } else if shb_core::rebuild::is_builder(std::path::Path::new(builder)) {
+        Ok(())
+    } else {
+        Err(Problem::Builder)
+    };
+    let installed = match target {
+        Target::Emulator => install::inspect(&path).installed.is_some(),
+        Target::Recomp => shb_core::game::find(&path)
+            .map(|game| shb_core::game::is_installed(&game))
+            .unwrap_or(false),
+        Target::Rekarina => shb_core::rekarina::find(&path)
+            .map(|rk| shb_core::rekarina::is_built(&rk))
+            .unwrap_or(false),
+    };
+    PathStatus {
+        valid,
+        builder: builder_ok,
+        installed,
+        pending: false,
+    }
+}
+
+/// A Rekarina folder with its `setup/` (its compiler ships there: without it nothing can be built) and the program
+/// it opens.
+fn rekarina_launcher(path: &std::path::Path) -> Result<std::path::PathBuf, Problem> {
+    let rk = shb_core::rekarina::find(path).ok_or(Problem::Rekarina)?;
+    if shb_core::rekarina_build::find_setup(&rk.root).is_none() {
+        return Err(Problem::Setup);
+    }
+    shb_core::rekarina::launcher_of(&rk).ok_or(Problem::Rekarina)
+}
+
 /// How an action ended, for the window that reports it.
 #[derive(Clone, Debug)]
 struct Outcome {
@@ -205,6 +283,11 @@ struct App {
     help: Option<&'static str>,
     /// How the last action ended, shown in a window that has to be dismissed: success or failure, never silence.
     outcome: Option<Outcome>,
+    /// What the folders on the install page were last found to be, and for which folders (see `path_status`).
+    status_cache: Option<(StatusKey, PathStatus)>,
+    status_rx: Option<(StatusKey, channel::Receiver<PathStatus>)>,
+    /// An action ended: look at the folders again.
+    status_dirty: bool,
     /// The frame it opened on: the click that opens it is outside the window it just created, and closing on that
     /// click made every "?" look dead.
     help_frame: u64,
@@ -275,6 +358,9 @@ impl App {
             update: UpdateState::Idle,
             help_frame: 0,
             // `SHB_OUTCOME=ok|fail` opens the result window at start: how its screenshots are taken.
+            status_cache: None,
+            status_rx: None,
+            status_dirty: false,
             outcome: std::env::var("SHB_OUTCOME").ok().and_then(|how| {
                 let ok = how == "ok";
                 (ok || how == "fail").then(|| Outcome {
@@ -371,6 +457,7 @@ impl App {
     /// An action ended: say so in the status line and in a window the player has to close.
     fn conclude(&mut self, ok: bool, headline: impl Into<String>, detail: Vec<String>) {
         let headline = headline.into();
+        self.status_dirty = true;
         self.failed = !ok;
         self.status = Some(headline.clone());
         self.outcome = Some(Outcome {
@@ -573,70 +660,55 @@ impl App {
         }
     }
 
-    /// Whether the mod is in the folder the page points at (what the actions depend on).
-    /// Whether the folder on the page is the kind of folder the target needs — the emulator's program, a
-    /// recompiled game's ExeFS and launcher, a Rekarina install with its `setup/` — and the program it would open.
+    /// Whether the folder on the page is the kind of folder the target needs: the emulator's program, a
+    /// recompiled game's ExeFS and launcher, a Rekarina install with its `setup/`. Gives the program it would open.
     fn check_paths(&self) -> Result<std::path::PathBuf, Problem> {
-        let path = PathBuf::from(self.emu.trim());
-        if self.emu.trim().is_empty() {
-            return Err(match self.target {
-                Target::Emulator => Problem::Emulator,
-                Target::Recomp => Problem::Game,
-                Target::Rekarina => Problem::Rekarina,
-            });
-        }
-        match self.target {
-            Target::Emulator => shb_core::find::emulator_exe(&path).ok_or(Problem::Emulator),
-            Target::Recomp => shb_core::find::launcher_of(&path)
-                .filter(|_| shb_core::game::find(&path).is_some())
-                .ok_or(Problem::Game),
-            Target::Rekarina => {
-                let rk = shb_core::rekarina::find(&path).ok_or(Problem::Rekarina)?;
-                // Rekarina's compiler ships in a `setup/<version>/` next to the game: without it nothing can be built.
-                if shb_core::rekarina_build::find_setup(&rk.root).is_none() {
-                    return Err(Problem::Setup);
+        inspect_paths(self.target, self.emu.trim(), self.builder.trim()).valid
+    }
+
+    /// What the install page knows about the folders on it, from the last time they were looked at. Looking is not
+    /// free (a Rekarina install hashes a 350 MB program to know whether it is built), so it happens in a thread when
+    /// the folders change or an action ends, not on every frame the page is drawn.
+    fn path_status(&mut self, ctx: &egui::Context) -> PathStatus {
+        let key = (
+            self.target,
+            self.emu.trim().to_string(),
+            self.builder.trim().to_string(),
+        );
+        if let Some((asked, rx)) = &self.status_rx {
+            match rx.try_recv() {
+                Ok(found) => {
+                    let done = asked.clone();
+                    self.status_rx = None;
+                    self.status_cache = Some((done, found));
                 }
-                shb_core::rekarina::launcher_of(&rk).ok_or(Problem::Rekarina)
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => self.status_rx = None,
             }
         }
-    }
-
-    /// The builder field: it only applies to a recompiled game (Rekarina brings its own toolchain).
-    fn check_builder(&self) -> Result<(), Problem> {
-        if self.target != Target::Recomp || self.builder.trim().is_empty() {
-            return Ok(());
+        let fresh = matches!(&self.status_cache, Some((k, _)) if *k == key) && !self.status_dirty;
+        let pending = matches!(&self.status_rx, Some((k, _)) if *k == key);
+        if !fresh && !pending && self.busy.is_none() {
+            let (tx, rx) = channel();
+            let (target, emu, builder) = key.clone();
+            let repaint = ctx.clone();
+            std::thread::spawn(move || {
+                let _ = tx.send(inspect_paths(target, &emu, &builder));
+                repaint.request_repaint();
+            });
+            self.status_rx = Some((key.clone(), rx));
+            self.status_dirty = false;
         }
-        if shb_core::rebuild::is_builder(std::path::Path::new(self.builder.trim())) {
-            Ok(())
-        } else {
-            Err(Problem::Builder)
-        }
-    }
-
-    fn is_installed_now(&self) -> bool {
-        let path = PathBuf::from(self.emu.trim());
-        match self.target {
-            Target::Emulator => install::inspect(&path).installed.is_some(),
-            Target::Recomp => shb_core::game::find(&path)
-                .map(|game| shb_core::game::is_installed(&game))
-                .unwrap_or(false),
-            Target::Rekarina => shb_core::rekarina::find(&path)
-                .map(|rk| shb_core::rekarina::is_built(&rk))
-                .unwrap_or(false),
+        match &self.status_cache {
+            Some((_, status)) => status.clone(),
+            None => PathStatus::pending(),
         }
     }
 
+    /// Choosing a profile: its values go onto the settings, the choices it does not make stay the player's (the Python
+    /// window's `apply_profile`, which `presets::apply_profile` follows).
     fn apply_profile(&mut self) {
-        // A profile sets the gameplay options; the style, the layout and the language stay the user's own.
-        let mut fresh = presets::settings_for(&self.profile);
-        fresh.button_style = self.settings.button_style;
-        fresh.bm_layout = self.settings.bm_layout;
-        fresh.game_layout = self.settings.game_layout;
-        fresh.bm_l_mode = self.settings.bm_l_mode;
-        fresh.lang = self.settings.lang;
-        fresh.hud_ctrl_scale = self.settings.hud_ctrl_scale;
-        fresh.hud_count_scale = self.settings.hud_count_scale;
-        self.settings = fresh;
+        presets::apply_profile(&mut self.settings, &self.profile.clone());
         let line = format!("{} {}", self.t("profile"), self.profile);
         self.say(line);
     }
@@ -738,6 +810,7 @@ impl App {
         let request = rebuild::RebuildRequest {
             game: PathBuf::from(self.emu.trim()),
             profile: self.profile.clone(),
+            settings: Some(self.settings.clone()),
             mode,
             rebuild: true,
             app,
@@ -1272,7 +1345,11 @@ impl eframe::App for App {
                         } else {
                             self.profile.clone()
                         };
-                        chip(ui, &fill(tr(lang, "profile_current"), &[("a", &name)]));
+                        // Inside a `horizontal`, like the language box: a frame placed straight into this layout sits at the
+                        // top of the header instead of on the line of the other controls.
+                        ui.horizontal(|ui| {
+                            chip(ui, &fill(tr(lang, "profile_current"), &[("a", &name)]));
+                        });
                     });
                 });
             });
@@ -1489,11 +1566,11 @@ impl App {
 
                 // The folder has to be the right one before anything can be done with it: the page says so and the
                 // actions stay off until it is (a wrong path is the most common way to get a bare error).
-                let valid = self.check_paths();
-                let builder_ok = self.check_builder();
-                let installed = self.is_installed_now();
+                let status = self.path_status(ui.ctx());
+                let pending = status.pending;
+                let (valid, builder_ok, installed) = (status.valid, status.builder, status.installed);
                 let busy = self.busy.is_some();
-                let ready = !busy && valid.is_ok() && builder_ok.is_ok();
+                let ready = !busy && !pending && valid.is_ok() && builder_ok.is_ok();
                 ui.add_space(6.0);
                 ui.label(
                     egui::RichText::new(format!(
@@ -1514,6 +1591,7 @@ impl App {
 
                 // The verdict on the folders: what is wrong, or what it will open.
                 match (&valid, &builder_ok) {
+                    _ if pending => {}
                     (Ok(exe), Ok(())) => {
                         let label = fill(self.t("path_ok"), &[("a", &exe.display().to_string())]);
                         ui.label(egui::RichText::new(label).size(11.5).color(theme::TEAL));
@@ -1748,6 +1826,7 @@ impl App {
         });
         if card_pressed(ui, drawn.response.rect, help_rect) {
             self.profile = key.to_string();
+            self.apply_profile();
         }
     }
     fn page_gameplay(&mut self, ui: &mut egui::Ui) -> bool {

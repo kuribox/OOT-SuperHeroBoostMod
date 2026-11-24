@@ -65,6 +65,9 @@ pub struct RebuildRequest {
     pub game: PathBuf,
     /// A profile name (`recommended`, `custom`, …).
     pub profile: String,
+    /// The settings to install. The window passes the ones on its pages (a profile is only where they started);
+    /// without them the profile's own values are used.
+    pub settings: Option<Settings>,
     /// The app folder (the one that holds `payload/`).
     pub app: PathBuf,
     /// What to do (a recompiled game).
@@ -208,7 +211,10 @@ fn run_steps(
     stop: Arc<AtomicBool>,
     mut report: impl FnMut(BuildEvent),
 ) -> Result<()> {
-    let settings = presets::settings_for(&req.profile);
+    let settings = req
+        .settings
+        .clone()
+        .unwrap_or_else(|| presets::settings_for(&req.profile));
     let payload = req.payload();
     if crate::rekarina::find(&req.game).is_some() {
         return run_rekarina(req, &settings, &payload, stop, report);
@@ -344,6 +350,7 @@ mod tests {
         let req = RebuildRequest {
             game: PathBuf::from("g"),
             profile: "recommended".to_string(),
+            settings: None,
             app: PathBuf::from("F:/project/super-hero-boost/app"),
             mode: Mode::Install,
             rebuild: true,
@@ -394,6 +401,7 @@ mod tests {
         let req = RebuildRequest {
             game: game_dir.clone(),
             profile: "recommended".to_string(),
+            settings: None,
             app,
             mode: Mode::Install,
             rebuild: true,

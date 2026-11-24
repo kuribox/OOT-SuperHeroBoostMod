@@ -681,9 +681,12 @@ fn run(args: &[String]) -> Result<()> {
                 None => rebuild::Mode::Install,
                 Some(name) => rebuild::Mode::parse(name).ok_or_else(|| unknown("mode", name))?,
             };
+            // `--settings`/`--profile` and the single options, as for the emulator install.
+            let settings = settings_from(&o)?;
             let request = rebuild::RebuildRequest {
                 game: path.clone(),
                 profile: profile.clone(),
+                settings: Some(settings),
                 mode,
                 rebuild: !o.no_rebuild,
                 app: app.clone(),
