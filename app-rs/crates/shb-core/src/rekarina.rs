@@ -415,6 +415,53 @@ pub fn apply_settings(game: &Rekarina, s: &Settings, payload: &Path) -> Result<(
     Ok(())
 }
 
+/// Take a freshly built executable as this install: copy it over `Rekarina.exe`, write the settings into the module,
+/// put the module's new hash inside the executable, and record what was built.
+///
+/// The order matters: the build's expected-hash table was made from the *raw* module, so the settings change its hash
+/// and the executable has to learn the new one as it is swapped in — exactly what the Python install does.
+pub fn adopt_build(game: &Rekarina, s: &Settings, payload: &Path, built: &Path) -> Result<()> {
+    let source = payload.join("rekarina").join(MODULE);
+    let raw = read(&source)?;
+    let patched = crate::config::patch_config(&raw, s)?;
+    let old_sha = sha256(&raw);
+    let new_sha = sha256(&patched);
+    let dest = exe_path(game);
+    let data = read(built)?;
+    let mut data = data;
+    if new_sha != old_sha {
+        if old_sha.len() != new_sha.len() {
+            return Err(Error::Rekarina(
+                "the module hashes have different lengths".into(),
+            ));
+        }
+        let mut found = 0;
+        let mut at = 0;
+        while let Some(hit) = data[at..]
+            .windows(old_sha.len())
+            .position(|w| w == old_sha.as_bytes())
+        {
+            let start = at + hit;
+            data[start..start + new_sha.len()].copy_from_slice(new_sha.as_bytes());
+            found += 1;
+            at = start + new_sha.len();
+        }
+        if found == 0 {
+            return Err(Error::Rekarina(
+                "the built executable does not carry the module's hash: it cannot be used".into(),
+            ));
+        }
+    }
+    let temp = dest.with_extension("exe.shb-tmp");
+    write(&temp, &data)?;
+    std::fs::rename(&temp, &dest).map_err(|e| Error::io(&dest, e))?;
+    write(&module_path(game), &patched)?;
+    install_romfs(game, s, payload)?;
+    set_mod_order(game)?;
+    write_built(game)?;
+    write_state(game, &sha256(&data), &new_sha, true, None)
+}
+
 /// Say that the game was rebuilt with the module (the state's `rebuilt` flag), from what is on disk now.
 pub fn mark_rebuilt(game: &Rekarina) -> Result<()> {
     let exe_sha = sha256(&read(&exe_path(game))?);

@@ -179,17 +179,11 @@ fn run_rekarina(
             arg: String::new(),
         });
     }
-    // The new executable replaces the old one through a temporary name: an interrupted copy must not leave a half exe.
-    let dest = rk.root.join(crate::rekarina::EXE_NAME);
-    let tmp = dest.with_file_name(format!("{}.shb-tmp", crate::rekarina::EXE_NAME));
-    std::fs::copy(&exe, &tmp).map_err(|e| Error::io(&tmp, e))?;
-    std::fs::rename(&tmp, &dest).map_err(|e| Error::io(&dest, e))?;
-    // The settings into the module that ships beside the executable, and its hash into the executable.
-    crate::rekarina::apply_settings(&rk, settings, payload)?;
-    crate::rekarina::mark_rebuilt(&rk)?;
+    // The executable, the settings into the module and the module's hash into the executable.
+    crate::rekarina::adopt_build(&rk, settings, payload, &exe)?;
     report(BuildEvent::Note(format!(
         "Rekarina: rebuilt {}",
-        dest.display()
+        rk.root.join(crate::rekarina::EXE_NAME).display()
     )));
     Ok(())
 }
