@@ -210,9 +210,10 @@ fn inspect_paths(target: Target, emu: &str, builder: &str) -> PathStatus {
         }
     };
     // The builder field only applies to a recompiled game (Rekarina brings its own toolchain).
-    let builder_ok = if target != Target::Recomp || builder.is_empty() {
-        Ok(())
-    } else if shb_core::rebuild::is_builder(std::path::Path::new(builder)) {
+    let builder_ok = if target != Target::Recomp
+        || builder.is_empty()
+        || shb_core::rebuild::is_builder(std::path::Path::new(builder))
+    {
         Ok(())
     } else {
         Err(Problem::Builder)

@@ -44,6 +44,31 @@ jobs:
       - name: Build
         run: cargo build --manifest-path app/Cargo.toml --release
 
+  linux:
+    # The window is built for Linux and macOS by build.yml; this job is the early warning: a platform-specific
+    # breakage (the file picker's portal backend, OpenSSL, a `-sys` crate) fails here, on the pull request.
+    name: Linux (build and tests)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the window's system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+      - name: Stage the payload
+        run: python3 tools/ci_payload.py
+      - name: Test
+        run: cargo test --manifest-path app/Cargo.toml --workspace
+      - name: Build
+        run: cargo build --manifest-path app/Cargo.toml --release -p shb-cli
+      - name: The binary is an executable ELF
+        run: test -x app/target/release/SHB-OcarinaTweaks
+
   parity:
     name: Parity with the legacy (Python) app
     runs-on: windows-latest
