@@ -1944,160 +1944,196 @@ impl App {
         let lang = self.ui_lang;
         let mut changed = false;
         let mut help = self.help;
+        // Everything below the switch is the mapping: with the mapping off the card is shown greyed, the way the
+        // Python app disables it. The switch itself (and the item side) stay reachable.
+        let on = self.settings.button_mapping;
 
-        // The presets: one card per table, the way the Python app opens the page.
-        theme::section(
-            ui,
-            tr(lang, "ctrl_preset_title"),
-            Some(tr(lang, "ctrl_preset_desc")),
-            |ui| {
-                let wide = ui.available_width() >= 620.0;
-                if wide {
-                    ui.columns(2, |cols| {
-                        for (i, key) in PRESETS.iter().enumerate() {
-                            self.preset_card(&mut cols[i % 2], key, &mut help, &mut changed);
-                            cols[i % 2].add_space(4.0);
+        // With the mapping off the card below is greyed, so the switch that turns it back on is drawn here, where it
+        // is still reachable (inside the greyed card it could not be clicked).
+        if !on {
+            ui.add_space(2.0);
+            if widgets::check(
+                ui,
+                &mut self.settings.button_mapping,
+                tr(lang, "bm_on"),
+                tr(lang, "bm_on_desc"),
+                None,
+                &mut help,
+            ) {
+                changed = true;
+            }
+            ui.add_space(6.0);
+        }
+
+        ui.add_enabled_ui(on, |ui| {
+            // The presets: one card per table, the way the Python app opens the page.
+            theme::section(
+                ui,
+                tr(lang, "ctrl_preset_title"),
+                Some(tr(lang, "ctrl_preset_desc")),
+                |ui| {
+                    let wide = ui.available_width() >= 620.0;
+                    if wide {
+                        ui.columns(2, |cols| {
+                            for (i, key) in PRESETS.iter().enumerate() {
+                                self.preset_card(&mut cols[i % 2], key, &mut help, &mut changed);
+                                cols[i % 2].add_space(4.0);
+                            }
+                        });
+                    } else {
+                        for key in PRESETS {
+                            self.preset_card(ui, key, &mut help, &mut changed);
+                            ui.add_space(4.0);
                         }
+                    }
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        widgets::help_icon(ui, "rm_help", lang, &mut help);
+                        ui.label(
+                            egui::RichText::new(widgets::short(tr(lang, "rm_help")))
+                                .size(11.5)
+                                .color(theme::DIM),
+                        );
                     });
-                } else {
-                    for key in PRESETS {
-                        self.preset_card(ui, key, &mut help, &mut changed);
-                        ui.add_space(4.0);
-                    }
-                }
-                ui.add_space(4.0);
-                ui.horizontal(|ui| {
-                    widgets::help_icon(ui, "rm_help", lang, &mut help);
-                    ui.label(
-                        egui::RichText::new(widgets::short(tr(lang, "rm_help")))
-                            .size(11.5)
-                            .color(theme::DIM),
-                    );
-                });
-            },
-        );
+                },
+            );
 
-        // The buttons themselves: on/off, the pictures, the face-button positions.
-        ui.add_space(8.0);
-        theme::section(
-            ui,
-            tr(lang, "buttons_title"),
-            Some(tr(lang, "ctrl_advanced_desc")),
-            |ui| {
-                if widgets::check(
-                    ui,
-                    &mut self.settings.button_mapping,
-                    tr(lang, "bm_on"),
-                    tr(lang, "bm_on_desc"),
-                    None,
-                    &mut help,
-                ) {
-                    changed = true;
-                }
-                ui.add_space(3.0);
-                widgets::two_columns(ui, 700.0, 0.5, 260.0, |ui, column| match column {
-                    widgets::Column::Left => {
-                        ui.horizontal(|ui| {
-                            // The pictures of the HUD buttons: Switch, PlayStation or Xbox.
-                            let styles = vec![
-                                (ButtonStyle::Switch, tr(lang, "g_default").to_string()),
-                                (
-                                    ButtonStyle::PlayStation,
-                                    tr(lang, "g_playstation").to_string(),
-                                ),
-                                (ButtonStyle::Xbox, tr(lang, "g_xbox").to_string()),
-                            ];
-                            if widgets::combo_row(
-                                ui,
-                                tr(lang, "variant"),
-                                "variant",
-                                &mut self.settings.button_style,
-                                &styles,
-                                130.0,
-                            ) {
-                                changed = true;
-                            }
-                            widgets::help_icon(ui, "variant_d", lang, &mut help);
-                        });
-                        ui.add_space(2.0);
-                        // How many buttons the mod draws: the assignable ones only, or the extended set.
-                        ui.horizontal(|ui| {
-                            let options = vec![
-                                (false, tr(lang, "bm_ext").to_string()),
-                                (true, tr(lang, "bm_simple").to_string()),
-                            ];
-                            if widgets::combo_row(
-                                ui,
-                                tr(lang, "bm_layout"),
-                                "bm-layout",
-                                &mut self.settings.bm_simple,
-                                &options,
-                                150.0,
-                            ) {
-                                changed = true;
-                            }
-                            let key = if self.settings.bm_simple {
-                                "bm_simple_d"
-                            } else {
-                                "bm_ext_d"
-                            };
-                            widgets::help_icon(ui, key, lang, &mut help);
-                        });
-                    }
-                    widgets::Column::Right => {
-                        ui.horizontal(|ui| {
-                            // The face-button positions, the same scheme as the recompiled games.
-                            let places = vec![
-                                (
-                                    BmLayout::Nintendo,
-                                    tr(lang, "bm_place_nintendo").to_string(),
-                                ),
-                                (BmLayout::Ab, tr(lang, "bm_place_ab").to_string()),
-                                (BmLayout::Xbox, tr(lang, "bm_place_xbox").to_string()),
-                                (
-                                    BmLayout::Gamecube,
-                                    tr(lang, "bm_place_gamecube").to_string(),
-                                ),
-                            ];
-                            if widgets::combo_row(
-                                ui,
-                                tr(lang, "bm_place"),
-                                "bm-place",
-                                &mut self.settings.bm_layout,
-                                &places,
-                                200.0,
-                            ) {
-                                changed = true;
-                            }
-                            widgets::help_icon(ui, "bm_place_d", lang, &mut help);
-                        });
-                    }
-                });
-                ui.add_space(3.0);
-                ui.horizontal(|ui| {
-                    if widgets::percent_slider(
+            // The buttons themselves: on/off, the pictures, the face-button positions.
+            ui.add_space(8.0);
+            theme::section(
+                ui,
+                tr(lang, "buttons_title"),
+                Some(tr(lang, "ctrl_advanced_desc")),
+                |ui| {
+                    if widgets::check(
                         ui,
-                        tr(lang, "hud_ctrl_scale"),
-                        &mut self.settings.hud_ctrl_scale,
-                        50,
-                        200,
-                        5,
+                        &mut self.settings.button_mapping,
+                        tr(lang, "bm_on"),
+                        tr(lang, "bm_on_desc"),
+                        None,
+                        &mut help,
                     ) {
                         changed = true;
                     }
-                    widgets::help_icon(ui, "hud_ctrl_scale_desc", lang, &mut help);
-                });
-            },
-        );
+                    // The item side of the mapping: our own item buttons and items 1-3 on any button. It rides on the
+                    // mapping, so it is only offered while the mapping is on.
+                    if self.settings.button_mapping
+                        && widgets::check(
+                            ui,
+                            &mut self.settings.hud_items,
+                            tr(lang, "hud_items"),
+                            tr(lang, "hud_items_desc"),
+                            None,
+                            &mut help,
+                        )
+                    {
+                        changed = true;
+                    }
+                    ui.add_space(3.0);
+                    widgets::two_columns(ui, 700.0, 0.5, 260.0, |ui, column| match column {
+                        widgets::Column::Left => {
+                            ui.horizontal(|ui| {
+                                // The pictures of the HUD buttons: Switch, PlayStation or Xbox.
+                                let styles = vec![
+                                    (ButtonStyle::Switch, tr(lang, "g_default").to_string()),
+                                    (
+                                        ButtonStyle::PlayStation,
+                                        tr(lang, "g_playstation").to_string(),
+                                    ),
+                                    (ButtonStyle::Xbox, tr(lang, "g_xbox").to_string()),
+                                ];
+                                if widgets::combo_row(
+                                    ui,
+                                    tr(lang, "variant"),
+                                    "variant",
+                                    &mut self.settings.button_style,
+                                    &styles,
+                                    130.0,
+                                ) {
+                                    changed = true;
+                                }
+                                widgets::help_icon(ui, "variant_d", lang, &mut help);
+                            });
+                            ui.add_space(2.0);
+                            // How many buttons the mod draws: the assignable ones only, or the extended set.
+                            ui.horizontal(|ui| {
+                                let options = vec![
+                                    (false, tr(lang, "bm_ext").to_string()),
+                                    (true, tr(lang, "bm_simple").to_string()),
+                                ];
+                                if widgets::combo_row(
+                                    ui,
+                                    tr(lang, "bm_layout"),
+                                    "bm-layout",
+                                    &mut self.settings.bm_simple,
+                                    &options,
+                                    150.0,
+                                ) {
+                                    changed = true;
+                                }
+                                let key = if self.settings.bm_simple {
+                                    "bm_simple_d"
+                                } else {
+                                    "bm_ext_d"
+                                };
+                                widgets::help_icon(ui, key, lang, &mut help);
+                            });
+                        }
+                        widgets::Column::Right => {
+                            ui.horizontal(|ui| {
+                                // The face-button positions, the same scheme as the recompiled games.
+                                let places = vec![
+                                    (
+                                        BmLayout::Nintendo,
+                                        tr(lang, "bm_place_nintendo").to_string(),
+                                    ),
+                                    (BmLayout::Ab, tr(lang, "bm_place_ab").to_string()),
+                                    (BmLayout::Xbox, tr(lang, "bm_place_xbox").to_string()),
+                                    (
+                                        BmLayout::Gamecube,
+                                        tr(lang, "bm_place_gamecube").to_string(),
+                                    ),
+                                ];
+                                if widgets::combo_row(
+                                    ui,
+                                    tr(lang, "bm_place"),
+                                    "bm-place",
+                                    &mut self.settings.bm_layout,
+                                    &places,
+                                    200.0,
+                                ) {
+                                    changed = true;
+                                }
+                                widgets::help_icon(ui, "bm_place_d", lang, &mut help);
+                            });
+                        }
+                    });
+                    ui.add_space(3.0);
+                    ui.horizontal(|ui| {
+                        if widgets::percent_slider(
+                            ui,
+                            tr(lang, "hud_ctrl_scale"),
+                            &mut self.settings.hud_ctrl_scale,
+                            50,
+                            200,
+                            5,
+                        ) {
+                            changed = true;
+                        }
+                        widgets::help_icon(ui, "hud_ctrl_scale_desc", lang, &mut help);
+                    });
+                },
+            );
 
-        // The editor: one row per button, its roles, and the two previews.
-        ui.add_space(8.0);
-        theme::section(ui, tr(lang, "rm_title"), Some(tr(lang, "rm_help")), |ui| {
-            // The rows are about 260 px wide: the previews sit right beside them with a gap of 18, in the same place
-            // whatever buttons the table has (a percentage split left them far right of the selects).
-            widgets::two_columns_sized(ui, 300.0, 18.0, 320.0, |ui, column| match column {
-                widgets::Column::Left => self.remap_rows(ui, lang, &mut changed, &mut help),
-                widgets::Column::Right => self.remap_previews(ui, lang, &mut help),
+            // The editor: one row per button, its roles, and the two previews.
+            ui.add_space(8.0);
+            theme::section(ui, tr(lang, "rm_title"), Some(tr(lang, "rm_help")), |ui| {
+                // The rows are about 260 px wide: the previews sit right beside them with a gap of 18, in the same place
+                // whatever buttons the table has (a percentage split left them far right of the selects).
+                widgets::two_columns_sized(ui, 300.0, 18.0, 320.0, |ui, column| match column {
+                    widgets::Column::Left => self.remap_rows(ui, lang, &mut changed, &mut help),
+                    widgets::Column::Right => self.remap_previews(ui, lang, &mut help),
+                });
             });
         });
         self.help = help;

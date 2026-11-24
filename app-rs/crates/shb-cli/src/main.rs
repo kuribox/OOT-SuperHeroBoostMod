@@ -44,7 +44,7 @@ Install options (they override the profile):
   --name <folder>          mod folder name (default: zz-Super-Hero-Boost)
   --save-settings          remember the settings as the app's own file
   --dry-run                (game) only report what was found, write nothing
-  --no-stamina  --no-button-mapping  --no-songbook  --stamina-bar
+  --no-stamina  --no-button-mapping  --no-hud-items  --no-songbook  --stamina-bar
   --hud-mode <wide|simple|plain>   --hud-collectibles   --rupees  --clock  --clock24
   --quick-boots  --quick-mask  --hide-minimap
   --enemy-hp <pct>  --damage <pct>  --sprint-speed <pct>
@@ -150,6 +150,7 @@ struct Options {
     // switches
     no_stamina: bool,
     no_button_mapping: bool,
+    no_hud_items: bool,
     no_songbook: bool,
     stamina_bar: bool,
     hud_collectibles: bool,
@@ -242,6 +243,7 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
             }
             "--no-stamina" => o.no_stamina = true,
             "--no-button-mapping" => o.no_button_mapping = true,
+            "--no-hud-items" => o.no_hud_items = true,
             "--no-songbook" => o.no_songbook = true,
             "--stamina-bar" => o.stamina_bar = true,
             "--hud-collectibles" => o.hud_collectibles = true,
@@ -410,6 +412,9 @@ fn settings_from(o: &Options) -> Result<Settings> {
     }
     if o.no_stamina {
         s.stamina = false;
+    }
+    if o.no_hud_items {
+        s.hud_items = false;
     }
     if o.no_button_mapping {
         s.button_mapping = false;

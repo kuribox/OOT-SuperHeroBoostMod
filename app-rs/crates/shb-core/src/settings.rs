@@ -174,7 +174,11 @@ pub struct Settings {
     pub enemy_aggro: u8,
     pub great_fairy: bool,
     pub farore_outdoor: bool,
+    /// The remap of what every button does (the whole Controls card).
     pub button_mapping: bool,
+    /// Custom item HUD: our own B / L / R / ZR item buttons and items 1-3 assignable to any button. Without the
+    /// button mapping there is no item side.
+    pub hud_items: bool,
     pub button_style: ButtonStyle,
     pub bm_layout: BmLayout,
     pub game_layout: GameLayout,
@@ -235,6 +239,7 @@ impl Default for Settings {
             great_fairy: false,
             farore_outdoor: false,
             button_mapping: true,
+            hud_items: true,
             button_style: ButtonStyle::Switch,
             bm_layout: BmLayout::Nintendo,
             game_layout: GameLayout::None,

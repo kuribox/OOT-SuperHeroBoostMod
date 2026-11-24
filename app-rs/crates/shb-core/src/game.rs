@@ -298,7 +298,11 @@ fn backup_once(game: &Game) -> Result<()> {
 pub fn uninstall(game: &Game) -> Result<bool> {
     let backup = game.root.join(BACKUP);
     let manifest = backup.join("manifest.json");
-    let mut restored = false;
+    let mut changed = false;
+    // What the backup put back: a module it restored is the game's own and must not be deleted afterwards.
+    let mut restored_files: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    // 1. The files the install replaced go back exactly as they were.
     if let Ok(text) = std::fs::read_to_string(&manifest)
         && let Ok(doc) = serde_json::from_str::<serde_json::Value>(&text)
     {
@@ -324,34 +328,63 @@ pub fn uninstall(game: &Game) -> Result<bool> {
                             let _ = std::fs::create_dir_all(parent);
                         }
                         std::fs::copy(&src, &dst).map_err(|e| Error::io(&dst, e))?;
-                        restored = true;
+                        restored_files.insert(rel.replace('\\', "/"));
+                        changed = true;
                     }
                 }
                 _ => {
                     if dst.is_file() {
                         std::fs::remove_file(&dst).map_err(|e| Error::io(&dst, e))?;
-                        restored = true;
+                        changed = true;
                     }
                 }
             }
         }
     }
-    let mods = game.root.join("mods");
+
+    // 2. Our mods folder always goes — with the mod merged into the build, the backup may not even mention it.
+    let mods = mods_dir(game);
     if let Ok(entries) = std::fs::read_dir(&mods) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_dir() && path.join(crate::find::MARKER).is_file() {
+            let ours = path.file_name().and_then(|n| n.to_str()) == Some(MOD_NAME)
+                || path.join(crate::find::MARKER).is_file();
+            if path.is_dir() && ours {
                 std::fs::remove_dir_all(&path).map_err(|e| Error::io(&path, e))?;
-                restored = true;
+                changed = true;
             }
         }
     }
-    // The backup has served its purpose: a later install must take a fresh one from the restored files, not reuse
-    // this manifest (whose "created" entries would then delete files the player had before).
-    if restored {
-        let _ = std::fs::remove_dir_all(&backup);
+
+    // 3. And the module the mod loads as: an install records whether it created it, a rebuild does not. The module
+    // carries our config block, so it can be recognised without the manifest — an uninstall always has to reach a
+    // state without the mod.
+    let module = game.exefs.join("subsdk9");
+    let rel = module
+        .strip_prefix(&game.root)
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    if module.is_file() && !restored_files.contains(&rel) && module_is_ours(&module) {
+        std::fs::remove_file(&module).map_err(|e| Error::io(&module, e))?;
+        changed = true;
     }
-    Ok(restored)
+
+    // 4. What the install left behind: the backup (a later install takes a fresh one) and the work folder.
+    if changed {
+        let _ = std::fs::remove_dir_all(&backup);
+        let _ = std::fs::remove_dir_all(game.root.join(".shb-work"));
+    }
+    Ok(changed)
+}
+
+/// Whether a module carries our config block (the magic of `ShbConfig`), i.e. it is the mod's own `subsdk9`.
+fn module_is_ours(module: &Path) -> bool {
+    let Ok(data) = read(module) else {
+        return false;
+    };
+    // The block lives in the module's data section, which an NSO0 does not compress: a plain search finds it.
+    let magic = crate::config::MAGIC;
+    data.windows(magic.len()).any(|w| w == magic)
 }
 
 #[cfg(test)]
@@ -440,10 +473,13 @@ mod tests {
         assert!(root.join(BACKUP).join("manifest.json").is_file());
 
         assert!(uninstall(&found).unwrap());
+        // This game had a module before the install, so an uninstall puts that one back instead of deleting the file.
         assert_eq!(
             std::fs::read(root.join(".longshot_exefs/subsdk9")).unwrap(),
-            original
+            original,
+            "the module that was there before comes back byte for byte"
         );
+        assert!(!root.join(BACKUP).exists(), "and the backup is gone");
         assert!(!root.join("mods/zz-Super-Hero-Boost").exists());
         let _ = std::fs::remove_dir_all(root);
     }

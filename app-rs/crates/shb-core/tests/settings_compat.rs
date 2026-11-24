@@ -9,8 +9,8 @@
 use shb_core::paths::APP_NAME;
 use shb_core::settings::Settings;
 
-const DEFAULT_JSON: &str = include_str!("data/settings-0.9.3-default.json");
-const RECOMMENDED_JSON: &str = include_str!("data/settings-0.9.3-recommended.json");
+const DEFAULT_JSON: &str = include_str!("data/settings-0.10-default.json");
+const RECOMMENDED_JSON: &str = include_str!("data/settings-0.10-recommended.json");
 
 fn keys(value: &serde_json::Value) -> Vec<String> {
     let mut keys: Vec<String> = value

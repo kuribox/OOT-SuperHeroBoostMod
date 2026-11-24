@@ -72,9 +72,16 @@ pub mod off {
     pub const HUD_COUNT_SCALE: usize = 91;
     pub const BM_ROLE_DR: usize = 92;
     pub const BM_HOLD: usize = 93; // u8[4]
-    /// `sizeof(ShbConfig)`: the last byte we write is `BM_HOLD + 3`.
-    pub const SIZE: usize = 97;
+    /// Custom item HUD (our B / L / R / ZR buttons); 0 when the button mapping is off.
+    pub const HUD_CUSTOM_ITEMS: usize = 97;
+    /// `sizeof(ShbConfig)`: the last byte we write is `HUD_CUSTOM_ITEMS`.
+    pub const SIZE: usize = 98;
 }
+
+/// The simple / plain row is drawn at full size with its own spacing: the x of the first block and how much room each
+/// block takes before the next one starts (rupee 250, clock 240, skulltulas/hearts 230).
+const HUD_SIMPLE_X0: f64 = -1685.0;
+const HUD_SIMPLE_ADV: [f64; 4] = [250.0, 240.0, 230.0, 230.0];
 
 /// HUD row geometry (layout units): `hud.c` draws the plates at 0.46 / 0.42, so the installer packs the enabled
 /// blocks with the same gap between plate edges.
@@ -139,6 +146,12 @@ impl<'a> Fields<'a> {
     fn u8(&mut self, offset: usize, value: u8) {
         if offset < self.block.len() {
             self.block[offset] = value;
+        }
+    }
+
+    fn u8s(&mut self, at: usize, values: &[u8]) {
+        for (i, value) in values.iter().enumerate() {
+            self.u8(at + i, *value);
         }
     }
 
@@ -256,8 +269,26 @@ pub fn patch_config(nso: &[u8], s: &Settings) -> Result<Vec<u8>> {
                     f.bool(off::NO_MAGIC_DROP, s.no_magic_drop);
                     f.bool(off::HIDE_MINIMAP, s.hide_minimap);
                     f.bool(off::SPRINT_L3_TOGGLE, s.sprint_l3_toggle);
-                    if size >= 0x5A && s.bm_remap {
+                    if size >= 0x5A && s.bm_remap && s.button_mapping {
                         write_remap(&mut f, s);
+                    } else if size >= 0x5A {
+                        // Button mapping off: nothing that rides on it may stay active in the module. The table stays
+                        // in the app's own settings, so turning it back on restores it; the module gets the plain
+                        // controls.
+                        f.u8(off::BM_REMAP, 0);
+                        f.u8(off::BM_L_MODE, 0); // L keeps the module's default (the table is what decides)
+                        f.bool(off::MANUAL_SHIELD, false);
+                        f.bool(off::TARGET_R3, false);
+                        f.bool(off::SPRINT_L3, false);
+                        f.bool(off::AUTO_TARGET, false);
+                        f.bool(off::SWITCH_TARGET, false);
+                        f.bool(off::SPRINT_L3_TOGGLE, false);
+                        if size >= 0x5D {
+                            f.u8(off::BM_ROLE_DR, 0);
+                        }
+                        if size >= 0x61 {
+                            f.u8s(off::BM_HOLD, &[0; 4]);
+                        }
                     }
                 }
             }
@@ -265,6 +296,10 @@ pub fn patch_config(nso: &[u8], s: &Settings) -> Result<Vec<u8>> {
         if size >= 0x5C {
             f.u8(off::HUD_CTRL_SCALE, hud_scale(s.hud_ctrl_scale as i32));
             f.u8(off::HUD_COUNT_SCALE, hud_scale(s.hud_count_scale as i32));
+        }
+        if size >= 0x62 {
+            // The custom item HUD only exists with the mapping: no mapping, no item side.
+            f.bool(off::HUD_CUSTOM_ITEMS, s.hud_items && s.button_mapping);
         }
     }
     Ok(image)
@@ -278,17 +313,6 @@ fn write_remap(f: &mut Fields<'_>, s: &Settings) {
         // The Shield role only works with the manual shield.
         for role in table.values_mut() {
             if *role == Role::Shield {
-                *role = Role::None;
-            }
-        }
-    }
-    if !s.button_mapping {
-        // No item slots without the item buttons.
-        for role in table.values_mut() {
-            if matches!(
-                role,
-                Role::Item1 | Role::Item2 | Role::Item3 | Role::Selector
-            ) {
                 *role = Role::None;
             }
         }
@@ -372,23 +396,43 @@ impl HudLayout {
         use crate::settings::HudMode;
         match s.hud_mode {
             // One row behind a soft translucent bar, or the same row with no bar at all.
-            HudMode::Simple | HudMode::Plain => HudLayout {
-                rupees: true,
-                clock: true,
-                collectibles: true,
-                x: [-1685, -1435, -1195, -965],
-                mode: if s.hud_mode == HudMode::Simple { 1 } else { 2 },
-                sx: 100,
-                sy: 48,
-                tscale: 50,
-                iscale: 45,
-                plates: if s.hud_mode == HudMode::Simple { 2 } else { 0 },
-                map_hearts: 0,
-                y: -1010,
-                ioff: -140,
-                tx: 0,
-                ioff2: -80,
-            },
+            HudMode::Simple | HudMode::Plain => {
+                // The row keeps the player's element switches and packs what is left: a counter that is off is gone
+                // and the others move left (the soft bar behind them follows: core/hud.c sizes it from the ends).
+                let mut x = [-32768i16; 4];
+                let mut slots: Vec<usize> = Vec::new();
+                if s.hud_rupees {
+                    slots.push(0);
+                }
+                if s.hud_clock {
+                    slots.push(1);
+                }
+                if s.hud_collectibles {
+                    slots.extend([2, 3]);
+                }
+                let mut cursor = HUD_SIMPLE_X0;
+                for block in &slots {
+                    x[*block] = py_round(cursor) as i16;
+                    cursor += HUD_SIMPLE_ADV[*block];
+                }
+                HudLayout {
+                    rupees: s.hud_rupees,
+                    clock: s.hud_clock,
+                    collectibles: s.hud_collectibles,
+                    x,
+                    mode: if s.hud_mode == HudMode::Simple { 1 } else { 2 },
+                    sx: 100,
+                    sy: 48,
+                    tscale: 50,
+                    iscale: 45,
+                    plates: if s.hud_mode == HudMode::Simple { 2 } else { 0 },
+                    map_hearts: 0,
+                    y: -1010,
+                    ioff: -140,
+                    tx: 10,
+                    ioff2: -130,
+                }
+            }
             // The wide layout keeps the user's element switches and packs the enabled blocks with an equal gap.
             HudMode::Wide => {
                 let mut x = [-32768i16; 4]; // -32768 = off

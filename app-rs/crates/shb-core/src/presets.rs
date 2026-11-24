@@ -38,6 +38,8 @@ pub struct Profile {
     pub key: &'static str,
     /// buttonMapping (our own item buttons); the style, the layout and the L mode are not part of a profile
     pub button_mapping: bool,
+    /// Custom item HUD: our own B / L / R / ZR item buttons and items 1-3 assignable (`hud_items`).
+    pub hud_items: bool,
     pub stamina: bool,
     /// 0 hardcore, 1 combat only, 2 sprint only, 3 advanced
     pub mode: u8,
@@ -87,6 +89,7 @@ impl Default for Profile {
         Profile {
             key: "custom",
             button_mapping: true,
+            hud_items: true,
             stamina: true,
             mode: 0,
             costs: [true; 6],
@@ -218,10 +221,11 @@ pub fn profile(key: &str) -> Profile {
             hud_collectibles: true,
             ..Profile::named("base")
         },
-        // Only the manual shield: no stamina, no extra buttons, the wide layout with every counter off.
+        // Only the manual shield: no stamina, no item HUD of ours, the wide layout with every counter off. The
+        // mapping itself stays on (it is the whole Controls card); what goes is the item side.
         "manual-shield" => Profile {
             stamina: false,
-            button_mapping: false,
+            hud_items: false,
             songbook: false,
             hud_rupees: false,
             hud_clock: false,
@@ -413,6 +417,7 @@ pub fn settings_for(key: &str) -> Settings {
             roles::normalize(&table)
         },
         button_mapping: p.button_mapping,
+        hud_items: p.hud_items,
         stamina: p.stamina,
         songbook: p.songbook,
         preset: p.mode,
@@ -502,7 +507,11 @@ mod tests {
         assert!(base.button_mapping);
         let shield = settings_for("manual-shield");
         assert!(shield.manual_shield);
-        assert!(!shield.button_mapping);
+        assert!(
+            shield.button_mapping,
+            "the mapping is the whole Controls card and stays on"
+        );
+        assert!(!shield.hud_items, "what goes is the item HUD");
         assert!(!shield.songbook);
         assert_eq!(shield.hud_mode, HudMode::Wide);
         assert!(!shield.hud_rupees && !shield.hud_clock);
