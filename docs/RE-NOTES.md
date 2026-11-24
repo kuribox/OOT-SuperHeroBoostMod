@@ -461,10 +461,20 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   already reads `layout + 0xF8 -> UIL resource -> +0x18` (the asset name); the left of the layout, `layout + 0xB0`,
   is its frame (the PlayerStatus layout uses the same field). The first `MapMenu_00` part instantiation gives the
   minimap layout.
-- While playing (PlayerStatus frame `+0x1A4` bit `0x20000`) the option zeroes the scale of `N_MiniMap_00`,
-  `N_MiniMapCap_00`, `N_Common_00` (player arrow and map icons), `N_MapIcon_00`, `P_MiniMapFrame_00` and
-  `N_WorldMap_00`. The map screen (the bit clear) is not touched. Diagnostics: `g_minimap_dbg[0]` = frame,
-  `[1]`/`[2]` = the first two pane records.
+- While playing (PlayerStatus frame `+0x1A4` bit `0x20000`) the option **moves** `N_MiniMap_00`, `N_MiniMapCap_00`,
+  `N_Common_00` (player arrow and map icons), `N_MapIcon_00`, `P_MiniMapFrame_00` and `N_WorldMap_00` down out of the
+  screen (`+0x70`, position only, `-4000`: negative y goes down, the same sign the guide bar uses) and puts their
+  saved y back the frame a menu covers the game.
+- **The scale must not be touched here.** Zeroing it (`+0x60`/`+0x64`) is what the option did until Nov 24: it hid
+  the corner map, but the map screen draws with *these same pane records* and the game does not restore their scale
+  when it opens, so the map screen came up with no map at all - the player reported exactly that. The y is written
+  back the moment the game reports a menu (so before the map screen draws) and only the position moves while
+  playing. Judged in game: the corner map is gone and nothing else changes; the map screen was not re-photographed
+  after the change (the option is off by default and needs a capture with it on both ways).
+- The layout is re-bound when the captured frame changes (an area load rebuilds it), and the saved y is taken at
+  that moment only, so the game's own transform during the map screen never becomes the restore value.
+- Diagnostics: `g_minimap_dbg[0]` = frame, `[1]`/`[2]` = the first two pane records, `[3]` = 1 while the map is
+  moved out. `g_shbcfg + 77` is the option's byte (write it live to compare on/off).
 
 ## Magic jar drops (Nov 17)
 
