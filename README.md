@@ -74,6 +74,8 @@ module changed (its configuration block grew to 0x68 bytes).
   stamina display, R3 target, L3 sprint, button style, layout, language, HUD sizes) stays yours.
 - **The Python app is `app-legacy/`.** It keeps working and is what the Linux and macOS releases still are, until the
   Rust window has been run there. Both read the same settings file, so you can switch between them.
+- **Built for Linux and macOS too.** The workflow compiles the Rust app for Windows, Linux and macOS, and publishes the
+  Python app next to it (`-legacy` in the file name) while the Rust window has only been run on Windows.
 
 **Controls**
 
@@ -462,13 +464,14 @@ you can also build the app from source with the steps below.
 | Your system | Download |
 |---|---|
 | Windows | `SHB-OcarinaTweaks.exe` (the current app, Rust) — `SHB-OcarinaTweaks-legacy.exe` is the Python one |
-| Linux (x86_64) | `SHB-OcarinaTweaks-linux` (the legacy app) — `chmod +x SHB-OcarinaTweaks-linux` after downloading |
-| macOS (Apple Silicon) | `SHB-OcarinaTweaks-macos.dmg` (the legacy app) — open it and drag the app to Applications (not signed: right-click > Open the first time) |
+| Linux (x86_64) | `SHB-OcarinaTweaks-linux` (the current app, Rust) — `chmod +x SHB-OcarinaTweaks-linux` after downloading; the Python one is `SHB-OcarinaTweaks-legacy-linux` |
+| macOS (Apple Silicon) | `SHB-OcarinaTweaks-macos.zip` (the current app, Rust) — unzip it and run the binary inside; the Python one is `SHB-OcarinaTweaks-legacy-macos.dmg` (open it and drag the app to Applications) |
 | Emulator, no app | `SuperHeroBoost-<version>-presets.zip` — ready-to-install mod folders |
 
-The Windows builds are the only ones with a `.exe` extension; the Linux one is a plain executable named with
-`-linux` and the macOS one is a `.dmg` disk image. The Rust app has only been run on Windows so far; Linux and macOS
-get the legacy app until that changes.
+From 0.10.0 the build workflow makes the Rust app for all three systems (`cargo build --release -p shb-cli` on
+Windows, Linux and macOS) and the legacy app next to it, but the Rust window has only been **run** on Windows so far:
+if the Linux or macOS build gives you trouble, the `-legacy` file is the app that has been shipping there. macOS
+binaries are not signed: right-click > Open the first time.
 
 ### Longshot, Hookshot and ReLink
 

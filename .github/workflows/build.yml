@@ -24,6 +24,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
       - name: Stage the payload
         run: python tools/ci_payload.py
       - name: Install PyInstaller
@@ -48,22 +52,40 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install Tk (system Python already includes the rest)
-        run: sudo apt-get update && sudo apt-get install -y python3-tk python3-pip
+      # The Rust window needs OpenSSL (the updater's TLS) and the Wayland / xkbcommon headers that the portal backend
+      # of the file picker asks for through pkg-config. Python and Tk are for the legacy app.
+      - name: Install the system libraries, Python and Tk
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev \
+            python3-tk python3-pip
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
       - name: Stage the payload
         run: python3 tools/ci_payload.py
+      - name: Build the current app (Rust)
+        run: |
+          cargo build --release --manifest-path app/Cargo.toml -p shb-cli
+          install -m 755 app/target/release/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-linux
       - name: Install PyInstaller
         run: python3 -m pip install --user --upgrade pyinstaller zstandard
-      - name: Build (the legacy app: the Rust one has only been run on Windows)
-        run: python3 tools/build_app.py --legacy
-      - name: Name the binary
-        run: mv release/SHB-OcarinaTweaks-legacy release/SHB-OcarinaTweaks-linux
-      - name: Check the binary
-        run: test -x release/SHB-OcarinaTweaks-linux
+      - name: Build the legacy app (Python)
+        run: |
+          python3 tools/build_app.py --legacy
+          mv release/SHB-OcarinaTweaks-legacy release/SHB-OcarinaTweaks-legacy-linux
+          test -x release/SHB-OcarinaTweaks-legacy-linux
       - uses: actions/upload-artifact@v4
         with:
           name: app-linux
           path: release/SHB-OcarinaTweaks-linux
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-linux-legacy
+          path: release/SHB-OcarinaTweaks-legacy-linux
           if-no-files-found: error
 
   macos:
@@ -74,13 +96,21 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
       - name: Stage the payload
         run: python tools/ci_payload.py
+      - name: Build the current app (Rust)
+        run: |
+          cargo build --release --manifest-path app/Cargo.toml -p shb-cli
+          ditto -c -k app/target/release/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-macos.zip
       - name: Install PyInstaller
         run: python -m pip install --upgrade pip pyinstaller zstandard
-      - name: Build (the legacy app: the Rust one has only been run on Windows)
+      - name: Build the legacy app (Python)
         run: python tools/build_app.py --legacy
-      - name: Package the app (dmg, or zip if the bundle is missing)
+      - name: Package the legacy app (dmg, or zip if the bundle is missing)
         run: |
           set -e
           if [ -d release/SHB-OcarinaTweaks-legacy.app ]; then
@@ -88,16 +118,21 @@ jobs:
             cp -R release/SHB-OcarinaTweaks-legacy.app build/dmg/
             ln -s /Applications build/dmg/Applications
             hdiutil create -volname "SHB-OcarinaTweaks" -srcfolder build/dmg -ov \
-              -format UDZO release/SHB-OcarinaTweaks-macos.dmg
+              -format UDZO release/SHB-OcarinaTweaks-legacy-macos.dmg
           else
-            ditto -c -k release/SHB-OcarinaTweaks-legacy release/SHB-OcarinaTweaks-macos.zip
+            ditto -c -k release/SHB-OcarinaTweaks-legacy release/SHB-OcarinaTweaks-legacy-macos.zip
           fi
       - uses: actions/upload-artifact@v4
         with:
           name: app-macos
+          path: release/SHB-OcarinaTweaks-macos.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-macos-legacy
           path: |
-            release/SHB-OcarinaTweaks-macos.dmg
-            release/SHB-OcarinaTweaks-macos.zip
+            release/SHB-OcarinaTweaks-legacy-macos.dmg
+            release/SHB-OcarinaTweaks-legacy-macos.zip
           if-no-files-found: error
 
   presets:
@@ -133,18 +168,44 @@ jobs:
         with:
           sparse-checkout: docs
           sparse-checkout-cone-mode: false
-      # Only the assets that can only be built here. The Windows exe and the presets zip are built
-      # locally and uploaded with documented SHA-256 values; re-uploading the CI builds here used to
-      # replace them with binaries whose hashes did not match the release notes and GameBanana.
+      # Every asset on the release page comes from this workflow, so the hashes are the uploaded files' hashes:
+      # nothing is uploaded by hand any more (the Windows exe and the presets zip included).
       # One step per artifact: download-artifact's `pattern` is a glob, not a regex ("a|b" never matches).
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-windows
+          path: dist
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-windows-legacy
+          path: dist
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: app-linux
           path: dist
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-linux-legacy
+          path: dist
+        continue-on-error: true
       - uses: actions/download-artifact@v4
         with:
           name: app-macos
           path: dist
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-macos-legacy
+          path: dist
+        continue-on-error: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: presets
+          path: dist
+        continue-on-error: true
       - name: List the assets
         run: ls -l dist
       - uses: softprops/action-gh-release@v2

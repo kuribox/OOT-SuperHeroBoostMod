@@ -5,6 +5,12 @@ module changed (its configuration block grew to 0x68 bytes, with the hold of L a
 
 If you only want the new HUD and controls and play in an emulator, installing over 0.9.3 is enough.
 
+**Downloads.** `SHB-OcarinaTweaks.exe` for Windows and, for the first time, `SHB-OcarinaTweaks-linux` and
+`SHB-OcarinaTweaks-macos.zip`: the same Rust app, compiled by the workflow on those systems (the macOS binary is not
+signed — right-click > Open the first time; on Linux, `chmod +x` it). The Python app is published next to it as
+`SHB-OcarinaTweaks-legacy.exe`, `SHB-OcarinaTweaks-legacy-linux` and `SHB-OcarinaTweaks-legacy-macos.dmg`, because the
+Rust window has only been run on Windows so far. `SuperHeroBoost-0.10.0-presets.zip` installs the mod without an app.
+
 **A new app, in Rust**
 
 SHB-OcarinaTweaks is a Rust program now: **one executable** that opens the window when you double-click it and is the
