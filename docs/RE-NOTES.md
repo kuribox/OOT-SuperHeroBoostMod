@@ -351,6 +351,10 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   pauses shorter than 60 frames; GuardFailHit (the hit went through) no longer counts.
 - Enemy health: works (g_hp_log). Small enemies with MaxLife 1 scale to 3; the large enemy with MaxLife 6 only takes
   damage on its root (IsHeadshotOnlyDamage, bone Tail_1). The starting sword has EquipmentPerformance 1.
+- Both multipliers are a plain percentage the module does the maths on (`enemy_hp_pct`, `damage_taken_pct`: u16,
+  no cap in `enemy_scale` / `hp_mul` / the damage share), so the app's ladder is the only limit: it now runs
+  ×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5, ×6 (600 %) in both apps, and ×6 was read back from a running module
+  (`SHBCFG01+26` = 600, `+28` = 600) with the game in gameplay.
 - Stamina refill wait: 0.8 s, 1.8 s in combat, 2.5 s after exhaustion.
 
 ## Great Fairy rewards and Farore's Wind outdoors (Nov 14)
@@ -461,10 +465,20 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   already reads `layout + 0xF8 -> UIL resource -> +0x18` (the asset name); the left of the layout, `layout + 0xB0`,
   is its frame (the PlayerStatus layout uses the same field). The first `MapMenu_00` part instantiation gives the
   minimap layout.
-- While playing (PlayerStatus frame `+0x1A4` bit `0x20000`) the option zeroes the scale of `N_MiniMap_00`,
-  `N_MiniMapCap_00`, `N_Common_00` (player arrow and map icons), `N_MapIcon_00`, `P_MiniMapFrame_00` and
-  `N_WorldMap_00`. The map screen (the bit clear) is not touched. Diagnostics: `g_minimap_dbg[0]` = frame,
-  `[1]`/`[2]` = the first two pane records.
+- While playing (PlayerStatus frame `+0x1A4` bit `0x20000`) the option **moves** `N_MiniMap_00`, `N_MiniMapCap_00`,
+  `N_Common_00` (player arrow and map icons), `N_MapIcon_00`, `P_MiniMapFrame_00` and `N_WorldMap_00` down out of the
+  screen (`+0x70`, position only, `-4000`: negative y goes down, the same sign the guide bar uses) and puts their
+  saved y back the frame a menu covers the game.
+- **The scale must not be touched here.** Zeroing it (`+0x60`/`+0x64`) is what the option did until Nov 24: it hid
+  the corner map, but the map screen draws with *these same pane records* and the game does not restore their scale
+  when it opens, so the map screen came up with no map at all - the player reported exactly that. The y is written
+  back the moment the game reports a menu (so before the map screen draws) and only the position moves while
+  playing. Judged in game: the corner map is gone and nothing else changes; the map screen was not re-photographed
+  after the change (the option is off by default and needs a capture with it on both ways).
+- The layout is re-bound when the captured frame changes (an area load rebuilds it), and the saved y is taken at
+  that moment only, so the game's own transform during the map screen never becomes the restore value.
+- Diagnostics: `g_minimap_dbg[0]` = frame, `[1]`/`[2]` = the first two pane records, `[3]` = 1 while the map is
+  moved out. `g_shbcfg + 77` is the option's byte (write it live to compare on/off).
 
 ## Magic jar drops (Nov 17)
 
@@ -601,7 +615,7 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   `tools/make_gamecube_buttons.py`, which needs the game's UI zstd dictionary (`SHB_ROMFS` or
   `SHB_UI_DICTIONARY`) because it decompresses the stock `OotBtnS_*` BNTX files as templates.
 - The System tab's Basic Controls diagram lives in `UI/Layout2Archive/Common.Product.100.Nin_Ounce_NVN2.bntx.zs`:
-  a 244,460,000-byte BNTX compressed to 64,862,732 bytes. `app/gamecube.py` decompresses it, verifies the sha256 of
+  a 244,460,000-byte BNTX compressed to 64,862,732 bytes. `app-legacy/gamecube.py` decompresses it, verifies the sha256 of
   the three textures it replaces (two `Controller_Pro` half-diagrams and one more), patches them in place and
   recompresses at level 6 (72,937,387 bytes, ~10 s). No dictionary is needed to read or write that file.
 - An emulator install has no romfs dump on disk, so `prepare_gamecube_layout()` turns a missing/unsupported atlas
@@ -637,3 +651,165 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
 - Checked live in the emulator: 150/150 -> controls group (1740, -540), counters (-1740, 540); 60/60 -> (1848, 432) /
   (-1848, -432); installed through the CLI at 130/80 the module applied it from the first frame; the pause menu is
   unaffected. At 150% the wide counter row reaches the minimap's left edge.
+
+## A Longshot crash at the intro: writing into save:/ (Nov 23)
+
+- Report from a player (Longshot v3.1.1, 23 s uptime, map "Title and intro"): `0xc0000005` read in thread
+  `SceneLowPriority` at `longshot.exe+0x1927c87e`, right after `gmd::SaveDataMgr: fs: save: published 2 files` and
+  after the intro movie ended (there `nn::movie::Finalize` is an unimplemented import). Without the mod it does not
+  happen, per the reporter.
+- Reading the guest dump: `main` is at `0x80020000` on Longshot **and** in the emulator, so `0x80794090` is
+  `main+0x774090` (the bytes match stock `main`: no hook of ours is there). What matters is `x20 = 0x80794090`, i.e.
+  a **code address used as an object pointer**: `main+0x7740f8` is `ldr x8,[x0]; ldr x8,[x8,#0x30]; blr x8`, so it
+  read the "vtable" out of instruction bytes (`x8 = 0xb5000235f9413e75`) and faulted. The enclosing function
+  (`main+0x773660`) is a refcounted release (`ldadd -1`, destroy at 0) of an entry in a handle table
+  (`[[main+0x4c82d60]] + 0x9f8`, stride 0x28): a half-built object being released.
+- The mod was the only extra code writing into the save volume at that moment: `dbg_tick()`
+  (`features/button_mapping/button_mapping.c`) ran on every input read and every 600 reads did
+  `fs_create_file` + `fs_write_file` of `save:/slot_00/shbdebug.bin` (plus one dump per `progress.sav` open). It had
+  left 23 of those files across the save folders of the test emulator. That machine ran the intro uncapped (log:
+  1200 presents at 200 fps, `frame_rate_cap=0`, `vsync=0`), so the frame-counted timer fired every ~3 s instead of
+  10 s — inside `gmd::SaveDataMgr`'s commit window. Timing, not a bad pointer of ours.
+- Fix: the dump is a **test build only**. `build_core.py --debug-dump` defines `SHB_DBG_DUMP`; a release module has
+  no `SHBDBG01`/`shbdebug` strings and creates no files. Verified in the emulator: boot, save load, HUD live at
+  frame 5400, and every stale `shbdebug.bin` in `user/nand/user/save` kept its mtime.
+- Not proven: that the race caused that crash. It is the only mod-side I/O in the window and the stack shows a
+  corrupt object being released, but reproducing it needs the 200 fps timing.
+- The player's own `longshot_log.txt` (same build, same crash) adds four things: the mod's **input wrapper really
+  runs there** (`hid: the game reads npad 0, lr 0x84fa04b8` = `subsdk9+0x4B8`, inside `hook_input3`); the guest
+  runs at **37 fps with Longshot's "real-time step" on, ratio 1.603** (`vi: real-time step on`), so that machine
+  never reaches 60 and the guest's frame step is scaled; the crash follows `nn::movie::Finalize`, which is an
+  **unimplemented import** (so are `movie::Initialize` and `IsInitialized`), by about a second and right after
+  `gmd::SaveDataMgr: fs: save: published 2 files`; and no other mod is installed.
+- Because of that frame step: on 0.9.x, every duration counted in frames ran **1.62x long** on that machine
+  (60/37). That is what `core/clock.c` fixes, but only if Longshot scales `CNTPCT_EL0` with the same step — one
+  test on a recomp answers it (`g_clock_dbg[1]` against the log's `game's frame rate`).
+- Test-protocol trap: on a recomp, **deleting `mods/zz-Super-Hero-Boost` removes only the RomFS**; the module and
+  the 26 hook sites are baked into `image.bin`/`bin/longshot.exe` by the rebuild. "It does not crash without the
+  mod" only clears the mod as a whole if that test rebuilt the game from a clean exefs.
+
+## Prompts: the context prompt keeps the game's keys, the interaction bar is left alone
+
+- The context prompt next to Link is layout `DoCommand_00`: one block per face button (`N_A_00`..`N_Y_00`) with the
+  diamond backing `P_Base?_00`, the action `T_Guide?_00` and the key `T_Key?_00`. `dc_update()` hides the backing and
+  the three greyed letters and writes the key of the button that holds the block's role (action / item 1 or jump
+  with the Jump/B swap / sword), gated on `g_remap_live`; `dc_key_override()` catches the game writing those panes.
+  A second writer for the same panes (`guide_keys_update`, commit c173c15) fought it - it ignored `g_remap_live`,
+  so a dialogue showed a world glyph - and was removed.
+- The interaction guide (the "Blandir ZR" / "Guardar B" bar): rewriting its keys was tried and reverted (the game
+  re-sets the panes, two writers blink; a shared glyph buffer made every entry show the same letter). It is now
+  **hidden by default whenever the button-mapping HUD is on, with no option** (`gi_*` in core/hud.c).
+  - The bar is ONE container layout: `RootPane`, `N_All_00`, `W_Bg_00` (the dark plate), `A_Align_00`,
+    `Pa_GuideReverse_00`, `Pa_Guide_00..04`. The entries (`N_InOut_00`, `T_Guide_00`, `T_Icon_00..04`) are its child
+    layouts. A child layout's `+0` / `+8` are its previous / next sibling and the first child's `+0` is the list head
+    `container + 0x128`: that is how the container is found (it is **not** `*(u64 *)layout`, which is a sibling).
+  - The pause menu's footer legend has entries with the same pane names but another container, so the container is
+    recognised by `W_Bg_00` + `Pa_GuideReverse_00` and only then touched. The text hook only finds it (a `T_Icon_NN`
+    / `T_Guide_NN` / `T_Btn_NN` write); not every entry is written through that hook.
+  - **Hide = move the container's panes (all but `RootPane`) to y = -4000, nothing else.** Scale 0 + tint alpha 0 +
+    y = 4000 hid it too, but froze the game the moment an item other than the stick was used (stock `development`
+    does not: A/B with the same ZL, R, ZR sequence over the debug server). Position only is stable.
+  - Debug: `g_gi_hidden` = panes moved last frame (0 with the bar on screen = container not found), `g_gi_off` = 1
+    stops it live. Panes written from outside the module (debug server) are re-set by the game's per-frame
+    animation, so a hide can only be judged from the module's own per-frame write.
+
+## HUD counts: the ZR button followed the borrowed item (Nov 23)
+
+- Symptom from the player: using an item changed the number shown on *another* item's button (e.g. the slingshot's
+  ammo), and it came back when the use ended.
+- Cause: `zr_mirror()` (core/hud.c) keeps the ZR button showing the game's item box. While a slot item *borrows*
+  the box (`g_zr_hold`, features/button_mapping), the box holds the borrowed item; the icon was frozen but the
+  item index (`g_zr_index`) was not, and the number drawn next to the button is `gd_int(item_stock_index(g_zr_index))`.
+  Proven live: with a deku stick borrowed, `g_zr_index` was 0 and the ZR button showed the stick count (4) instead
+  of the slingshot's (2/6). Fixed by freezing the index too.
+- The *flicker* seen while trying to fix it came from writing the count text every frame: two writers alternate on
+  the same pane (the game updates item-count panes by name, and our cloned parts repeat those names). The text is
+  written when our value changes again; `hud_on_settext` catches a game write into one of our buttons' count panes
+  and puts our value back in the same call (`g_num_fix_n` counts it; 0 in a standing-still session, so the ZR freeze
+  is what the player saw fixed).
+
+## Frames are not milliseconds: the module's own clock (Nov 23)
+
+- Every duration in the mod was written in frames with a hard-coded 1/60 s (`DT_FRAME`, `SW_HOLD 18`,
+  `GAP_TICKS 20`, `RUN_HOLD_FRAMES`, `L3_IDLE_FRAMES`, `g_check_owned = 30`, the 300-frame combat window). That is
+  only right when the game runs at 60: the crash report that started this had the intro at ~200 presents/s, and
+  the emulator here runs the game at 40-48 fps while it settles, so the same build ticks 20%..230% off.
+- The source is `CNTPCT_EL0`, not a wall clock and not a new import: `sdk` reads it 45 times (the
+  `nn::os::GetSystemTick` path), so every target that runs the game at all — emulator, Longshot, ReLink,
+  Rekarina — necessarily translates that instruction. `main` itself never reads it (0 hits), which is why the
+  game's own timing survives HLE. `core/clock.c` (`shb_clock_tick` from `hud_frame`, `shb_dt_frame`,
+  `shb_frames`).
+- **The rate must be read, not assumed.** Fritchii implements `CNTFRQ_EL0` = 31 250 000 Hz; with the console's
+  19.2 MHz the module's clock ran **+62.9%** against the host's wall clock over 10 s. Reading `CNTFRQ_EL0` and
+  dividing by it: **-0.06%** over 10 s, `g_clock_dbg[1]` 17.8-25.3 ms/frame while the emulator presented ~44-48 fps.
+- Verified live: stamina set to 10 and sampled twice — `38.33 -> 74.53` in 1.50 s = **24.12/s** with
+  `REGEN_PER_SEC 24`, while the module reported 41 fps. The old frame-based code would have given 16.4/s there.
+- Left in frames on purpose: the input sample count of one read, the two-frame stick centring of the L3 sprint,
+  `g_same_reads`, and the ocarina/UI animation counters — those are per-read or per-presented-frame facts, not
+  durations.
+- Unverified: Longshot/ReLink. If a translator ever refuses `mrs CNTPCT_EL0` the value cannot be plausible
+  (1..100 ms per frame) and every helper falls back to 1/60 per frame, i.e. exactly the old behaviour.
+
+## Button mapping: the feature and its item side (Nov 24)
+
+- The card was one switch (`ShbConfig.button_mapping`) doing two things, and turning it off only removed the item
+  HUD: the app still wrote `bm_remap = 1` and the whole table, so the target, the L3 sprint and the manual shield
+  kept working. It is now **two switches**:
+  - `button_mapping` — the whole remap. `remap_on()` is `bm_remap == 1 && button_mapping`, so with it off nothing
+    is remapped at all; the app writes `bm_remap = 0` and zeroes the options that ride on the table
+    (`manual_shield`, `target_r3`, `sprint_l3`, `sprint_l3_toggle`, `auto_target`, `switch_target`, `bm_role_dr`,
+    `bm_hold`). The table itself stays in the app's settings file, so turning it back on restores it.
+  - `hud_custom_items` (Custom item HUD, `ShbConfig` offset 97, app `f + 81`) — the item side: our own
+    B / L / R / ZR buttons (`core/hud.c` `BTNMAP` / `PART_TOT`) and items 1, 2 and 3 assignable. `remap_items()` is
+    `button_mapping && hud_custom_items`. Off, `remap_apply()` leaves the press of a button that holds an *item*
+    role exactly as pressed (the game's own item button) and every other role is still remapped; the editor does
+    not offer the item roles and the game's item HUD is not touched.
+- The item logic of `features/button_mapping/` (slot presses, the ZR borrow, the menu assignment) is gated on
+  `remap_items()`, not on the master switch; the guide bar hiding and the context-prompt keys follow the remap
+  (`core/hud.c` `BMREMAP`).
+- **`sizeof(ShbConfig)` is 0x64 both before and after the new byte** (97 bytes rounded to the struct's 4-byte
+  alignment), so an installer size check cannot tell them apart: `f + 81` is tail padding on an older module and
+  writing 0/1 there is harmless, and an older module reads it as 0 (no item side).
+- The `manual-shield` profile used to be `button_mapping = False` with `manual_shield = True`; with the master
+  switch off that no longer exists, so it is `button_mapping = True, hud_items = False` (the shield role on L, no
+  item buttons of ours).
+
+## Simple / plain HUD row: the counters the player turns off (Nov 24)
+
+- The installer used to force all four blocks on in the simple and plain layouts (`rupees = clock = collectibles =
+  True`, positions -1685 / -1435 / -1195 / -965): the switches in the HUD card did nothing there. Each block now
+  follows its own switch and the visible ones are packed from `HUD_SIMPLE_X0 = -1685` with `HUD_SIMPLE_ADV =
+  (250, 240, 230, 230)` (the room each block takes in that row: rupee 250, clock 240, skull 230), so turning one off
+  moves the rest left.
+- The soft bar of the simple layout no longer uses fixed pads around the first and last block: the icons and
+  texts are measured first (`row_text_w`, digit advance at the current text scale), each icon sits a fixed
+  30 layout units left of its own number (`row_ext` records what is drawn) and the bar is placed over those
+  extents plus 34 + `g_bg_tune[1]` each side. With the old formula a short number left its rupee icon far
+  away and a long one (a clock time) ran past the end of the bar. `g_bg_tune[0]` is now a 0-centred shift
+  (it was -165, a compensation for the old formula).
+- The block switches drive `show_r` / `show_c` / `show_s` / `show_h`, which hide the text, icons and plates;
+  the wide layout keeps its per-block plates and the tuned icon offsets.
+- Diagnostic: `g_hud_bg_dbg[0..3]` = the bar's x0, x1 and the first and last visible block x.
+
+## Held L and R, wait or no wait, and buttons with no hold (Nov 24)
+
+- `ShbConfig` grows by three bytes after `hud_custom_items` (struct 97): `bm_hold_lr[2]` (98 / 99, the long press of
+  L and R) and `bm_hold_wait` (100, one bit per held button: 0 DR, 1 A, 2 B, 3 X, 4 Y, 5 L, 6 R). **`sizeof` is 0x68
+  now** (101 bytes, rounded to the struct's 4-byte alignment; it was 0x64 for 98), so the installer's size gate for
+  these bytes is `>= 0x66` and an older module (0x64) is simply not written there. The app's `f + 82..84` are those
+  bytes (`f` = struct offset - 16).
+- Wait (bit 1) is the old behaviour of the arrow generalised: the short press is cleared from the read while it may
+  still be a hold and replayed as a 3-read pulse if released early. No wait (bit 0) is the old behaviour of A / B / X / Y.
+  The arrow used to wait unconditionally and that is what it is again: bit 0 of the byte is not a choice of the
+  player's (both apps force it in `hold_wait_byte`, and the D-pad right row offers no checkbox, only a note), because
+  its short press is the game's Navi call. A config that still reads `bm_hold_wait == 0` lets Navi answer at once and
+  the hold come after, which is why the byte is forced rather than defaulted.
+- The Rust window's D-pad right key is painted (a cross with the arrow in its right arm): the "▶" character is not in
+  the window's fonts and came out as an empty box where the button should be.
+- Verified over the debug server (L short = camera with Back held, wait on; R short = sword with jump held, wait
+  off): a 6-frame tap of L bumps `g_remap_dr[0]` (replayed), a 6-frame tap of R does not; a 70-frame hold of either
+  bumps its own `g_remap_hold[]` slot (5 and 6).
+- `remap_hold_role()` returns none when the button's own role is shield / target / sprint / selector / armory / an
+  item, and when the hold role itself is one of those (the arrow is exempt). The app enforces the same in
+  `normalize_roles()`, so the table, the editor and the module agree; the module check is the backstop for a config
+  written by hand.

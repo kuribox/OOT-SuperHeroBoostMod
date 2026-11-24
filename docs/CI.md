@@ -1,12 +1,15 @@
 # Builds (GitHub Actions)
 
-`.github/workflows/build.yml` builds the installation app on Windows, Linux and macOS and the presets zip,
-without a local machine of each OS.
+`.github/workflows/build.yml` builds the apps on Windows, Linux and macOS and the presets zip, without a local machine
+of each OS. `.github/workflows/rust-app.yml` is the current app alone: `cargo fmt --check`, `cargo clippy -D warnings`,
+`cargo test`, the generated texts and artwork (`gen_i18n.py --check`, `gen_gamecube.py --check`, `check_gui_keys.py`),
+a release build, a Linux job that builds and tests the window there, and the parity check against the legacy app.
 
 ## When it runs
 
 - **Manually**: Actions > *Build apps* > *Run workflow* (pick the branch you want to build).
-- **On a tag** `v*`: the four jobs run and then publish a GitHub release with every asset.
+- **On a tag** `v*`: the four build jobs (Windows, Linux, macOS and the presets pack) run and then the release job
+  publishes a GitHub release with every asset they produced.
 
 ## The payload is not in git
 
@@ -37,14 +40,24 @@ clear message if the release or the file is missing.
 
 | Job | File | Release asset |
 |---|---|---|
-| Windows | `release/SHB-OcarinaTweaks.exe` | `SHB-OcarinaTweaks.exe` |
-| Linux | `release/SHB-OcarinaTweaks-linux` | `SHB-OcarinaTweaks-linux` |
-| macOS | `release/SHB-OcarinaTweaks-macos.dmg` | `SHB-OcarinaTweaks-macos.dmg` |
+| Windows | `release/SHB-OcarinaTweaks.exe` (the current app, Rust) | `SHB-OcarinaTweaks.exe` |
+| Windows | `release/SHB-OcarinaTweaks-legacy.exe` (the legacy app) | `SHB-OcarinaTweaks-legacy.exe` |
+| Linux | `release/SHB-OcarinaTweaks-linux` (Rust) | `SHB-OcarinaTweaks-linux` |
+| Linux | `release/SHB-OcarinaTweaks-legacy` -> `release/SHB-OcarinaTweaks-legacy-linux` | `SHB-OcarinaTweaks-legacy-linux` |
+| macOS | `release/SHB-OcarinaTweaks-macos.zip` (Rust, zipped by `ditto`) | `SHB-OcarinaTweaks-macos.zip` |
+| macOS | `release/SHB-OcarinaTweaks-legacy.app` -> `release/SHB-OcarinaTweaks-legacy-macos.dmg` | `SHB-OcarinaTweaks-legacy-macos.dmg` |
 | Presets | `release/SuperHeroBoost-<version>-presets.zip` (+ `.sha256`) | same name |
 
-Every asset carries its platform in the name: `.exe` is Windows, `-linux` is the Linux binary (ELF, no
-extension by convention) and `-macos.dmg` is the macOS disk image with the `.app` inside. The names match what
-`app/updater.py` looks for (it also still accepts the older names), so the in-app update check keeps working.
+Every job builds **both** apps (`tools/build_app.py --all` on Windows, the two builds side by side on Linux and
+macOS). The plain names (`SHB-OcarinaTweaks.exe`, `-linux`, `-macos.*`) are the **current app, in Rust**, and the
+legacy Python app carries `-legacy` in its name; each updater looks for its own names first and falls back to the old
+ones, so neither app can update itself into the other.
+
+The Linux runner needs the Rust window's system libraries (they are installed by both workflows): `pkg-config`,
+`libssl-dev` (the updater's TLS), `libwayland-dev` and `libxkbcommon-dev` (the file picker's portal backend). Building
+the window is proven there; **running** it is still only done on Windows, which is why the legacy app is published
+alongside until that changes — `rust-app.yml` builds and tests it on Linux on every pull request, so a break shows up
+before a release. macOS needs nothing extra.
 
 The release job then replaces the auto-generated notes with `docs/RELEASE-<version>.md` when that file exists,
 so the release page shows the full notes instead of just the changelog link.

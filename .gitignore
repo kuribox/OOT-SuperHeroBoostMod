@@ -1,29 +1,49 @@
+# ---------------------------------------------------------------------------------------------------------------
+# What is committed: the source. Everything below is something a build, a test or a person's machine makes.
+# ---------------------------------------------------------------------------------------------------------------
+
+# Build output
 build/
-__pycache__/
-*.pyc
-data/
-*.png
-!docs/*.png
-!docs/capturas/*.png
-!app/assets/shb.png
-*.bin
+release/
+dist/
 *.o
 *.elf
+*.exe
+*.dll
+*.pdb
 *.spec
 *.log
 
+# Rust (app/): cargo's output, wherever it is run, and the rustc / rustfmt leftovers
+target/
+target-dev/
+**/*.rs.bk
+*.profraw
+*.profdata
+
+# The payload: the built module, the button art, the romfs options. Shared by both apps, made by tools/make_release.py
+# (or staged by tools/ci_payload.py), never committed.
 app/payload/
-release/
-dist/
-app/__pycache__/
-app/SuperHeroBoostConfig.json
+
+# Python (app-legacy/ and tools/)
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# What the apps write beside themselves when they run from the sources
 app/SHB-OcarinaTweaks.json
+app/SuperHeroBoostConfig.json
+app-legacy/SuperHeroBoostConfig.json
+app-legacy/SHB-OcarinaTweaks.json
 
 # Game dump / extracted game data: never commit these
 romfs/
 exefs/
 stock-exefs/
-app/payload/romfs_opts/
 *.byml
 *.bgyml
 *.bntx
@@ -44,8 +64,21 @@ app/payload/romfs_opts/
 *.ips
 .longshot*
 
-# macOS / Windows / Linux desktop noise
+# Broad rules (pictures, binaries, scratch folders called data) with the source files they would otherwise hide
+*.png
+!docs/*.png
+!docs/capturas/*.png
+!app/assets/*.png
+!app-legacy/assets/*.png
+*.bin
+!app/crates/shb-core/src/gamecube_textures.bin
+data/
+!app/crates/*/tests/data/
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.swp
 .DS_Store
 Thumbs.db
 desktop.ini
-.venv/

@@ -25,6 +25,7 @@
 #include "config.h"
 #include "remap.h"
 #include "gd_index.h"
+#include "clock.h"
 
 typedef unsigned long long u64;
 typedef unsigned char u8;
@@ -95,10 +96,14 @@ static char g_anames[SEG_N][16] = {"PaShbSeg_000", "PaShbSeg_001", "PaShbSeg_002
 static const u64 g_phash[SEG_N] = {HASH_PART0, HASH_PART1, HASH_PART2, HASH_PART3, HASH_PART4, HASH_PART5, HASH_PART6, HASH_PART7, HASH_PART8, HASH_PART9, HASH_PART10, HASH_PART11, HASH_PART12, HASH_PART13, HASH_PART14, HASH_PART15, HASH_PART16, HASH_PART17, HASH_PART18, HASH_PART19, HASH_PART20, HASH_PART21, HASH_PART22, HASH_PART23, HASH_PART24, HASH_PART25, HASH_PART26, HASH_PART27, HASH_PART28, HASH_PART29, HASH_PART30, HASH_PART31, HASH_PART32, HASH_PART33, HASH_PART34, HASH_PART35, HASH_PART36, HASH_PART37, HASH_PART38, HASH_PART39, HASH_PART40, HASH_PART41, HASH_PART42, HASH_PART43, HASH_PART44, HASH_PART45, HASH_PART46, HASH_PART47, HASH_PART48, HASH_PART49, HASH_PART50, HASH_PART51, HASH_PART52, HASH_PART53, HASH_PART54, HASH_PART55, HASH_PART56, HASH_PART57, HASH_PART58, HASH_PART59, HASH_PART60, HASH_PART61, HASH_PART62, HASH_PART63, HASH_PART64, HASH_PART65, HASH_PART66, HASH_PART67, HASH_PART68, HASH_PART69, HASH_PART70, HASH_PART71, HASH_PART72, HASH_PART73, HASH_PART74, HASH_PART75, HASH_PART76, HASH_PART77, HASH_PART78, HASH_PART79, HASH_PART80, HASH_PART81, HASH_PART82, HASH_PART83, HASH_PART84, HASH_PART85, HASH_PART86, HASH_PART87, HASH_PART88, HASH_PART89, HASH_PART90, HASH_PART91, HASH_PART92, HASH_PART93, HASH_PART94, HASH_PART95, HASH_PART96, HASH_PART97, HASH_PART98, HASH_PART99, HASH_PART100, HASH_PART101, HASH_PART102, HASH_PART103, HASH_PART104, HASH_PART105, HASH_PART106, HASH_PART107, HASH_PART108, HASH_PART109, HASH_PART110, HASH_PART111, HASH_PART112, HASH_PART113, HASH_PART114, HASH_PART115, HASH_PART116, HASH_PART117, HASH_PART118, HASH_PART119, HASH_PART120, HASH_PART121, HASH_PART122, HASH_PART123, HASH_PART124, HASH_PART125, HASH_PART126, HASH_PART127};
 #ifdef BUTTON_MAPPING      /* built with features/button_mapping */
 int hud_shield_parts(void);
-#define PART_TOT (g_shbcfg.button_mapping ? (hud_shield_parts() ? PART_N : PART_BASE) : 0)   /* parts appended to PlayerStatus_00 */
-#define BTNMAP (g_shbcfg.button_mapping != 0)
+/* The remap (button_mapping) and its item side (hud_custom_items) are two switches: without the item side our item
+ * buttons are not built at all and the game's own item HUD is what the player sees. */
+#define BMREMAP (g_shbcfg.button_mapping != 0)
+#define BTNMAP (BMREMAP && g_shbcfg.hud_custom_items != 0)
+#define PART_TOT (BTNMAP ? (hud_shield_parts() ? PART_N : PART_BASE) : 0)   /* parts appended to PlayerStatus_00 */
 #else
 #define PART_TOT 0         /* built without features/button_mapping: no button parts at all */
+#define BMREMAP 0
 #define BTNMAP 0
 #endif
 static const char *part_name(u32 i) { return g_pnames[i % SEG_N]; }
@@ -569,6 +574,7 @@ static int action_field(u32 field) { return field == 4 || field == 5; }
  * is (local corner offset L: position = base + (1 - s) * L). A position another writer set (a widescreen
  * planner) becomes the new base, so it is never undone. At 100% nothing is written. */
 static u64 pane_record(u64 frame, const char *name);
+static u64 layout_pane(u64 layout, const char *name);
 static void place(u64 rec, float x, float y, float sx, float sy, float rot);
 static const char HG_NAME[2][20] = {"N_ShbActions_00", "N_ShbCounters_00"};
 static const float HG_CORNER[2][2] = {{120.0f, 1080.0f}, {-120.0f, -1080.0f}};   /* top right / bottom left */
@@ -613,7 +619,9 @@ static int group_hud_panes(u8 *root, u8 *first, u32 nc, u32 parts, u8 **part_des
     }
     /* The UIL stores a parent's descendants in one contiguous subtree.
      * Picture, text and part table indices stay independent of this order. */
-    u32 order[PART_N + PIC_N + TXT_N + 3], next = 0;
+    /* slack: the group entries are counted twice below, and a count that lands exactly on the size used to make
+     * an off-by-one write into the next array. */
+    u32 order[PART_N + PIC_N + TXT_N + 8], next = 0;
     order[next++] = groups;
     for (u32 k = 0; k < parts; k++) order[next++] = nc + k;
     for (u32 k = 0; k < TXT_N; k++) if (action_field(k % FLD_N)) order[next++] = texts + k;
@@ -631,7 +639,8 @@ static int group_hud_panes(u8 *root, u8 *first, u32 nc, u32 parts, u8 **part_des
 
     for (u32 j = 0; j < 3; j++) {
         u64 *table = (u64 *)q(root, 0x20 + j * 8);
-        u64 reordered[PART_N + PIC_N + TXT_N + 3];
+        u64 reordered[PART_N + PIC_N + TXT_N + 8];
+        if (next > PART_N + PIC_N + TXT_N + 8) next = PART_N + PIC_N + TXT_N + 8;   /* never past the array */
         for (u32 k = 0; k < next; k++) reordered[k] = table[order[k]];
         memcpy(table + nc, reordered, next * sizeof(*table));
     }
@@ -830,20 +839,39 @@ static struct { const u8 *src; u8 *copy; u32 kind; } g_res[140];
 static u32 g_res_n;
 static struct { void *handle; u8 config[0x100]; } g_calls[64];
 static u32 g_calls_n;
+static u32 g_ui_refused;   /* layouts whose metadata did not look like one of ours: left alone */
+
+/* Before touching a layout's metadata: the two descriptor lists we index must be real, every list
+ * pointer the build reads must be a guest pointer (or null) and the counts must fit. A build that
+ * changes the format, or a half-built layout, then gets its own config back instead of a copy we
+ * fabricated from garbage. */
+static int ui_shape_ok(const u8 *r) {
+    static const u32 lists[6] = {0x20, 0x28, 0x40, 0x80, 0xC0, 0xC8};
+    if (w(r, 0x38) > 128u || w(r, 0xD8) > 128u) return 0;
+    for (u32 i = 0; i < 6; i++) {
+        u64 p = q(r, lists[i]);
+        if (p && !vptr(p)) return 0;
+    }
+    return q(r, 0x28) && q(r, 0xC8);          /* the lists build_root() indexes by name */
+}
 
 u64 g_prep_dbg[20] = {1};   /* per part: handle, config, handle+0x28, handle+0x38 */
 
 void *hud_prepare(void *handle, u8 *config) {
     g_hud_dbg[8] += 1;
+    if (!vptr((u64)config) || !vptr((u64)handle)) return config;   /* not the call we think it is */
     const u8 *r = (const u8 *)q(config, 0);
-    if (!r || w(r, 0) != 0x004C4955u) return config;   /* "UIL\0" */
+    if (!r || !vptr((u64)r) || w(r, 0) != 0x004C4955u) return config;   /* "UIL\0" */
+    if (!ui_shape_ok(r)) { g_hud_dbg[11] = MARK | ++g_ui_refused; return config; }
     const char *asset = (const char *)q(r, 0x18);
     const char *inst = (const char *)q(handle, 0x30);
+    if (!asset || !vptr((u64)asset)) return config;
+    if (inst && !vptr((u64)inst)) inst = 0;
     u32 kind = str_eq(asset, "PlayerStatus_00") ? 1 : BTNMAP && str_eq(asset, "PaItemMenu_00") ? 3 :
                BTNMAP && str_eq(asset, "PlusMenu_00") ? 4 :
                g_shbcfg.hud_map_hearts && str_eq(asset, "PaMapCollectNum_00") ? 5 : 0;
     /* one of our slot buttons: its nested Pa_ReplaceIcon_00 is built next and gets the private copy */
-    for (u32 k = 0; !kind && k < (u32)PART_TOT; k++)
+    for (u32 k = 0; inst && !kind && k < (u32)PART_TOT; k++)
         if (str_eq(inst, part_name(k))) { g_repicon_armed = 1; return config; }
     if (!kind && g_repicon_armed && str_eq(asset, "PaReplaceIcon_00")) { g_repicon_armed = 0; g_repicon_dbg[1]++; kind = 2; }
     if (!kind) return config;
@@ -908,8 +936,7 @@ void hud_set_slot(u32 i, float icon, float count, float show) {
 
 static u64 ptr(u64 p, u32 off) { return *(u64 *)(p + off); }
 
-static u64 pane_record(u64 frame, const char *name) {
-    u64 layout = ptr(frame, 0x80);
+static u64 layout_pane(u64 layout, const char *name) {
     if (!layout || !vptr(layout)) return 0;
     const u8 *r = (const u8 *)ptr(layout, 0xF8);
     if (!r || !vptr((u64)r)) return 0;
@@ -918,6 +945,7 @@ static u64 pane_record(u64 frame, const char *name) {
     if (i < 0 || !arr || !vptr(arr)) return 0;
     return arr + (u64)i * 0xB0;
 }
+static u64 pane_record(u64 frame, const char *name) { return layout_pane(ptr(frame, 0x80), name); }
 
 static void set_pane_show(u64 pane, float scale_y) {
     *(float *)(pane + 0x64) = scale_y;   /* local Y scale: 0 hides */
@@ -1188,9 +1216,11 @@ static const float RAY_DX[8] = {0.0f, 0.70711f, 1.0f, 0.70711f, 0.0f, -0.70711f,
 static const float RAY_DY[8] = {1.0f, 0.70711f, 0.0f, -0.70711f, -1.0f, -0.70711f, 0.0f, 0.70711f};
 u32 g_hud_show[2] = {0x10000000u, 0x10000000u};   /* clock, rupees: 1 = drawn this frame */
 static u64 g_pic_rec[PIC_N];
-/* Simple layout's bar (plates == 2), tunable live with tools/hud_tune.py: 0 = x shift, 1 = extra width on the
- * right (negative shortens), 2 = alpha, 3 = height. */
+/* Simple layout's bar (plates == 2), tunable live with tools/hud_tune.py: 0 = x shift (tuned so the bar's left
+ * edge sits against the screen), 1 = room right of the last number, 2 = alpha, 3 = height. The width follows the
+ * row that is drawn (plates_update). */
 float g_bg_tune[4] = {-165.0f, 10.0f, 0.42f, 1.05f};
+float g_hud_bg_dbg[4];   /* diagnostic: the simple bar's x0 / x1 and the first / last visible block x */
 static u32 g_plates_shown;
 static void bar_reset(void);
 /* the layout was rebuilt: drop cached pane records and force the texts to be set again */
@@ -1413,6 +1443,19 @@ static u32 hud_clock_text(char *b, int sec) {
     b[n] = 0;
     return n;
 }
+/* The simple / plain row is packed, so a fixed icon offset is wrong: a short number left its icon far away and a
+ * long one ran past the end of the soft bar. The texts are measured (digit advance at the current text scale) and
+ * the icons sit right before their numbers; the bar is then placed over what was actually drawn. */
+static float g_row_l, g_row_r;      /* extents of the visible row this frame (layout units) */
+static float row_text_w(const char *s, float adv) {
+    float w = 0.0f;
+    for (u32 i = 0; s[i]; i++) w += (s[i] >= '0' && s[i] <= '9') ? adv : adv * 0.62f;
+    return w;
+}
+static void row_ext(float x, float half) {
+    if (x - half < g_row_l) g_row_l = x - half;
+    if (x + half > g_row_r) g_row_r = x + half;
+}
 static void plates_update(u64 frame) {
     for (u32 k = 0; k < PIC_N; k++)
         if (!g_pic_rec[k]) g_pic_rec[k] = pane_record(frame, g_pinames[k]);
@@ -1460,15 +1503,38 @@ static void plates_update(u64 frame) {
     u32 show_s = active && g_shbcfg.hud_collectibles && bxs != -32768;
     u32 show_h = active && g_shbcfg.hud_collectibles && bxh != -32768;
     const float counter_origin = counters_x();
-    if (plates == 2) {   /* simple: one soft translucent bar behind the row of counters */
-        int xl = bxr != -32768 ? bxr : bxc;
-        int xr = bxh != -32768 ? bxh : (bxs != -32768 ? bxs : bxc);
-        float x0 = (float)xl - 233.0f + g_bg_tune[0], x1 = (float)xr + 213.0f + g_bg_tune[0] + g_bg_tune[1];
-        place(g_pic_rec[PIC_BG], (x0 + x1) * 0.5f - counter_origin, BY, (x1 - x0) / 100.0f, g_bg_tune[3], 0.0f);
-        tint_rec(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, g_bg_tune[2]);
-    } else {
-        place(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    if (sec < 0) sec = 0;
+    sec %= 86400;
+    /* every text this frame, with its width: the packed row needs both before it can place an icon or the bar */
+    char clk_txt[16], rup_a[16], rup_b[16], sk_txt[16], hp_txt[16];
+    hud_clock_text(clk_txt, sec);
+    int cur = 0, mxv = 0;
+    if (rup) hud_rupee_values(&cur, &mxv);
+    u32 na = put_int(rup_a, cur), nb = 0;
+    rup_a[na] = 0;
+    rup_b[nb++] = '/';
+    nb += put_int(rup_b + nb, mxv);
+    rup_b[nb] = 0;
+    u32 sna = put_int(sk_txt, (int)sd), hna = put_int(hp_txt, (int)hd);
+    sk_txt[sna++] = '/'; sna += put_int(sk_txt + sna, (int)st); sk_txt[sna] = 0;
+    hp_txt[hna++] = '/'; hna += put_int(hp_txt + hna, (int)ht); hp_txt[hna] = 0;
+    float w_rup_a = adv * (float)na, w_rup_b = adv * ((float)(nb - 1) + 0.55f);
+    float w_rup = w_rup_a + w_rup_b;
+    float w_clk = row_text_w(clk_txt, adv);
+    float w_sk = row_text_w(sk_txt, adv), w_hp = row_text_w(hp_txt, adv);
+    const u32 packed = plates != 1;      /* simple / plain: the row is packed, no wide plates */
+    const float ICON_GAP = 30.0f;        /* layout units between an icon's centre and its number */
+    const float ICON_HALF = 26.0f;       /* what an icon takes on each side, for the bar */
+    float ix_r = (float)bxr + ioff, ix_c = (float)bxc + ioff2;
+    float ix_s = (float)bxs + ioff2, ix_h = (float)bxh + ioff2;
+    if (packed) {
+        ix_r = (float)bxr + txo - w_rup * 0.5f - ICON_GAP;
+        ix_c = (float)bxc + txo - w_clk * 0.5f - ICON_GAP;
+        ix_s = (float)bxs + txo - w_sk * 0.5f - ICON_GAP;
+        ix_h = (float)bxh + txo - w_hp * 0.5f - ICON_GAP;
     }
+    g_row_l = 1.0e9f; g_row_r = -1.0e9f;
+    if (plates != 2) place(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);   /* the bar goes last, from the row */
     if (plates == 1 && show_r) {
         float cx = (float)bxr;
         for (u32 j = 0; j < 4; j++) {
@@ -1503,20 +1569,21 @@ static void plates_update(u64 frame) {
         int bi = sec2 ? bxh : bxs;
         if (bi == -32768 || !(sec2 ? show_h : show_s)) continue;
         u64 icn = g_pic_rec[PIC_COLL + 8 + sec2];
-        place(icn, (float)bi + ioff2 - counter_origin, BY, cisc, cisc, 0.0f);
+        float ix = sec2 ? ix_h : ix_s;
+        place(icn, ix - counter_origin, BY, cisc, cisc, 0.0f);
         tint_rec(icn, 1.0f, 1.0f, 1.0f, 1.0f);
+        if (packed) { row_ext(ix, ICON_HALF); row_ext((float)bi + txo, (sec2 ? w_hp : w_sk) * 0.5f); }
     }
     if (show_r) {
-        place(g_pic_rec[8], (float)bxr + ioff - counter_origin, BY, isc, isc, 0.0f);
+        place(g_pic_rec[8], ix_r - counter_origin, BY, isc, isc, 0.0f);
         tint_rec(g_pic_rec[8], 1.0f, 1.0f, 1.0f, 1.0f);
+        if (packed) { row_ext(ix_r, ICON_HALF); row_ext((float)bxr + txo, w_rup * 0.5f); }
     }
-    if (sec < 0) sec = 0;
-    sec %= 86400;
     if (plates || g_shbcfg.hud_mode >= 1) {   /* wide plate, or the simple / plain row (no plate) */
         u32 day = sec >= 6 * 3600 && sec < 18 * 3600;
         if (P[16] > 0.5f) day = P[16] < 1.5f;
         u32 sun = show_c && day, moon = show_c && !day;
-        float ix = show_c ? (float)bxc + ioff2 : counter_origin, iy = BY;
+        float ix = show_c ? ix_c : counter_origin, iy = BY;
         float ssc = plates == 1 ? 1.0f : isc;
         float ray = plates == 1 ? P[12] : P[12] * (isc / P[6]);
         float msc = plates == 1 ? P[17] : isc;
@@ -1524,6 +1591,7 @@ static void plates_update(u64 frame) {
         float mof = plates == 1 ? P[14] : P[14] * (isc / P[6]);
         static const float SUN[3] = {1.0f, 0.86f, 0.42f};
         place(g_pic_rec[9], ix - counter_origin, iy, sun ? ssc : 0.0f, sun ? ssc : 0.0f, 0.0f);
+        if (packed && show_c) { row_ext(ix, ICON_HALF); row_ext((float)bxc + txo, w_clk * 0.5f); }
         tint_rec(g_pic_rec[9], SUN[0], SUN[1], SUN[2], 1.0f);
         for (u32 j = 0; j < 8; j++) {
             u64 rec = g_pic_rec[10 + j];
@@ -1542,35 +1610,26 @@ static void plates_update(u64 frame) {
     static const float GREEN[3] = {0.38f, 0.95f, 0.25f};
     /* text panes are centre-aligned: P[7] is the centre of the text area (right of the icon) */
     float ty = P[8];
-    {   /* clock */
-        char b[16];
-        hud_clock_text(b, sec);
-        put_text(frame, 0, b, (float)bxc + txo, BY + ty, show_c, WHITE);
-    }
-    {   /* rupees: current / wallet capacity */
-        int cur, mx;
-        hud_rupee_values(&cur, &mx);
-        char a[16], b[16];
-        u32 na = put_int(a, cur), nb = 0;
-        a[na] = 0;
-        b[nb++] = '/';
-        nb += put_int(b + nb, mx);
-        b[nb] = 0;
-        /* "1234/5000" centred on tx as a whole: green part and white part side by side (fixed digit advance;
-        * ("/" is narrower than a digit: it counts as SLASH_W digits) */
-        const float SLASH_W = 0.55f;
-        float wa = (float)na, wb = (float)(nb - 1) + SLASH_W;
+    put_text(frame, 0, clk_txt, (float)bxc + txo, BY + ty, show_c, WHITE);   /* clock */
+    {   /* rupees: current / wallet capacity, centred as a whole (green part and white part side by side) */
         float tx = (float)bxr + txo;
-        float x0 = tx - adv * (wa + wb) * 0.5f;
-        put_text(frame, 1, a, x0 + adv * wa * 0.5f, BY + ty, show_r, GREEN);
-        put_text(frame, 2, b, x0 + adv * (wa + wb * 0.5f), BY + ty, show_r, WHITE);
+        float x0 = tx - w_rup * 0.5f;
+        put_text(frame, 1, rup_a, x0 + w_rup_a * 0.5f, BY + ty, show_r, GREEN);
+        put_text(frame, 2, rup_b, x0 + w_rup_a + w_rup_b * 0.5f, BY + ty, show_r, WHITE);
     }
-    {   /* per-area Skulltulas / heart pieces: collected / total, one section each */
-        char b[16]; u32 n;
-        n = put_int(b, (int)sd); b[n++] = '/'; n += put_int(b + n, (int)st); b[n] = 0;
-        put_text(frame, 3, b, (float)bxs + txo, BY + ty, show_s, WHITE);
-        n = put_int(b, (int)hd); b[n++] = '/'; n += put_int(b + n, (int)ht); b[n] = 0;
-        put_text(frame, 6, b, (float)bxh + txo, BY + ty, show_h, WHITE);
+    put_text(frame, 3, sk_txt, (float)bxs + txo, BY + ty, show_s, WHITE);    /* Skulltulas */
+    put_text(frame, 6, hp_txt, (float)bxh + txo, BY + ty, show_h, WHITE);    /* heart pieces */
+    /* The simple layout's soft bar goes over what is drawn, not over fixed blocks (a counter turned off takes its
+     * room with it, so the bar shrinks and follows the row). */
+    if (plates == 2 && g_row_r > g_row_l) {
+        /* The left edge stays where it was tuned (against the screen edge, so the row keeps its corner) and
+         * the right one follows what is drawn. */
+        int xl = bxr != -32768 ? bxr : (bxc != -32768 ? bxc : (bxs != -32768 ? bxs : bxh));
+        float x0 = (float)xl - 233.0f + g_bg_tune[0], x1 = g_row_r + 34.0f + g_bg_tune[1];
+        if (x1 < x0 + 120.0f) x1 = x0 + 120.0f;
+        place(g_pic_rec[PIC_BG], (x0 + x1) * 0.5f - counter_origin, BY, (x1 - x0) / 100.0f, g_bg_tune[3], 0.0f);
+        tint_rec(g_pic_rec[PIC_BG], 0.0f, 0.0f, 0.0f, g_bg_tune[2]);
+        g_hud_bg_dbg[0] = x0; g_hud_bg_dbg[1] = x1; g_hud_bg_dbg[2] = g_row_l; g_hud_bg_dbg[3] = g_row_r;
     }
 }
 static void txt_update(u64 frame) {
@@ -2045,6 +2104,11 @@ static void zr_mirror(void) {
         if (!g_zr_hold) g_sb_force[10][0] = 1;   /* hidden */
         return;
     }
+    /* A slot item is borrowing the box (features/button_mapping sets g_zr_hold): the box holds the borrowed
+     * item, but this button stands for the one that comes back. Freeze the icon AND the item index — before,
+     * only the icon was frozen, so the number followed the borrowed item (a slingshot in the box showed the
+     * deku stick's count while a stick was being used, and went back when the use ended). */
+    if (g_zr_hold) return;
     /* a bottle in the box: its own Enum value names the bottle (BottleA..E), the content is in the bottle record */
     int bp = bottle_box_pos(box_value());
     const char *disp = bp >= 0 ? bottle_icon_rec(60u + (u32)bp) : 0;
@@ -2090,33 +2154,53 @@ u32 g_game_paused;
  * is not steady through the whole pause menu, so the + tracking counts too. */
 int hud_game_covered(void) { return g_game_paused || (hud_ingame_known() && !hud_ingame()); }
 /* Corner minimap (MapMenu_00): the layout is captured at its part instantiation (hook id 4) and its frame is
- * layout + 0xB0 (the PlayerStatus layout uses the same field). While playing, the scale of every map node is zeroed;
- * the map screen (hud_ingame() == 0) keeps them. */
+ * layout + 0xB0 (the PlayerStatus layout uses the same field). While playing the map's panes are moved DOWN out of
+ * the screen (position only: the scale is never touched) and put back where they were as soon as a menu covers the
+ * game. The map screen draws with these same panes, so zeroing their scale - what this did first - left the map
+ * screen blank; keeping the rest of the transform alone is what makes the corner map the only thing that goes. */
 static u64 g_map_frame, g_mm_frame;
 static u64 g_map_layout;
-u64 g_minimap_dbg[3];   /* 0: the captured MapMenu frame, 1/2: two of its pane records */
+u64 g_minimap_dbg[4];   /* 0: the captured MapMenu frame, 1/2: two of its pane records, 3: 1 while moved out */
 /* The nodes that make up the corner map: the paper map, its caps, the player arrow and map icons, the frame and the
  * world-map thumbnail. Arrays, not pointer tables (the module has no relocations). */
 #define MM_N 6
 static const char g_mm_names[MM_N][20] = {"N_MiniMap_00", "N_MiniMapCap_00", "N_Common_00",
                                           "N_MapIcon_00", "P_MiniMapFrame_00", "N_WorldMap_00"};
 static u64 g_mm_rec[MM_N];
+static float g_mm_y[MM_N];   /* the y each pane had when it was bound: the value to put back */
+static u32 g_mm_ok;          /* bit per pane: its y was saved */
+static u32 g_mm_off;         /* 1: the panes are moved out right now */
+#define MM_DOWN 4000.0f      /* enough to leave the screen from the corner it sits in (negative y goes down) */
 static void hide_minimap(void) {
     if (g_map_layout) {
         u64 f = ptr(g_map_layout, 0xB0);
         if (f && vptr(f) && ptr(f, 0x80) == g_map_layout) g_map_frame = f;
     }
     g_minimap_dbg[0] = g_map_frame;
-    if (!g_shbcfg.hide_minimap || !g_map_frame || !hud_ingame()) return;
-    if (g_mm_frame != g_map_frame) {
+    if (!g_map_frame) return;
+    if (g_mm_frame != g_map_frame) {   /* new frame: bind the panes and remember where they sit */
         g_mm_frame = g_map_frame;
-        for (u32 i = 0; i < MM_N; i++) g_mm_rec[i] = pane_record(g_map_frame, g_mm_names[i]);
+        g_mm_ok = 0; g_mm_off = 0;
+        for (u32 i = 0; i < MM_N; i++) {
+            g_mm_rec[i] = pane_record(g_map_frame, g_mm_names[i]);
+            if (g_mm_rec[i]) { g_mm_y[i] = *(float *)(g_mm_rec[i] + 0x70); g_mm_ok |= 1u << i; }
+        }
         g_minimap_dbg[1] = g_mm_rec[0]; g_minimap_dbg[2] = g_mm_rec[1];
     }
-    for (u32 i = 0; i < MM_N; i++) if (g_mm_rec[i]) {
-        *(float *)(g_mm_rec[i] + 0x60) = 0.0f; *(float *)(g_mm_rec[i] + 0x64) = 0.0f;
-        *(u32 *)g_mm_rec[i] |= 0x6F;
+    if (g_shbcfg.hide_minimap && hud_ingame()) {
+        for (u32 i = 0; i < MM_N; i++) if (g_mm_ok & (1u << i)) {
+            *(float *)(g_mm_rec[i] + 0x70) = g_mm_y[i] - MM_DOWN;
+            *(u32 *)g_mm_rec[i] |= 0x6F;
+        }
+        g_mm_off = 1;
+    } else if (g_mm_off) {            /* a menu covers the game (or the option was turned off) */
+        for (u32 i = 0; i < MM_N; i++) if (g_mm_ok & (1u << i)) {
+            *(float *)(g_mm_rec[i] + 0x70) = g_mm_y[i];
+            *(u32 *)g_mm_rec[i] |= 0x6F;
+        }
+        g_mm_off = 0;
     }
+    g_minimap_dbg[3] = g_mm_off;
 }
 /* Pause menu, Items tab: its caption panel (hooked at main+0x2CBD20) has byte +0x28 == 2 only while that tab is
  * open, and the highlighted cell's item index at +0x90 (our item numbering). The cell is owned when its
@@ -2524,6 +2608,10 @@ static void slots_draw(SlotBtn *set, const u64 *ctrls, u64 frame, const float *l
             *(u32 *)b->hide[8] |= 0x6F;
         }
         if (b->num_rec && cnt >= 0) {
+            /* Only when our value changes. Rewriting it every frame fights the game, which updates these count
+             * panes too (our clones repeat its names): the two values alternate and the number blinks. The
+             * game's own writes into our pane are caught in hud_on_settext, which puts ours back in the same
+             * call. */
             if (cnt != b->num_val) {
                 b->num_val = cnt;
                 u32 n = put_int(b->num_txt, cnt);
@@ -2716,6 +2804,7 @@ char g_aguide_text[48];
 /* Diagnostic: the last 32 game texts set through the set-text-by-name call (pane name + first bytes), used to find
  * the names a layout writes (e.g. the map's). Read by tools/live_check.py. */
 u32 g_stxt_n = 0x10000000u;
+u32 g_num_fix_n;   /* times the game wrote one of our buttons' count panes and we put our value back */
 struct { char nm[24]; char s[24]; u32 len; } g_stxt[32];
 static void stxt_log(const char *nm, const char *s, u32 len) {
     u32 e = (g_stxt_n - 0x10000000u) % 32, j;
@@ -2823,6 +2912,7 @@ static void dc_glyphs(void) {
     }
 }
 static void dc_update(void) {
+    if (!BMREMAP) return;   /* no button mapping: the game's own prompt keys */
     u64 fr = g_aguide_frame;
     if (!vptr(fr) || !vptr(ptr(fr, 0x80))) return;
     if (fr != g_dc_frame) {   /* a new layout: find its panes again */
@@ -2860,13 +2950,88 @@ static const char *dc_key_override(const char *nm) {
         if (str_eq(nm, DC_KEY[b])) return g_dc_glyph[b][0] && (u8)g_dc_glyph[b][2] != (u8)(0x80 + b) ? g_dc_glyph[b] : 0;
     return 0;
 }
+/* ---- the interaction guide bar under Link ("Guardar B", "Lanzar A" ... while an item is held or lifted) ----
+ * Always hidden while the button-mapping HUD is on (not an option): our own cluster already names the buttons and
+ * the game's keys in this bar would not match the remap. The bar is ONE container layout (panes RootPane, N_All_00,
+ * W_Bg_00 = the dark plate, A_Align_00, Pa_GuideReverse_00, Pa_Guide_00..04) whose child layouts are the entries
+ * (RootPane, N_InOut_00, T_Guide_00, T_Icon_00..). The children hang on the container's child list (head at
+ * container + 0x128; a child's +0 / +8 are its previous / next sibling, the first child's +0 is the head itself).
+ * The pause menu's footer legend has entries with the same pane names but another container, so the container is
+ * the thing that is recognised (W_Bg_00 + Pa_GuideReverse_00) and nothing else is touched.
+ * The text hook only finds the container: from the layout of a T_Icon / T_Guide / T_Btn write, walk to the first
+ * sibling, then head - 0x128. Every frame the container's panes and all its children's panes are hidden (scale 0,
+ * tint alpha 0, moved out of the frame): the plate and the groups included, not just text. */
+#define GI_N 4
+static u64 g_gi_lay[GI_N];   /* containers */
+static u32 g_gi_next;
+u32 g_gi_off;      /* diagnostic switch (probes only): 1 stops the hide */
+u32 g_gi_hidden;   /* diagnostic: panes hidden last frame (0 with the bar on screen = container not found) */
+static int gi_layout(u64 lay) {   /* a live layout object: name table, pane records, a sane pane count */
+    if (!vptr(lay)) return 0;
+    const u8 *r = (const u8 *)ptr(lay, 0xF8);
+    if (!r || !vptr((u64)r) || !vptr(ptr(lay, 0x100))) return 0;
+    u32 n = w(r, 0x38);
+    return n > 0 && n <= 64 && vptr(q(r, 0x20));
+}
+static int gi_container(u64 lay) {   /* the in-game guide bar, not a menu footer */
+    if (!gi_layout(lay)) return 0;
+    const u8 *r = (const u8 *)ptr(lay, 0xF8);
+    return name_index(r, 0x20, "W_Bg_00") >= 0 && name_index(r, 0x20, "Pa_GuideReverse_00") >= 0;
+}
+/* Moved down out of the screen, nothing else: zeroing the scale / alpha of these panes froze the game as soon as an
+ * item other than the stick was used (the bar is rebuilt then), while the stock game never does. */
+static void gi_hide_rec(u64 r) {
+    *(float *)(r + 0x70) = -4000.0f;
+    *(u32 *)r |= 0x6F;
+}
+static u32 gi_hide_panes(u64 lay) {
+    u32 n = 0;
+    if (!gi_layout(lay)) return 0;
+    u32 cnt = w((const u8 *)ptr(lay, 0xF8), 0x38);
+    u64 arr = ptr(lay, 0x100);
+    for (u32 i = 1; i < cnt; i++) { gi_hide_rec(arr + (u64)i * 0xB0); n++; }   /* all but RootPane */
+    return n;
+}
+static u32 gi_hide_bar(u64 cont) {
+    return gi_hide_panes(cont);   /* the children (entries) hang on its Pa_Guide_* parts and move with them */
+}
+/* the container behind one of its entries' layouts (0: not an in-game guide entry) */
+static u64 gi_find_container(u64 lay) {
+    u64 a = lay;
+    if (!gi_layout(a)) return 0;
+    for (u32 i = 0; i < 12; i++) {   /* previous siblings, until the list head */
+        u64 prev = ptr(a, 0);
+        if (!gi_layout(prev)) { u64 cont = prev - 0x128; return gi_container(cont) ? cont : 0; }
+        a = prev;
+    }
+    return 0;
+}
+static void gi_note(u64 lay) {
+    u64 cont = gi_find_container(lay);
+    if (!cont) return;
+    for (u32 i = 0; i < GI_N; i++) if (g_gi_lay[i] == cont) return;
+    g_gi_lay[g_gi_next++ % GI_N] = cont;
+}
+static void gi_update(void) {
+    u32 n = 0;
+    if (g_gi_off) { g_gi_hidden = 0; return; }
+    for (u32 i = 0; i < GI_N; i++) {
+        if (!g_gi_lay[i]) continue;
+        if (!gi_container(g_gi_lay[i])) { g_gi_lay[i] = 0; continue; }   /* rebuilt or freed */
+        n += gi_hide_bar(g_gi_lay[i]);
+    }
+    g_gi_hidden = n;
+}
 static void slots_reset(void) {
     g_ps_frame = 0; for (u32 k = 0; k < PART_N; k++) g_sb[k].part = 0; g_stock_box_rec = 0; g_stock_dots_rec = 0; }
 
 u32 hud_frame_count(void) { return g_tick; }
 static void hud_frame(void) {
+    shb_clock_tick();                                /* real frame duration: the features count frames, not time */
     g_hud_dbg[1] = MARK | ++g_tick;
-    refresh_button_swap();
+    /* The jump-swap option is read from GameData, and looking it up walks the manager's hash table:
+     * once every 4 frames is the same answer 4 times out of 4, and a quarter of the work. */
+    if ((g_tick & 3u) == 0) refresh_button_swap();
     if (g_shbcfg.hud_collectibles) kset_refresh();   /* every frame, loads too: progress.sav is in the save buffer only briefly */
     if (!g_mp || (int)(g_tick - g_ready_at) < 0) return;
     if (!vptr(g_frame_node)) g_frame_node = 0;
@@ -2892,6 +3057,7 @@ static void hud_frame(void) {
     slots_update(g_frame_node);
     slots_labels(g_frame_node);
     dc_update();
+    if (BMREMAP) gi_update();
     hud_group_scale(g_frame_node);
 }
 /* -------- observation of the stock item box (to learn icon frames) -------- */
@@ -2951,6 +3117,20 @@ static void hud_on_settext(u64 pane, const u64 *ref, u64 lr, const u64 *regs) {
     const char *s = (const char *)ref[0];
     u32 len = (u32)ref[1];
     if (!s || !vptr((u64)s)) return;
+    /* The game updates item-count panes by name, and our cloned buttons repeat those names, so its value can land
+     * in one of ours: the button showed another item's count (and, when we rewrote ours every frame, the two
+     * values alternated and the number blinked). Put our value back in this same call, after the game's write. */
+    for (u32 k = 0; k < (u32)PART_TOT; k++) {
+        if (g_sb[k].num_rec != pane || g_sb[k].num_val < 0) continue;
+        u32 n = put_int(g_sb[k].num_txt, g_sb[k].num_val), same = n == len;
+        for (u32 i = 0; same && i < n; i++) if (s[i] != g_sb[k].num_txt[i]) same = 0;
+        if (!same) {
+            g_text_ref.s = g_sb[k].num_txt; g_text_ref.len = n; g_text_ref.z = 0; g_text_ref.m1 = -1;
+            g_num_fix_n++;
+            set_text((void *)pane, &g_text_ref, 0);
+        }
+        return;
+    }
     /* Minus map: append the area heart-piece count to the native Skulltula counter's total text. */
     const char *nm = (const char *)regs[0xF0 / 8];
     if (nm && vptr((u64)nm)) stxt_log(nm, s, len);
@@ -2986,6 +3166,12 @@ static void hud_on_settext(u64 pane, const u64 *ref, u64 lr, const u64 *regs) {
         u32 i;
         for (i = 0; i < len && i < 47 && s[i]; i++) g_aguide_text[i] = s[i];
         g_aguide_text[i] = 0;
+    }
+    if (BMREMAP && nm && vptr((u64)nm) && nm[0] == 'T' && nm[1] == '_' &&
+        ((nm[2] == 'I' && nm[3] == 'c' && nm[6] == '_') || (nm[2] == 'G' && nm[3] == 'u' && nm[7] == '_') ||
+         (nm[2] == 'B' && nm[3] == 't' && nm[5] == '_'))) {   /* T_Icon_NN / T_Guide_NN / T_Btn_NN: the guide bar */
+        u64 fr = regs[0xF8 / 8];
+        if (vptr(fr) && !g_gi_off) gi_note(ptr(fr, 0x80));
     }
     if (nm && vptr((u64)nm) && nm[0] == 'T' && nm[2] == 'K') {   /* T_Key?_00: the prompt's key glyph */
         const char *g = dc_key_override(nm);

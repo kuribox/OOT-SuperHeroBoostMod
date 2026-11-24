@@ -12,7 +12,7 @@ This tool keeps the **vanilla** font, swaps only the eight button glyphs U+E040.
 never reads) and checks the result against the budget. Output: 14232 bytes, which boots.
 
 The font is game data (the vanilla half comes from the user's own dump), so the result is
-written into `app/payload/` and never committed. `app/layouts.py` installs it instead of the
+written into `app/payload/` and never committed. `app-legacy/layouts.py` installs it instead of the
 layout's own font; without it the game keeps its own prompts.
 
     py312 tools/make_button_font.py                 # playstation, from SHB_ROMFS + the cache

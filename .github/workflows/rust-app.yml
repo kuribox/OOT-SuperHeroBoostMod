@@ -1,0 +1,93 @@
+name: Rust app
+
+# Builds and tests the current companion app (`app/`, Rust). The legacy Python app (`app-legacy/`) is built by
+# build.yml.
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["app/**", "app-legacy/**", ".github/workflows/rust-app.yml"]
+  push:
+    branches: [main]
+    paths: ["app/**", "app-legacy/**"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: Windows (msvc)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+      - name: Format
+        run: cargo fmt --manifest-path app/Cargo.toml --check
+      - name: Clippy
+        run: cargo clippy --manifest-path app/Cargo.toml --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --manifest-path app/Cargo.toml --workspace
+      - name: The text table matches app-legacy/i18n.py
+        run: python app/tools/gen_i18n.py --check
+      - name: The GameCube artwork matches app-legacy/gamecube_textures.py
+        run: python app/tools/gen_gamecube.py --check
+      - name: Every text the window asks for exists
+        run: python app/tools/check_gui_keys.py
+      # The payload is data, not code: the release binary carries it so one exe installs the mod. Generated here
+      # because it is not committed (it holds the built module).
+      - name: Stage the payload
+        run: python tools/ci_payload.py
+      - name: Build
+        run: cargo build --manifest-path app/Cargo.toml --release
+
+  linux:
+    # The window is built for Linux and macOS by build.yml; this job is the early warning: a platform-specific
+    # breakage (the file picker's portal backend, OpenSSL, a `-sys` crate) fails here, on the pull request.
+    name: Linux (build and tests)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the window's system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libssl-dev libwayland-dev libxkbcommon-dev libegl1-mesa-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+      - name: Stage the payload
+        run: python3 tools/ci_payload.py
+      - name: Test
+        run: cargo test --manifest-path app/Cargo.toml --workspace
+      - name: Build
+        run: cargo build --manifest-path app/Cargo.toml --release -p shb-cli
+      - name: The binary is an executable ELF
+        run: test -x app/target/release/SHB-OcarinaTweaks
+
+  parity:
+    name: Parity with the legacy (Python) app
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+      - name: Stage the payload
+        run: python tools/ci_payload.py
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install zstandard (the enemy packs are compared after decompression)
+        run: python -m pip install zstandard
+      - name: Build the CLI
+        run: cargo build --manifest-path app/Cargo.toml -p shb-cli
+      - name: Compare the patched modules, the installed trees, a recompiled game and a Rekarina install
+        run: python app/tools/parity_check.py --app app-legacy --payload app/payload --mode all

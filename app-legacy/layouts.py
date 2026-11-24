@@ -50,9 +50,12 @@ class LayoutError(Exception):
 
 # ------------------------------------------------------------------ cache
 def resource_dir() -> Path:
-    """`app/payload` in a checkout, `payload` inside the built app."""
-    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-    return base / "payload"
+    """The payload: `payload` inside the built app, `app/payload` of the checkout when run from the sources (the
+    payload is shared with the current app, which lives in `app/`)."""
+    frozen = getattr(sys, "_MEIPASS", None)
+    if frozen:
+        return Path(frozen) / "payload"
+    return Path(__file__).resolve().parent.parent / "app" / "payload"
 
 
 def cache_dir() -> Path:

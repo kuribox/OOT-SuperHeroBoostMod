@@ -26,7 +26,7 @@ python tools/build_core.py --features controls,manual_shield,stamina,songbook,bu
 #   EDEN_NX2_DEBUG_SERVER=127.0.0.1:6545 lichii.exe -g "<ROM>"
 ```
 
-`app/main.py --cli --emu <emulator> ...` installs with a profile, but that overwrites the ShbConfig; the
+`app-legacy/main.py --cli --emu <emulator> ...` installs with a profile, but that overwrites the ShbConfig; the
 config-block patch above keeps the user's settings (76 bytes, offsets below).
 
 ## What already works

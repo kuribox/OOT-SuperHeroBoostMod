@@ -8,8 +8,19 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.9.3**. It gives **A, B, X and Y a second action when you hold them**, with no delay on the short
-press, adds a **Back** role (the game's own B, on the held B in the Triggers table), makes the toggled sprint let go
+Current release: **0.10.0**. **A new app**: SHB-OcarinaTweaks is a Rust program now, one executable with the
+window and the command line, that carries the mod inside it and no longer needs Python (the Python one stays in the
+repository as `app-legacy/`). The **controls** grew: a long press on **L and R** too, a **wait / no wait** choice per
+held button (the **D-pad right** is not one of them: a tap always calls Navi and the hold is the role, so its row says
+so instead of offering a switch), **shortcut roles** that can sit on two buttons, and the game's actions that no
+button has are listed. The **enemy health and damage taken multipliers go up to ×6** (×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5,
+×6), in both apps. The **HUD** hides the corner minimap and the interaction guide bar properly, and the **item HUD** is
+its own option. Under the hood, durations are **real seconds** (they no longer assume 60 frames a second) and the
+module **writes nothing into the save folder**. The module changed, so install 0.10.0 and **rebuild the game once** on
+Longshot, Hookshot, ReLink or Rekarina.
+
+0.9.3 gave **A, B, X and Y a second action when you hold them**, with no delay on the short
+press, added a **Back** role (the game's own B, on the held B in the Triggers table), made the toggled sprint let go
 when you stop and stop throwing the objects you lift, fixes the manual shield throwing lifted jars and installs the
 PlayStation prompts in the whole game, not only in the menu. 0.9.2 counts the **chests that hold a heart piece**
 in the area counter. 0.9.1 made the **D-pad right** (Navi's arrow) a button for its **long press** (Armory, item
@@ -35,6 +46,101 @@ L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD 
 The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.10.0
+
+Everything since 0.9.3. Install 0.10.0 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina: the
+module changed (its configuration block grew to 0x68 bytes).
+
+**A new app, in Rust**
+
+- **One executable.** `SHB-OcarinaTweaks.exe` is the whole app: started with no arguments it opens the window, with a
+  command it is the command line (`install`, `uninstall`, `show`, `patch`, `lang`, `game`, `rebuild`, `play`,
+  `update`). It needs no Python and no Tk, it carries the mod's files inside (27 MB), and it opens no terminal window
+  behind it. A folder beside the program, or `SHB_PAYLOAD`, still wins over what it carries.
+- **The same app, byte for byte.** The pages, the profiles, the previews and the texts (six languages) are the Python
+  app's, and an install writes the same files: the patched modules (56 of 56), the installed folders (16 of 16),
+  the recompiled games and the Rekarina installs are compared against the Python app by `app/tools/parity_check.py`.
+- **It rebuilds the game itself.** On Longshot, Hookshot and ReLink it finds the builder the launcher installed, tells
+  the builder the game's DLSS / FSR / XeSS options and drives it with a progress bar and a Cancel; on Rekarina it runs
+  Rekarina's own lift and compile and does the app's part (ExeFS, patch tables, seeds, hashes) in Rust. **Install**,
+  **Recompile**, **Apply settings** and **Reinstall and recompile** are the same four actions as before.
+- **A failed install leaves nothing behind.** If the install fails halfway, the game goes back to what it was. Every
+  action — install, uninstall, recompile — ends in a window that says it worked, or that it failed and why.
+- **Folders are checked once, not all the time.** The install page tells you at once if a folder is not an emulator,
+  not a recompiled game or a Rekarina without its `setup/`, and the actions stay off until it is right; it looks
+  again only when the folder changes or an action ends, so the window stays light.
+- **Profiles apply when you pick them.** Clicking a profile card sets its options; what a profile does not decide (the
+  stamina display, R3 target, L3 sprint, button style, layout, language, HUD sizes) stays yours.
+- **The Python app is `app-legacy/`.** It keeps working and is what the Linux and macOS releases still are, until the
+  Rust window has been run there. Both read the same settings file, so you can switch between them.
+- **Built for Linux and macOS too.** The workflow compiles the Rust app for Windows, Linux and macOS, and publishes the
+  Python app next to it (`-legacy` in the file name) while the Rust window has only been run on Windows.
+
+**Controls**
+
+- **A long press on L and R too.** Every button that can be held now has a row: A, B, X, Y, L and R, plus the D-pad
+  right. A hold can be Jump, Sword, Action, Center camera or Back.
+- **No hold where the button acts held.** A button whose own role is the shield, target, sprint, the item selector, the
+  armory or an item has no hold (those roles act while held or at once); the row says why and is greyed out. The D-pad
+  right keeps its hold: its short press is Navi's call, not a role of ours.
+- **Wait or no wait, per held button.** *Skip the tap action when held* decides how a press is told apart: on, the tap
+  waits about a third of a second to know it is not a hold (every tap is a little late, and a hold never also fires
+  the tap); off, the tap acts at once and a hold comes on top. The face buttons, L and R act at once, as they always
+  did. **The D-pad right is not a choice:** a tap always calls Navi and the hold is the role, so its row has no
+  checkbox but a note that says so (the install writes that bit either way).
+- **The D-pad right row draws its key.** The arrow was the "▶" character, which the window's fonts do not carry: the
+  chip came out as an empty box. It is painted now, a D-pad with the arrow in its right arm.
+- **Shortcut roles may repeat.** Jump, Sword, the item selector, the Armory and Back can sit on two buttons (jump on X
+  and on R, say). The HUD draws each on its first button. The Controls card also lists, in amber, the game's own
+  actions that no button has (jump, sword, action, target), or says that all of them have one.
+- **Back moved to the held X** in the **Action at the bottom** and **Triggers** tables (the held B is blocked there:
+  B is the action or the item selector). Applying a preset clears the wait of the button it holds.
+- **Button mapping off turns its whole card off.** The manual shield, the R3 target, the L3 sprint and the targeting
+  assists went on working with the mapping off; they follow it now.
+- **The item HUD is its own option.** *Custom item HUD* adds our B, L, R and ZR item buttons and lets items 1-3 sit on
+  remapped buttons. Off, the rest of the remap still works, a button with an item role keeps the game's own press, and
+  your item HUD and the game's item logic stay untouched.
+
+**HUD**
+
+- **Hiding the corner minimap works.** The option used to zero the scale of the map's panes, and the map screen draws
+  with the same panes: it opened with no map. The corner map is moved out of the screen while you play and put back
+  when a menu covers the game.
+- **The interaction guide bar is hidden** while the button-mapping HUD is on (its container moves off screen; nothing
+  of its scale or transparency is written).
+- **The simple and plain rows pack.** Each counter follows its own switch and the visible ones pack from the left; the
+  soft bar is sized from what is drawn, and every icon sits right before its number (a long clock no longer ran past
+  the bar, a short rupee count no longer left its icon far away).
+
+**Module**
+
+- **Durations are real seconds.** Every duration used to be a number of frames at a fixed 1/60 s, which is only right
+  at 60 fps: on a machine that runs the game faster or slower, stamina and the rest ticked off by that factor.
+  The sprint drain, the action costs and the recharge (0.8 s idle, 1.8 s in combat, 2.5 s after exhaustion) last what
+  they say whatever the frame rate (measured live: 24/s of refill at 41 and at 50 fps, where counting frames gave 16
+  and 20). A long press is 0.3 s, and so are the target-switch hold, the pause before the ZR item goes back into the
+  box, the item-set check after loading a save and the 5 s "in combat" window.
+- **The clock is the console's own.** It reads the game's counter (`CNTPCT_EL0`) and its rate (`CNTFRQ_EL0`): no new
+  import, no file, nothing to install. If a target reports an implausible frame time the mod falls back to 1/60 per
+  frame, so it cannot end up worse than before.
+- **No file is written into your save.** The module used to leave a `shbdebug.bin` diagnostic next to every save it
+  touched, from the input hook, inside the game's own save-commit window. It exists only in a build made with
+  `--debug-dump` now; the release module creates no files at all.
+- **It checks what it reads from the game.** The HUD layout hook checks the layout before it copies anything (a layout
+  that does not look like ours gets the engine's own config back), the save path is checked before it is read, and the
+  button-swap lookup runs every fourth frame instead of every frame.
+- **The ZR button keeps its item.** Using an item changed the number on another item's button; and an item used from a
+  slot (the slingshot, the bow, a bomb) is no longer put away by the game right after the use: it stays until ZR or
+  another slot takes the box.
+- **The context prompt has one writer.** A second writer fought the first on the same pane (a "Talk" prompt came out
+  with the wrong glyph); the prompt's keys follow the remap from one place.
+
+**Not changed**
+
+- At 60 fps the same thresholds, the same recharge and the same costs as before. The gameplay, the profiles and the
+  configuration format are untouched: an existing setup keeps working, and a module older than this one simply leaves
+  the new controls (hold on L and R, the wait bits) at zero.
 
 ## What's new in 0.9.3
 
@@ -170,6 +276,8 @@ module changed.
 
 **Difficulty and enemies**
 
+- **The multipliers go up to ×6:** enemy health and damage taken are ×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5 or ×6, chosen in
+  either app (the module does the maths from the percentage, so a step is a label).
 - **Aggression options:** *Alert radius* (how far an enemy that spots you alerts the others) and an *Aggression*
   level: Normal, Aggressive or Maximum (shorter shared pause, longer chases, fighting off screen). Bosses are not
   changed, and the options combine with the speed multipliers instead of replacing them.
@@ -222,7 +330,7 @@ module changed.
 - **Stamina display**: a ring next to the player or a segmented bar under the magic gauge (yellow, red while
   recharging; grows with your hearts).
 - **Sprint speed** configurable (×1.25 in the profiles and in Custom).
-- **Enemy health** and **damage taken** multipliers (×1 to ×3).
+- **Enemy health** and **damage taken** multipliers (×1 to ×6, in steps of ×0.5 / ×1).
 - **No heart drops**: hearts dropped by enemies become green rupees instead.
 - **Always-visible clock and rupee counter**, with the game's native look and 12/24-hour format.
 - **Songbook autoplay**: selecting a learned song in the native songbook (ZL) makes the hero play it and trigger
@@ -302,17 +410,21 @@ module changed.
 
 ### Configuration app
 
-- **SHB-OcarinaTweaks**: GUI for Windows, macOS and Linux (Python 3.10+ with Tkinter and CustomTkinter).
+- **SHB-OcarinaTweaks** (`app/`, Rust): the window and the command line in one executable, for Windows. It carries the
+  mod's files, so nothing else has to be installed. The legacy Python app (`app-legacy/`, Python 3.10+ with Tkinter and
+  CustomTkinter) is the same app for Linux and macOS, and runs from the sources anywhere.
 - Profiles and control presets, per-section settings (Install, Presets, Gameplay, Difficulty, Controls, HUD,
   Miscellaneous), install and uninstall into the emulator's mod folder, with a remap editor in **Controls**.
-- **Play** opens the emulator (or the recompiled game's launcher) directly.
+- **Three targets**: an emulator, a recompiled game (Longshot, Hookshot, ReLink) and Rekarina. For the last two the
+  app also runs the rebuild, with a progress bar, and undoes a failed install.
+- **Play** opens the emulator (or the recompiled game's launcher, or Rekarina) directly.
 - On Longshot, Hookshot and ReLink, a red **Requires rebuild** tag marks the feature switches whose change needs the
   builder; their sub-options do not.
 - **Quick select**: boots and mask switching from the D-pad.
 - Checks GitHub Releases on startup and offers to download a newer version; on Windows it replaces itself and
   restarts.
 - Translations in Spanish, English, Portuguese, French, German and Italian.
-- Command-line mode to install the same configuration without opening the window.
+- Command-line mode to install the same configuration without opening the window (see below).
 
 ### Beta
 
@@ -335,7 +447,7 @@ everything*) turn them on together with the rest of the configuration.
 
 1. **Requirements**: the game on update **v131072** and an emulator that loads mods from its
    `user/load/0400486024DEC000` folder (or the path you have configured). Back up your save before installing.
-2. Open **SHB-OcarinaTweaks** (or run `python app/main.py` from source).
+2. Open **SHB-OcarinaTweaks** (on Linux and macOS, the legacy app; or run `python app-legacy/main.py` from source).
 3. Pick a profile or adjust the sections one by one.
 4. Select the emulator folder. The app finds the mods folder, including a custom `load_directory` from
    `qt-config.ini`.
@@ -351,13 +463,15 @@ you can also build the app from source with the steps below.
 
 | Your system | Download |
 |---|---|
-| Windows | `SHB-OcarinaTweaks.exe` |
-| Linux (x86_64) | `SHB-OcarinaTweaks-linux` — `chmod +x SHB-OcarinaTweaks-linux` after downloading |
-| macOS (Apple Silicon) | `SHB-OcarinaTweaks-macos.dmg` — open it and drag the app to Applications (not signed: right-click > Open the first time) |
+| Windows | `SHB-OcarinaTweaks.exe` (the current app, Rust) — `SHB-OcarinaTweaks-legacy.exe` is the Python one |
+| Linux (x86_64) | `SHB-OcarinaTweaks-linux` (the current app, Rust) — `chmod +x SHB-OcarinaTweaks-linux` after downloading; the Python one is `SHB-OcarinaTweaks-legacy-linux` |
+| macOS (Apple Silicon) | `SHB-OcarinaTweaks-macos.zip` (the current app, Rust) — unzip it and run the binary inside; the Python one is `SHB-OcarinaTweaks-legacy-macos.dmg` (open it and drag the app to Applications) |
 | Emulator, no app | `SuperHeroBoost-<version>-presets.zip` — ready-to-install mod folders |
 
-The Windows build is the only one with a `.exe` extension; the Linux one is a plain executable named with
-`-linux` and the macOS one is a `.dmg` disk image.
+From 0.10.0 the build workflow makes the Rust app for all three systems (`cargo build --release -p shb-cli` on
+Windows, Linux and macOS) and the legacy app next to it, but the Rust window has only been **run** on Windows so far:
+if the Linux or macOS build gives you trouble, the `-legacy` file is the app that has been shipping there. macOS
+binaries are not signed: right-click > Open the first time.
 
 ### Longshot, Hookshot and ReLink
 
@@ -402,43 +516,66 @@ See [docs/LONGSHOT.md](docs/LONGSHOT.md) for the details.
 
 ### Command line
 
+The same executable is the command line when it is given a command:
+
 ```bash
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended
-python app/main.py --cli --emu "EMULATOR_PATH" --profile hero-explorer --button-style switch --bm-simple
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended --bm-l selector
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended --quick-boots --quick-mask
-python app/main.py --cli --emu "EMULATOR_PATH" --profile base --enemy-move 1 --enemy-anim 2 --enemy-attack 2 --enemy-proj 2
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended --target-r3 --sprint-l3
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended --bm-layout xbox --game-layout none
+SHB-OcarinaTweaks profiles                                       # the profile keys
+SHB-OcarinaTweaks install --emu "EMULATOR_PATH" --profile recommended
+SHB-OcarinaTweaks install --emu "EMULATOR_PATH" --profile hero-explorer --button-style switch --bm-simple
+SHB-OcarinaTweaks install --emu "EMULATOR_PATH" --profile recommended --bm-l selector
+SHB-OcarinaTweaks install --emu "EMULATOR_PATH" --profile recommended --quick-boots --quick-mask
+SHB-OcarinaTweaks install --emu "EMULATOR_PATH" --profile base --hud-mode plain --hide-minimap
+SHB-OcarinaTweaks install --emu "EMULATOR_PATH" --profile recommended --controls triggers --bm-layout xbox
+SHB-OcarinaTweaks rebuild --game "F:\Switch2\Longshot\rc" --profile recommended        # install and compile
+SHB-OcarinaTweaks rebuild --game "F:\Switch2\rekarina" --mode settings --profile souls  # settings only, no compiler
+SHB-OcarinaTweaks uninstall --emu "EMULATOR_PATH"
+SHB-OcarinaTweaks --help                                         # every command and option
 ```
 
-`--profile` applies a complete profile; individual flags override it. `--list-profiles` shows the list. The
-`--quick-boots` / `--quick-mask` flags turn on the beta D-pad selectors.
+`--profile` applies a complete profile; individual flags override it, and `--settings <file>` starts from the JSON the
+window saves. `rebuild` takes `--mode install|recompile|settings|reinstall` and `--builder <folder>`; whether the folder
+is a recompiled game or Rekarina is decided from what is in it. The command line prints to the terminal that ran it;
+from `cmd` or PowerShell the program does not hold the prompt, so use `start /wait` to wait for it. The legacy app takes
+the same options as `python app-legacy/main.py --cli --emu "EMULATOR_PATH" --profile recommended` (`--list-profiles`
+lists them).
 
 The Great Fairy mod rewrites event flows with the `evfl` library (`pip install evfl`); if it is not installed,
 `make_release.py` warns and keeps the previously generated files.
 
 ## Building
 
-The app does not compile the mod: it uses the payload already staged in `app/payload`. Regenerating it requires the
-game dump, LLVM (`clang`, `lld`, `llvm-objcopy`, `llvm-size`, `llvm-nm`) and the development dependencies listed in
-[docs/GUIA-DESARROLLO.md](docs/GUIA-DESARROLLO.md).
+The app does not compile the mod: it uses the payload already staged in `app/payload`, which both apps share.
+Regenerating it requires the game dump, LLVM (`clang`, `lld`, `llvm-objcopy`, `llvm-size`, `llvm-nm`) and the
+development dependencies listed in [docs/GUIA-DESARROLLO.md](docs/GUIA-DESARROLLO.md).
 
 ```bash
 python tools/build_core.py --features stamina,songbook,button_mapping --slots --compat --base 0x4F80000
-python tools/make_release.py     # module + button textures + optional romfs files
-python tools/build_app.py        # release/SHB-OcarinaTweaks[.exe|.app] + SuperHeroBoost-<version>-presets.zip
+python tools/make_release.py       # module + button textures + optional romfs files -> app/payload
+python tools/build_app.py          # the current app (Rust): release/SHB-OcarinaTweaks[.exe]
+python tools/build_app.py --legacy # the legacy app (Python): release/SHB-OcarinaTweaks-legacy.exe + the presets zip
+python tools/build_app.py --all    # both
 ```
 
-`build_app.py` uses PyInstaller and does not cross-compile: run it on each target OS. It also writes
-`release/SuperHeroBoost-<version>-presets.zip`, one zip with every app profile as a ready-to-install mod folder (no
-executables), for the GameBanana Mods upload. The executable is written to `release/`. See the development guide
-for details.
+The repository keeps two apps side by side:
+
+| Folder | App | Built with |
+|---|---|---|
+| `app/` | the current one, **Rust**: a cargo workspace (`crates/shb-core`, `shb-cli`, `shb-gui`) and its `tools/` | `cargo build --release -p shb-cli` inside `app/` (Rust from [rustup.rs](https://rustup.rs)); `tools/build_app.py` runs it and copies the executable to `release/` |
+| `app-legacy/` | the first one, **Python** (Tkinter / CustomTkinter) | PyInstaller (`pip install pyinstaller zstandard customtkinter`); it does not cross-compile: run it on each target OS |
+
+`app/payload` is the one folder both use (the Rust build embeds it, PyInstaller bundles it) and it is never committed.
+`cargo test` in `app/` runs the tests; `python app/tools/parity_check.py --app app-legacy --payload app/payload --mode
+all` compares the Rust app with the Python one byte by byte, and `python app/tools/gen_i18n.py --check` checks that the
+window's texts match `app-legacy/i18n.py`. `build_app.py --legacy` also writes
+`release/SuperHeroBoost-<version>-presets.zip`, one zip with every profile as a ready-to-install mod folder (no
+executables), for the GameBanana Mods upload. See the development guide for details.
 
 ## Documentation
 
 - [docs/GUIA-DESARROLLO.md](docs/GUIA-DESARROLLO.md): architecture, hooks, HUD, configuration and compilation.
 - [docs/APP.md](docs/APP.md): app, profiles and options.
+- [app/README.md](app/README.md): the current app (Rust): crates, build, tests, how it matches the legacy one.
+- [docs/RELEASE-0.10.0.md](docs/RELEASE-0.10.0.md): the 0.10.0 release notes.
 - [docs/BUTTON-MAPPING.md](docs/BUTTON-MAPPING.md): button mapping design.
 - [docs/RE-NOTES.md](docs/RE-NOTES.md): reverse-engineering notes.
 - [docs/LONGSHOT.md](docs/LONGSHOT.md): installing the mod in Hookshot and Longshot (static recompilations).
@@ -446,7 +583,7 @@ for details.
 
 ## Credits
 
-Module, HUD, stamina system, button mapping (with its textures) and app: original work by Kuribox.
+Module, HUD, stamina system, button mapping (with its textures) and the apps (Rust and legacy Python): original work by Kuribox.
 
 Thanks to:
 

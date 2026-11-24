@@ -1,5 +1,5 @@
 """Texts of the enemy aggression options (alert radius, aggression). Merged into the app's tables on import, so
-app/i18n.py does not change."""
+app-legacy/i18n.py does not change."""
 from i18n import T
 
 _TXT = {

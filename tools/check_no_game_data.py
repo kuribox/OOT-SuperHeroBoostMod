@@ -5,6 +5,11 @@ Usage: python tools/check_no_game_data.py
 The repository must contain sources and documentation only. Game data
 (romfs, BYML, BNTX, SARC, NSO/NRO, etc.), the prebuilt payload and release
 binaries belong in a release artifact, never in the git index.
+
+A few files are committed on purpose although their kind is not source: the documentation's screenshots, the apps'
+logo and icon, the GameCube artwork (generated from `app-legacy/gamecube_textures.py` by `app/tools/gen_gamecube.py`,
+committed so the Rust build and its tests need no Python), and the settings files the legacy app wrote (the fixtures
+`app/crates/shb-core/tests/settings_compat.rs` holds the Rust side to). They are listed in ALLOW.
 """
 import shutil
 import subprocess
@@ -30,6 +35,16 @@ BAD_MAGIC = {
     b"YBML": "YBML",
 }
 
+# Committed on purpose, with what makes each one safe to keep (see the module docstring).
+ALLOW = (
+    "docs/",                                                   # screenshots and the cover art of the documentation
+    "app/assets/",                                             # the current app's logo (the window's header and icon)
+    "app-legacy/assets/",                                      # the legacy app's logo and icon
+    "app/crates/shb-cli/assets/",                              # the executable's icon
+    "app/crates/shb-core/src/gamecube_textures.bin",           # generated artwork, checked by gen_gamecube.py --check
+    "app/crates/shb-core/tests/data/",                         # the legacy app's settings files (test fixtures)
+)
+
 
 def git_exe() -> str:
     found = shutil.which("git")
@@ -41,11 +56,17 @@ def git_exe() -> str:
     raise SystemExit("git not found in PATH")
 
 
+def allowed(rel: str) -> bool:
+    return any(rel == entry or rel.startswith(entry) for entry in ALLOW)
+
+
 def main() -> int:
     tracked = subprocess.run([git_exe(), "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
     bad = []
     for rel in tracked.splitlines():
         rel_norm = rel.replace("\\", "/")
+        if allowed(rel_norm):
+            continue
         p = ROOT / rel
         why = None
         if p.suffix.lower() in BAD_SUFFIXES:

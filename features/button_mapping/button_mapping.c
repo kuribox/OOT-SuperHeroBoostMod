@@ -1,5 +1,6 @@
 #include "../../core/dispatch.h"
 #include "../../core/hid.h"
+#include "../../core/clock.h"
 #include "../../core/config.h"
 #include "../../core/remap.h"
 
@@ -64,7 +65,10 @@ enum { PH_IDLE = 0, PH_EQUIP, PH_HOLD, PH_GAP, PH_RESTORE, PH_ZRBACK };
 #define GAP_TICKS 20           /* input frames Link must be free after a use before the ZR item goes back */
 #define GAP_BOOMERANG 90       /* the boomerang flies back while Link is free: wait for it */
 /* items that stay in Link's hand after a use (not given back on their own, see PH_GAP) */
-static int held_item(int item) { return item == 0; }   /* 0: Deku stick */
+/* Every item stays in the box until the player presses ZR or uses another slot: giving the box back puts the
+ * item away, and the game keeps whatever the button selects (the stick in hand, the slingshot and the bow
+ * aimed, the bomb ready) - restoring it GAP_TICKS after the use is seen as the item putting itself away. */
+static int held_item(int item) { (void)item; return 1; }
 /* A while standing still with an item on B: B's own "put away" (sword, item in hand) is on A then. A reaches the
  * game first (talk, open, check ...); when Link is still standing A_PUTAWAY_WAIT reads later, A did nothing and the
  * B button's own press is sent for A_PUTAWAY_PRESS reads. */
@@ -232,15 +236,15 @@ static void dbg_tick(void);   /* diagnostic dump (below, beside the save code) *
  * game's own prompts there name them. The game fills the samples again on every read, so this is done once per read. */
 u32 g_remap_dbg[3];   /* reads remapped, reads left alone, last physical -> virtual (low bits) */
 u32 g_remap_live;     /* the last read was remapped: the HUD prompts name the roles' buttons (core/hud.c) */
-/* Held buttons: D-pad right (its short press is the game's Navi call) and A / B / X / Y (whose short press is their own
- * role) can have a role for the LONG press (remap_hold_role). Per button: the frame the press went down, the replay
- * reads left of a short press, and whether the long press already fired. */
-#define HOLD_N 5
-static const unsigned char HOLD_PB[HOLD_N] = {PB_DR, PB_A, PB_B, PB_X, PB_Y};
+/* Held buttons: D-pad right (its short press is the game's Navi call) and A / B / X / Y / L / R (whose short press is
+ * their own role) can have a role for the LONG press (remap_hold_role). Per button: the frame the press went down, the
+ * replay reads left of a short press, and whether the long press already fired. */
+#define HOLD_N 7
+static const unsigned char HOLD_PB[HOLD_N] = {PB_DR, PB_A, PB_B, PB_X, PB_Y, PB_L, PB_R};
 static u32 hold_since[HOLD_N], hold_pulse[HOLD_N];
 static unsigned char hold_fired[HOLD_N];
 u32 g_remap_dr[2];   /* diagnostics: short presses replayed, long presses that fired a role (all held buttons) */
-u32 g_remap_hold[HOLD_N];   /* diagnostics: long presses that fired, per button: DR A B X Y */
+u32 g_remap_hold[HOLD_N];   /* diagnostics: long presses that fired, per button: DR A B X Y L R */
 static void hold_reset(void) {
     for (u32 h = 0; h < HOLD_N; h++) { hold_since[h] = hold_pulse[h] = 0; hold_fired[h] = 0; }
 }
@@ -268,13 +272,18 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
         g_remap_dbg[1]++;
         g_remap_live = 0;
         hold_reset();
+        /* Leaving the world (pause menu, menu overlay, dialogue, cutscene): the item box gets its own item back
+         * first. A borrowed slot item must never be what the game saves, and the pause menu is where saves happen. */
+        if (g_borrowed && g_saved >= 0) { box_put(g_saved); unborrow(); g_phase = PH_IDLE; }
         return;
     }
     g_remap_live = 1;
     HidView view = {a0, count, 0};
-    /* Held buttons: short press = the button's own role (Navi for D-pad right), long press = its hold role. The press is
-     * held back until it is known which: released early it is replayed as a short pulse (the physical bit goes through
-     * the remap, so the short role fires), held it never reaches the game as the short one. */
+    /* Held buttons: short press = the button's own role (Navi for D-pad right), long press = its hold role. Two ways,
+     * per button (remap_hold_wait): WAIT - the press is held back until it is known which: released early it is
+     * replayed as a short pulse (the physical bit goes through the remap, so the short role fires), held it never
+     * reaches the game as the short one; NO WAIT - the short role acts at once and, when the press turns out long,
+     * lets go while the hold role takes over (the short role has acted by then). */
     u64 add = 0, clear = 0, pulse_add = 0, all = 0;
     for (u32 i = 0; i < count; i++) all |= hid_get_buttons(&view, i);
     for (u32 h = 0; h < HOLD_N; h++) {
@@ -288,11 +297,11 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
                 hold_fired[h] = 1;
                 add |= remap_role_virt(role);
                 clear |= bit;                       /* the short role lets go, the hold role takes over */
-            } else if (p == PB_DR) {
-                clear |= bit;                       /* Navi (the arrow's short press) waits to know which press it is */
-            }                                       /* A / B / X / Y: the short role goes through at once, no delay */
+            } else if (remap_hold_wait(p)) {
+                clear |= bit;                       /* the short role waits to know which press it is */
+            }                                       /* otherwise it goes through at once, no delay */
         } else {
-            if (p == PB_DR && hold_since[h] && !hold_fired[h]) { hold_pulse[h] = 3; g_remap_dr[0]++; }   /* a short press of the arrow: let the game see it now, for three reads */
+            if (remap_hold_wait(p) && hold_since[h] && !hold_fired[h]) { hold_pulse[h] = 3; g_remap_dr[0]++; }   /* a short press that waited: let the game see it now, for three reads */
             hold_since[h] = 0;
             hold_fired[h] = 0;
         }
@@ -369,7 +378,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     }
 
     /* Link's age picks the set; an item the player does not have (a new game, an older save) leaves its slot */
-    if (g_shbcfg.button_mapping && player_active()) {
+    if (remap_items() && player_active()) {
         int ch = hud_is_child();
         if (ch >= 0) {
             int age = ch ? 0 : 1;
@@ -377,7 +386,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
                 if (g_cur_age >= 0) for (int s = 0; s < SLOT_ZR; s++) g_set[g_cur_age][s] = g_assign[s];
                 for (int s = 0; s < SLOT_ZR; s++) g_assign[s] = g_set[age][s];
                 g_cur_age = age;
-                g_check_owned = 30;   /* a set was just taken: drop what this save does not have (a few frames) */
+                g_check_owned = shb_frames(30);   /* a set was just taken: drop what this save does not have (a few frames) */
                 /* each age has its own item box: nothing of the other age's is borrowed in it */
                 if (g_borrowed) unborrow();
                 g_phase = PH_IDLE;
@@ -398,7 +407,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
 
     /* The item box the game uses (its item set) switched without the age flag: the other box is taken as it is,
      * like an age change (nothing borrowed in it, no swap with the slots). */
-    if (g_shbcfg.button_mapping) {
+    if (remap_items()) {
         static int box_set = -1;
         int bs = hud_box_child();
         if (bs >= 0 && bs != box_set) {
@@ -438,8 +447,8 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     g_game_paused = (u32)g_paused;
     int menu = g_paused && hud_menu_items();
     if (g_menu_assign_t < 1000) g_menu_assign_t++;
-    if (g_shbcfg.button_mapping && !menu) { hud_menu_off(); g_menu_box = -3; }
-    if (g_shbcfg.button_mapping && menu) {
+    if (remap_items() && !menu) { hud_menu_off(); g_menu_box = -3; }
+    if (remap_items() && menu) {
         /* -> SLOT_B, SLOT_L, SLOT_R: the slot's own button when the menu lets it (X / Y / L / R), else a free one
          * (classic layout: X, L, R). No button = the slot is on no button: nothing to assign. */
         u64 MENU_BTN[SLOT_ZR], menu_mask = 0;
@@ -525,7 +534,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     /* L as the game's item selector: outside menus, L does what R does (opens the selector for ZR).
      * The R slot is suppressed for this frame so an item assigned to R is not used as well. */
     u32 l_selector = 0;
-    if (g_shbcfg.button_mapping && (!g_shbcfg.manual_shield || remap_on()) && remap_selector_on() && hud_ingame() &&
+    if (remap_items() && (!g_shbcfg.manual_shield || remap_on()) && remap_selector_on() && hud_ingame() &&
         !(buttons & BTN_R)) {
         if (remap_on() && sel_held) {   /* the role's own button: L stays whatever its own role is */
             set_all(&view, 0, BTN_R);
@@ -550,16 +559,16 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     int using = g_phase == PH_EQUIP || g_phase == PH_HOLD || g_phase == PH_ZRBACK;
     /* The back role is the game's B only where B is not an item use: Link busy with something else (hanging, climbing,
      * swimming ... where the slot logic below leaves every button alone) or no item on the B slot. */
-    g_back_ok = !g_shbcfg.button_mapping || (!free_now && !using) || g_assign[SLOT_B] < 0;
+    g_back_ok = !remap_on() || (!free_now && !using) || g_assign[SLOT_B] < 0;
     /* With our item buttons the game's item selector opens only from L in the selector mode: R (and L as an item
      * button) never reach the game while Link plays, whatever he is doing (sword, hookshot, bow ...). Events
      * (dialogues, shops) and the ocarina (L / R are notes there) keep them. */
     u64 no_sel = 0;
-    if (g_shbcfg.button_mapping && ingame && !player_state_starts("Evt") && !g_songbook_active) {
+    if (remap_items() && ingame && !player_state_starts("Evt") && !g_songbook_active) {
         if (!l_selector) no_sel |= BTN_R;
         if (!(g_shbcfg.bm_l_mode == 2 && !remap_on())) no_sel |= BTN_L;   /* L is the selector only in the old mode */
     }
-    if (!g_shbcfg.button_mapping || (!free_now && !using)) {
+    if (!remap_items() || (!free_now && !using)) {
         if (no_sel) set_all(&view, no_sel, 0);
         if (g_phase == PH_GAP) g_phase_t = 0;   /* the gap counts free frames in a row */
         if (ingame && (pressed & (slot_mask(SLOT_B) | slot_mask(SLOT_L) | slot_mask(SLOT_R)))) {   /* remember why a slot button did nothing */
@@ -667,7 +676,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
         /* only standing or walking: aiming (bow, hookshot, slingshot) is a LockOn* state too, and the item must
          * stay in the box until the shot is over (else the ZR item is drawn or shot instead) */
         g_phase_t = (player_state_is("Wait") || player_state_is("Move")) ? g_phase_t + 1 : 0;
-        if (g_phase_t >= (u32)(g_borrow_item == 3 ? GAP_BOOMERANG : GAP_TICKS)) {
+        if (g_phase_t >= shb_frames((u32)(g_borrow_item == 3 ? GAP_BOOMERANG : GAP_TICKS))) {
             box_put(g_saved);
             g_phase = PH_RESTORE;
             g_phase_t = 0;
@@ -799,7 +808,17 @@ static void save_read(const char *ours) {
     g_save_dbg[2]++;
 }
 /* ---- diagnostic dump: <slot>/shbdebug.bin. Which wrappers ran, the input calls per site, the
- * save hook's results and the config block the module reads. Changes nothing the game sees. ---- */
+ * save hook's results and the config block the module reads.
+ *
+ * It is a test tool, not a feature: it CREATES FILES IN THE GAME'S SAVE VOLUME, from the input
+ * hook, on a timer. A release build must not do that at all — a write landing while
+ * gmd::SaveDataMgr is committing its own files (fs: save: published N files) races it, and the
+ * crash it leaves is a release of a half-built object somewhere else entirely. Turn it on only
+ * for a build you are diagnosing: build_core.py --debug-dump. ---- */
+#ifndef SHB_DBG_DUMP
+#define SHB_DBG_DUMP 0
+#endif
+#if SHB_DBG_DUMP
 extern unsigned int g_wrap_entry[5], g_slot_entry[4], g_code_entry[32];
 extern u32 g_save_dbg[6];
 static u32 g_dbg_tick, g_dbg_done;
@@ -843,22 +862,32 @@ static void dbg_write_path(const char *path) {
     fs_write_file(f, 0, buf, 440, &opt);
     fs_close_file(f);
 }
+#endif   /* SHB_DBG_DUMP */
 
 static void dbg_tick(void) {
+#if SHB_DBG_DUMP
     if (++g_dbg_tick < 600) return;          /* about every 10 s of input polling */
     g_dbg_tick = 0;
     if (g_dbg_done >= 60) return;
     g_dbg_done++;
     dbg_write_path("save:/slot_00/shbdebug.bin");
+#endif
 }
 
 /* core/hud.c, hook on nn::fs::OpenFile (main+0x3C42590): any file the game opens */
 void button_mapping_on_open(const char *path, int mode) {
-    if (path[0] != 's' || !g_shbcfg.button_mapping) return;   /* not save: (content: is the romfs) */
+    u64 a = (u64)(unsigned long)path;
+    /* The hook sees whatever the game passes. A pointer that is not guest memory must not be read:
+     * this runs inside the game's own open call, so a bad read here is a crash somewhere else. */
+    if (a < 0x10000ull || a >= 0x60000000000ull) return;
+    if (!remap_items()) return;
+    if (path[0] != 's' || path[1] != 'a' || path[2] != 'v' || path[3] != 'e' || path[4] != ':')
+        return;                                              /* not save: (content: is the romfs) */
     char ours[48];
     if (!our_path(path, ours)) return;
     if (mode & 2) save_write(ours);
     else save_read(ours);
+#if SHB_DBG_DUMP
     {   /* dump next to the save the game just opened (the save volume is mounted here) */
         char dbg[48];
         u32 n = 0, slash = 0;
@@ -868,4 +897,5 @@ void button_mapping_on_open(const char *path, int mode) {
         for (u32 j = 0; ; j++) { dbg[slash + j] = TAIL[j]; if (!TAIL[j]) break; }
         dbg_write_path(dbg);
     }
+#endif
 }

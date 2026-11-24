@@ -60,7 +60,7 @@ CONFIG_MAGIC = b"SHBCFG01"
 CONFIG_SIZE = 72                 # ShbConfig, version 1
 BUTTON_STYLES = ("switch", "xbox", "playstation")
 ROMFS_OPTS = ("enemy_double", "farore_outdoor", "great_fairy", "no_heart_drop", "no_magic_drop")
-sys.path.insert(0, str(ROOT / "app"))
+sys.path.insert(0, str(ROOT / "app-legacy"))
 import installer as I  # noqa: E402
 import recomp as R  # noqa: E402
 
@@ -187,7 +187,7 @@ def build_game(game: Path, builder: Path, work: Path | None, jobs: int) -> int:
 # -------------------------------------------------------------------------- files
 
 def backup_once(game: Path, exefs: Path) -> Path:
-    """Snapshot, once, every file the install and the rebuild can change (app/recomp.py does the list)."""
+    """Snapshot, once, every file the install and the rebuild can change (app-legacy/recomp.py does the list)."""
     bak = R.backup_once(game)
     print("backup: %s" % bak, flush=True)
     return bak

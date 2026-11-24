@@ -128,6 +128,8 @@ def cli(argv) -> int:
     ap.add_argument("--no-heart-drop", action="store_true")
     ap.add_argument("--no-magic-drop", action="store_true", help="dropped magic jars become green rupees (romfs)")
     ap.add_argument("--hide-minimap", action="store_true", help="hide the minimap while playing")
+    ap.add_argument("--no-hud-items", action="store_true",
+                    help="keep the game's own item HUD (no B / L / R / ZR item buttons of ours)")
     ap.add_argument("--sprint-speed", type=int, default=None, help="sprint speed, percent (125 = default)")
     ap.add_argument("--rupees", action="store_true", help="always-visible rupee counter")
     ap.add_argument("--clock", action="store_true", help="always-visible clock")
@@ -158,6 +160,8 @@ def cli(argv) -> int:
         s.preset = a.preset
     if a.no_button_mapping:
         s.button_mapping = False
+    if a.no_hud_items:
+        s.hud_items = False
     if a.button_style:
         s.button_style = a.button_style
     if a.bm_layout:
@@ -338,6 +342,7 @@ def gui() -> None:
     busy = {"on": False}
     profile = tk.StringVar(value=cfg.get("profile") if cfg.get("profile") in PROFILE_KEYS else "custom")
     bmap = tk.BooleanVar(value=bool(cfg.get("button_mapping", True)))
+    hud_items = tk.BooleanVar(value=bool(cfg.get("hud_items", True)))   # custom item HUD (our B / L / R / ZR)
     # button style, layout and L mode: personal choices, not part of a profile
     bstyle = tk.StringVar(value=cfg.get("button_style") if cfg.get("button_style") in I.BUTTON_STYLES else "switch")
     bplace = tk.StringVar(value=cfg.get("bm_layout") if cfg.get("bm_layout") in I.BM_LAYOUTS else "nintendo")
@@ -346,7 +351,7 @@ def gui() -> None:
     glayout = tk.StringVar(value=_gl if _gl in I.GAME_LAYOUTS else "none")
     bsimple = tk.BooleanVar(value=bool(cfg.get("bm_simple", False)))
     blmode = tk.StringVar(value=cfg.get("bm_l_mode") if cfg.get("bm_l_mode") in I.L_MODES else "assign")
-    # Button remap (app/remap_ui.py): the table of what each button does. The manual shield, the L3 sprint, target
+    # Button remap (app-legacy/remap_ui.py): the table of what each button does. The manual shield, the L3 sprint, target
     # on R3 and L as the item selector are roles in it now; their old switches are kept in step with it (profiles,
     # the command line and older settings files still speak in those switches).
     if isinstance(cfg.get("bm_roles"), dict):
@@ -356,6 +361,9 @@ def gui() -> None:
             I.CLASSIC_ROLES, manual_shield=bool(cfg.get("manual_shield", False)),
             target_r3=bool(cfg.get("target_r3", False)), sprint_l3=bool(cfg.get("sprint_l3", False)),
             l_selector=cfg.get("bm_l_mode") == "selector"))
+    # How each held button tells a short press from a long one (app-legacy/remap_ui.py): wait for the hold, or act at once.
+    _hw = cfg.get("bm_hold_wait") if isinstance(cfg.get("bm_hold_wait"), dict) else {}
+    hwait = {k: tk.BooleanVar(value=bool(_hw.get(k, I.DEFAULT_HOLD_WAIT[k]))) for k in I.HOLD_WAIT_KEYS}
     stamina = tk.BooleanVar(value=bool(cfg.get("stamina", True)))
     stamina_bar = tk.BooleanVar(value=bool(cfg.get("stamina_bar", False)))
     songbook = tk.BooleanVar(value=bool(cfg.get("songbook", True)))
@@ -394,7 +402,12 @@ def gui() -> None:
         saved_costs = cfg.get("custom") if isinstance(cfg.get("custom"), dict) else {}
     costs = {k: tk.BooleanVar(value=bool(saved_costs.get(k, True))) for k in KEYS}
     combat = tk.BooleanVar(value=bool(saved_costs.get("combat_only", cfg.get("combat_only", False))))
-    MULT = (100, 150, 200, 300)
+    # Enemy health and the damage you take, as the percent of vanilla the difficulty page offers (100 = vanilla).
+    # The module does the scaling (enemy_hp_pct / damage_taken_pct in ShbConfig) from a plain percentage, so a new
+    # step in this ladder only needs a label: MULT_KEYS holds one per entry, in the same order.
+    MULT = (100, 150, 200, 250, 300, 400, 500, 600)
+    MULT_KEYS = ("mult_van", "mult_15", "mult_2", "mult_25", "mult_3", "mult_4", "mult_5", "mult_6")
+    assert len(MULT) == len(MULT_KEYS), "every multiplier needs its label"
     hp = tk.IntVar(value=cfg.get("enemy_hp", 100) if cfg.get("enemy_hp", 100) in MULT else 100)
     dmg = tk.IntVar(value=cfg.get("damage", 100) if cfg.get("damage", 100) in MULT else 100)
     SPEEDS = (100, 125, 150, 175, 200, 250, 300)
@@ -510,6 +523,7 @@ def gui() -> None:
         guard["on"] = True
         profile.set(key)
         bmap.set(v["button_mapping"])
+        hud_items.set(v.get("hud_items", True))
         stamina.set(v["stamina"])
         songbook.set(v["songbook"])
         quick_boots.set(v["quick_boots"])
@@ -574,7 +588,7 @@ def gui() -> None:
         refresh()
         autosave()
 
-    for var in (bmap, stamina, songbook, quick_boots, quick_mask, manual_shield, target_r3, sprint_l3, sprint_l3_toggle,
+    for var in (bmap, hud_items, stamina, songbook, quick_boots, quick_mask, manual_shield, target_r3, sprint_l3, sprint_l3_toggle,
                 auto_target, switch_target,
                 hud_collectibles, hud_mode,
                 enemy_double, enemy_move, enemy_anim, enemy_attack, enemy_proj, boss_move, boss_anim, enemy_alert, enemy_aggro,
@@ -603,7 +617,7 @@ def gui() -> None:
         refresh()
         autosave()
 
-    for var in (bstyle, bplace, glayout, bsimple, blmode):
+    for var in (bstyle, bplace, glayout, bsimple, blmode, *hwait.values()):
         var.trace_add("write", on_pref_change)
 
     def roles_to_flags(*_):
@@ -636,6 +650,7 @@ def gui() -> None:
         return I.Settings(button_mapping=bmap.get(), button_style=bstyle.get(), bm_simple=bsimple.get(),
                           bm_layout=bplace.get(), game_layout=glayout.get(),
                           bm_l_mode=blmode.get(), stamina=stamina.get(), stamina_bar=stamina_bar.get(),
+                          hud_items=hud_items.get(), bm_hold_wait={k: v.get() for k, v in hwait.items()},
                           bm_remap=True, bm_roles=RM.roles_value(broles),
                           songbook=songbook.get(),
                           quick_boots=quick_boots.get(), quick_mask=quick_mask.get(),
@@ -668,10 +683,12 @@ def gui() -> None:
             "lang": lang.get(), "emu": emu.get(), "profile": profile.get(),
             "target": target.get(), "recomp": recomp_path.get(), "recomp_builder": recomp_builder.get(),
             "rekarina": rekarina_path.get(),
-            "button_mapping": bmap.get(), "button_style": bstyle.get(), "bm_simple": bsimple.get(),
+            "button_mapping": bmap.get(), "hud_items": hud_items.get(),
+            "button_style": bstyle.get(), "bm_simple": bsimple.get(),
             "bm_layout": bplace.get(), "game_layout": glayout.get(),
             "bm_l_mode": blmode.get(),
             "bm_roles": RM.roles_value(broles),
+            "bm_hold_wait": {k: v.get() for k, v in hwait.items()},
             "stamina": stamina.get(), "stamina_bar": stamina_bar.get(), "songbook": songbook.get(),
             "quick_boots": quick_boots.get(), "quick_mask": quick_mask.get(),
             "manual_shield": manual_shield.get(),
@@ -1246,6 +1263,14 @@ def gui() -> None:
             refresh_layout_note()
         for w in ui.get("bm", []):
             w.config(state=("readonly" if isinstance(w, UI.Select) else "normal") if on else "disabled")
+        ed = ui.get("remap")
+        if ed is not None:
+            ed.set_enabled(on)
+        for _key, card_ in ui.get("ctrl_presets", []):
+            try:
+                card_.set_enabled(on)
+            except Exception:
+                pass
         ui["note"].config(text="" if stam else L("stamina_off_note"), fg=AMBER)
         paint = ui.get("stamina_preview_paint")
         if paint is not None:
@@ -1619,7 +1644,7 @@ def gui() -> None:
         body = card(parent, L("difficulty_title"), L("difficulty_desc"))
         row = UI.Frame(body, bg=PANEL)
         row.pack(fill="x")
-        names = [L("mult_van"), L("mult_15"), L("mult_2"), L("mult_3")]
+        names = [L(k) for k in MULT_KEYS]
         ui["mult"] = []
         for n, (lab, var) in enumerate(((L("enemy_hp"), hp), (L("damage"), dmg))):
             label(row, lab + ":", size=10, bg=PANEL).grid(row=0, column=n * 2, sticky="w", padx=(0, 6))
@@ -1723,6 +1748,11 @@ def gui() -> None:
             if "shield" in table.values() and not manual_shield.get():
                 manual_shield.set(True)
             RM.set_roles(broles, table)
+            # A hold a preset names fires after the normal action, so no wait on that button (the "avoid the first
+            # action" check stays off): holding it does the action and then the hold.
+            for b, r in table.items():
+                if b in I.HOLD_KEYS and r != "none" and b in hwait:
+                    hwait[b].set(False)
             paint_presets()
 
         for i, key in enumerate((*I.REMAP_PRESET_KEYS, "gamecube")):
@@ -1736,13 +1766,16 @@ def gui() -> None:
         srow.pack(fill="x", pady=(2, 0))
         ui["ctrl_summary"] = label(srow, "", size=9, color=DIM, bg=PANEL, wrap=1000)
         ui["ctrl_summary"].pack(side="left", fill="x", expand=True)
+        ui["ctrl_missing"] = label(pbody, "", size=9, color=DIM, bg=PANEL, wrap=1000)
+        ui["ctrl_missing"].pack(anchor="w", pady=(2, 0))
 
         abody = card(parent, L("buttons_title"), L("ctrl_advanced_desc"),
                      help=L("buttons_desc") + "\n\n" + L("bm_note") + "\n\n" + L("rm_help"))
         build_buttons(abody, embedded=True)
-        RM.RemapEditor(abody, L, FAM, COLORS,
-                       dict(bmap=bmap, roles=broles, bstyle=bstyle, bplace=bplace, bsimple=bsimple, switch_target=switch_target,
-                            auto_target=auto_target, sprint_toggle=sprint_l3_toggle, mshield=manual_shield))
+        ui["remap"] = RM.RemapEditor(abody, L, FAM, COLORS,
+                       dict(bmap=bmap, items=hud_items, roles=broles, hwait=hwait, bstyle=bstyle, bplace=bplace, bsimple=bsimple,
+                            switch_target=switch_target, auto_target=auto_target, sprint_toggle=sprint_l3_toggle,
+                            mshield=manual_shield))
 
         for var, tid in ui.get("ctrl_trace_ids", []):
             try:
@@ -1755,6 +1788,12 @@ def gui() -> None:
             if not ui.get("ctrl_summary"):
                 return
             roles = RM.roles_value(broles)
+            # The game's own actions that no button has (the list says so, in amber, right under the summary).
+            missing = [L("role_" + r) for r in I.roles_missing(roles)]
+            if ui.get("ctrl_missing") is not None:
+                ui["ctrl_missing"].config(text=(L("ctrl_missing") + "  " + ", ".join(missing)) if missing
+                                          else L("ctrl_all_assigned"),
+                                          fg=AMBER if missing else DIM)
             if not bmap.get():
                 roles = {b: ("none" if r in ("item1", "item2", "item3", "selector") else r)
                          for b, r in roles.items()}
@@ -1898,6 +1937,8 @@ def gui() -> None:
             body = card(parent, L("buttons_title"), help=L("buttons_desc") + "\n\n" + L("bm_note"))
         help_check(body, L("bm_on"), bmap, L("bm_on_desc"))
         ui["bm"] = []
+        # the item side of the mapping: our own item buttons and items 1-3 on any button
+        ui["bm"].append(help_check(body, L("hud_items"), hud_items, L("hud_items_desc")))
         row = UI.Frame(body, bg=PANEL)
         row.pack(anchor="w", pady=(10, 0))
         label(row, L("variant") + ":", size=10, bg=PANEL).pack(side="left", padx=(0, 8))

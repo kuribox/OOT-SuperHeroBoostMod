@@ -1,0 +1,24 @@
+[package]
+name = "shb-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Super Hero Boost companion: config block patching, installer and presets"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+# Pure-Rust zstd: the enemy packs are compressed with the game's own dictionary, and the C-backed crate needs a
+# C compiler the windows-gnu toolchain on this PC does not have.
+structured-zstd = "0.4"
+
+# The update check: GitHub's API over HTTPS through the system TLS (schannel on Windows). The rustls default needs
+# `ring`, whose build wants a C compiler this toolchain does not have.
+ureq = { version = "3", default-features = false, features = ["native-tls", "gzip"] }
+sha2 = "0.11"
+# The controller layout pack is a ZIP from GameBanana (pure-Rust inflate: no C compiler needed).
+zip = { version = "4", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+# The dictionary trainer, only for the tests: the payload ships a trained dictionary and the app never builds one.
+structured-zstd = { version = "0.4", features = ["dict-builder"] }
