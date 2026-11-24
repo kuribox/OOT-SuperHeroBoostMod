@@ -376,7 +376,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     }
 
     /* Link's age picks the set; an item the player does not have (a new game, an older save) leaves its slot */
-    if (g_shbcfg.button_mapping && player_active()) {
+    if (remap_items() && player_active()) {
         int ch = hud_is_child();
         if (ch >= 0) {
             int age = ch ? 0 : 1;
@@ -405,7 +405,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
 
     /* The item box the game uses (its item set) switched without the age flag: the other box is taken as it is,
      * like an age change (nothing borrowed in it, no swap with the slots). */
-    if (g_shbcfg.button_mapping) {
+    if (remap_items()) {
         static int box_set = -1;
         int bs = hud_box_child();
         if (bs >= 0 && bs != box_set) {
@@ -445,8 +445,8 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     g_game_paused = (u32)g_paused;
     int menu = g_paused && hud_menu_items();
     if (g_menu_assign_t < 1000) g_menu_assign_t++;
-    if (g_shbcfg.button_mapping && !menu) { hud_menu_off(); g_menu_box = -3; }
-    if (g_shbcfg.button_mapping && menu) {
+    if (remap_items() && !menu) { hud_menu_off(); g_menu_box = -3; }
+    if (remap_items() && menu) {
         /* -> SLOT_B, SLOT_L, SLOT_R: the slot's own button when the menu lets it (X / Y / L / R), else a free one
          * (classic layout: X, L, R). No button = the slot is on no button: nothing to assign. */
         u64 MENU_BTN[SLOT_ZR], menu_mask = 0;
@@ -532,7 +532,7 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     /* L as the game's item selector: outside menus, L does what R does (opens the selector for ZR).
      * The R slot is suppressed for this frame so an item assigned to R is not used as well. */
     u32 l_selector = 0;
-    if (g_shbcfg.button_mapping && (!g_shbcfg.manual_shield || remap_on()) && remap_selector_on() && hud_ingame() &&
+    if (remap_items() && (!g_shbcfg.manual_shield || remap_on()) && remap_selector_on() && hud_ingame() &&
         !(buttons & BTN_R)) {
         if (remap_on() && sel_held) {   /* the role's own button: L stays whatever its own role is */
             set_all(&view, 0, BTN_R);
@@ -557,16 +557,16 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     int using = g_phase == PH_EQUIP || g_phase == PH_HOLD || g_phase == PH_ZRBACK;
     /* The back role is the game's B only where B is not an item use: Link busy with something else (hanging, climbing,
      * swimming ... where the slot logic below leaves every button alone) or no item on the B slot. */
-    g_back_ok = !g_shbcfg.button_mapping || (!free_now && !using) || g_assign[SLOT_B] < 0;
+    g_back_ok = !remap_on() || (!free_now && !using) || g_assign[SLOT_B] < 0;
     /* With our item buttons the game's item selector opens only from L in the selector mode: R (and L as an item
      * button) never reach the game while Link plays, whatever he is doing (sword, hookshot, bow ...). Events
      * (dialogues, shops) and the ocarina (L / R are notes there) keep them. */
     u64 no_sel = 0;
-    if (g_shbcfg.button_mapping && ingame && !player_state_starts("Evt") && !g_songbook_active) {
+    if (remap_items() && ingame && !player_state_starts("Evt") && !g_songbook_active) {
         if (!l_selector) no_sel |= BTN_R;
         if (!(g_shbcfg.bm_l_mode == 2 && !remap_on())) no_sel |= BTN_L;   /* L is the selector only in the old mode */
     }
-    if (!g_shbcfg.button_mapping || (!free_now && !using)) {
+    if (!remap_items() || (!free_now && !using)) {
         if (no_sel) set_all(&view, no_sel, 0);
         if (g_phase == PH_GAP) g_phase_t = 0;   /* the gap counts free frames in a row */
         if (ingame && (pressed & (slot_mask(SLOT_B) | slot_mask(SLOT_L) | slot_mask(SLOT_R)))) {   /* remember why a slot button did nothing */
@@ -878,7 +878,7 @@ void button_mapping_on_open(const char *path, int mode) {
     /* The hook sees whatever the game passes. A pointer that is not guest memory must not be read:
      * this runs inside the game's own open call, so a bad read here is a crash somewhere else. */
     if (a < 0x10000ull || a >= 0x60000000000ull) return;
-    if (!g_shbcfg.button_mapping) return;
+    if (!remap_items()) return;
     if (path[0] != 's' || path[1] != 'a' || path[2] != 'v' || path[3] != 'e' || path[4] != ':')
         return;                                              /* not save: (content: is the romfs) */
     char ours[48];

@@ -108,7 +108,11 @@ as a bar; the rest keep the ring.
   They can break puzzles, quests or performance. Back up the save and test one at a time.
 - **Controls**: target with R3 (swaps ZL and R3; the app recommends setting the game's Targeting Type to **Toggle**),
   sprint while L3 is held (the game's sprint animation, without rolling), the manual shield, button mapping
-  (on/off, style, layout, L mode) and **Quick select**.
+  (on/off, style, layout, L mode) and **Quick select**. Button mapping is one switch for the whole card: off,
+  nothing is remapped and the options that ride on it (target, L3 sprint, manual shield, the target pair) are not
+  written to the mod at all. **Custom item HUD** is its item side: on, our own B / L / R / ZR buttons are drawn and
+  items 1, 2 and 3 can go on any button; off, the buttons are still remapped but the player's item HUD and the game's
+  item logic stay untouched (an item button keeps the game's own press).
 - **HUD**: rupee counter, clock (**off / 12 h / 24 h**, one selector), HUD layout, the area collectibles counter and
   **hide the minimap** (the corner map is not drawn while playing; the map screen still works).
 - **HUD layout**: **Wide** (the four native-style plates at the bottom), **Simple** (the four counters at the bottom,
