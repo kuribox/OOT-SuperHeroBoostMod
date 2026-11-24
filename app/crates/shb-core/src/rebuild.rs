@@ -347,16 +347,22 @@ mod tests {
 
     #[test]
     fn the_payload_folder_is_under_the_app() {
+        // The app folder is made here, not read from the disk this happens to run on: on a CI runner the workspace
+        // path is different and the fallback (the payload inside the program) answered instead.
+        let app = std::env::temp_dir().join("shb-rebuild-test-app");
+        let _ = std::fs::remove_dir_all(&app);
+        std::fs::create_dir_all(app.join("payload").join("standalone")).unwrap();
         let req = RebuildRequest {
             game: PathBuf::from("g"),
             profile: "recommended".to_string(),
             settings: None,
-            app: PathBuf::from("F:/project/super-hero-boost/app"),
+            app: app.clone(),
             mode: Mode::Install,
             rebuild: true,
             builder: None,
         };
-        assert!(req.payload().ends_with("payload"));
+        assert_eq!(req.payload(), app.join("payload"));
+        let _ = std::fs::remove_dir_all(&app);
     }
 
     #[test]

@@ -27,9 +27,10 @@ def rust_string(text: str) -> str:
 def build(app: Path) -> str:
     sys.path.insert(0, str(app))
     # Some pages keep their texts in their own module and merge them into `T` on import (`remap_ui`, the enemy
-    # aggression options): the window needs those too, so they are imported before the table is read. tkinter and
-    # zstandard are stubbed, since neither is needed to read a dict.
-    for name in ("tkinter", "tkinter.ttk", "tkinter.font", "zstandard"):
+    # aggression options): the window needs those too, so they are imported before the table is read. tkinter,
+    # customtkinter and zstandard are stubbed, since none of them is needed to read a dict (the CI runner has no
+    # customtkinter, and without the stub `remap_ui` does not import and its texts would be missing from the table).
+    for name in ("tkinter", "tkinter.ttk", "tkinter.font", "customtkinter", "zstandard"):
         if name not in sys.modules:
             try:
                 __import__(name)
