@@ -2791,56 +2791,11 @@ static void a_label_update(void) {
     g_sb_force[SB_A][i] = 0;
     g_sb_force[SB_A][31] = 0;
 }
-/* The game's guide (the "A Hablar" bar at the bottom) draws its own A / B / X / Y keys. With the remap the action
- * can sit on another physical button, so the key the player has to press is not the one the game shows: rewrite the
- * four key panes with the glyph of the button that now carries each role. It is re-applied every frame because the
- * game rewrites them whenever the prompt changes, and a wrong key would stay on screen until then.
- * The guide's keys are text panes and use the button font's private-use glyphs (U+E040 + n, n in the pad's own
- * order A B X Y L R ZL ZR), so the PlayStation and Xbox prompt styles follow on their own. */
-static void guide_keys_update(void) {
-    static const struct { char pane[12]; unsigned int role; unsigned int stock; } K[4] = {
-        {"T_KeyA_00", ROLE_ACTION, PB_A}, {"T_KeyB_00", ROLE_BACK, PB_B},
-        {"T_KeyX_00", ROLE_JUMP, PB_X}, {"T_KeyY_00", ROLE_SWORD, PB_Y},
-    };
-    static const unsigned char GLYPH[10] = {4, 2, 5, 3, 0, 7, 1, 6, 0xFF, 0xFF};   /* PB order -> font index */
-    static unsigned long long fr;
-    static u64 rec[4];
-    static char txt[4];
-    static unsigned char done[4] = {0xFF, 0xFF, 0xFF, 0xFF};
-    static unsigned long long sig;
-    if (!g_shbcfg.bm_remap || !g_aguide_frame || !vptr(g_aguide_frame)) return;
-    if (fr != g_aguide_frame) {          /* new layout frame: resolve the key panes once */
-        fr = g_aguide_frame;
-        for (u32 i = 0; i < 4; i++) { rec[i] = pane_record(fr, K[i].pane); done[i] = 0xFF; }
-        sig = 0;
-    }
-    {   /* the game rewrites the keys when the prompt changes or comes back: that is when ours must be re-sent.
-         * Written once per prompt and pane, never every frame: two writers on the same pane make the key blink. */
-        unsigned long long s2 = 0;
-        static int was_up;
-        int up = a_guide_up() != 0;
-        for (u32 i = 0; i < 12 && g_aguide_text[i]; i++) s2 = s2 * 31ull + (unsigned char)g_aguide_text[i];
-        if (s2 != sig || (up && !was_up)) { sig = s2; for (u32 i = 0; i < 4; i++) done[i] = 0xFF; }
-        was_up = up;
-    }
-    for (u32 i = 0; i < 4; i++) {
-        unsigned int phys = K[i].stock;
-        if (!rec[i]) continue;
-        for (u32 p = 0; p < PB_L3; p++)
-            if (remap_role_of(p) == K[i].role) { phys = p; break; }
-        if (GLYPH[phys] == 0xFF || done[i] == GLYPH[phys]) continue;   /* L3/R3 have no glyph: stock key */
-        done[i] = GLYPH[phys];
-        txt[0] = (char)0xEE; txt[1] = (char)0x81; txt[2] = (char)(0x80 + GLYPH[phys]); txt[3] = 0;
-        g_text_ref.s = txt; g_text_ref.len = 3; g_text_ref.z = 0; g_text_ref.m1 = -1;
-        set_text((void *)rec[i], &g_text_ref, 0);
-    }
-}
 static void slots_labels(u64 frame) {
     if (!BTNMAP) return;
     static const float LABEL[3] = {0.92f, 0.92f, 0.92f};
     if (!hud_ingame()) return;
     a_label_update();
-    guide_keys_update();
     float xx, xy, ax, ay;
     sb_xy(g_sb_lay, SB_X, 0, &xx, &xy);   /* the jump part: wherever jump is (remap, Jump/B swap) */
     sb_xy(g_sb_lay, SB_A, 0, &ax, &ay);
