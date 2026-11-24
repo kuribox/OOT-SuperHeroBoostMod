@@ -2,6 +2,7 @@
 #include "../../core/hid.h"
 #include "stamina.h"
 #include "../../core/config.h"
+#include "../../core/clock.h"
 
 /* Stamina system hooks (independent implementation).
  *
@@ -199,7 +200,7 @@ static void l3_inject_a(const HidView *v, u64 buttons, u32 moving) {
             if (moving) { g_l3_armed = 1; g_l3_idle = 0; }
             else if (g_l3_armed && f != g_l3_idle_frame) {   /* stopped: the sprint lets go by itself */
                 g_l3_idle_frame = f;
-                if (++g_l3_idle >= L3_IDLE_FRAMES) g_l3_on = 0;
+                if (++g_l3_idle >= shb_frames(L3_IDLE_FRAMES)) g_l3_on = 0;
             }
         }
         want = g_l3_on;
@@ -303,14 +304,14 @@ void stamina_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) 
         g_l3_neutral = 0;
         /* shield hits survive a short pause (the player's hit reaction); after a real break (menu, loading) they are dropped */
         if (!g_inactive_since) g_inactive_since = now ? now : 1;
-        if (now - g_inactive_since > 60u) g_guard_seen = player_guard_seq();
+        if (now - g_inactive_since > shb_frames(60u)) g_guard_seen = player_guard_seq();
         g_combat_hold = 0;
         hud_set_tired(0);
         hud_set_stamina(g_stamina.stamina, g_stamina.cap, 0.0f);
         return;
     }
     g_inactive_since = 0;
-    float dt = (now == 0 ? 1u : frames) * DT_FRAME;
+    float dt = (now == 0 ? 1u : frames) * shb_dt_frame();   /* real frame time, 1/60 when there is no clock */
 
     if (g_exhausted && g_stamina.stamina >= g_stamina.cap - 0.5f) g_exhausted = 0;   /* must refill completely */
     if (!g_exhausted && g_stamina.stamina <= 0.0f) g_exhausted = 1;
@@ -379,7 +380,7 @@ void stamina_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) 
         /* A roll starts with A + stick while the player is still in "Move" for a few frames: that is not a sprint.
          * Sprinting only counts once A has been held for RUN_HOLD_FRAMES in the Move state. */
         if (running && player_state_is("Move")) g_run_hold += (frames ? frames : 1); else g_run_hold = 0;
-        u32 draining = g_run_hold >= RUN_HOLD_FRAMES && !g_exhausted && g_stamina.stamina > 0.0f && cost_on(K_SPRINT);
+        u32 draining = g_run_hold >= shb_frames(RUN_HOLD_FRAMES) && !g_exhausted && g_stamina.stamina > 0.0f && cost_on(K_SPRINT);
         if (draining) {
             g_stamina.stamina -= RUN_DRAIN_PER_SEC * dt * g_stamina.drain_multiplier;
             if (g_stamina.stamina < 0.0f) g_stamina.stamina = 0.0f;

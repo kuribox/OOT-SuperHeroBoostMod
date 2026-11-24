@@ -17,6 +17,7 @@
  */
 #include "../../core/dispatch.h"
 #include "../../core/hid.h"
+#include "../../core/clock.h"
 #include "../../core/config.h"
 #include "../../core/remap.h"
 
@@ -163,7 +164,7 @@ void controls_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result)
     }
     if (g_sw_own) {
         if (now) {
-            if (!g_sw_long && f - g_sw_start >= SW_HOLD) {   /* held: drop the target */
+            if (!g_sw_long && f - g_sw_start >= shb_frames(SW_HOLD)) {   /* held: drop the target */
                 g_sw_long = 1;
                 g_sw_inject = SW_INJECT;
                 g_sw_cancels++;

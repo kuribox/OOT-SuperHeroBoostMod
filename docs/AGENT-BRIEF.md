@@ -74,6 +74,16 @@ target swap, L3 sprint, language — the table is in `docs/GUIA-DESARROLLO.md` �
 `app/installer.patch_config`, field in `installer.Settings`, CLI flag in `app/main.py`, control + `cfg` entry in
 `main.py`, and texts in `app/i18n.py` for the six languages (`en es pt fr de it`).
 
+## 4.1 Time: a frame is not a millisecond
+
+`core/clock.c` reads `CNTPCT_EL0` once per rendered frame (from `hud_frame`) and gives the features the real
+frame duration: `shb_dt_frame()` for a duration in seconds, `shb_frames(n)` to turn a threshold written in 60 Hz
+frames into the frames the game is actually running at (`shb_frames(18)` is 0.3 s at any rate; at 60 fps it
+returns exactly 18). The rate comes from `CNTFRQ_EL0` — 19.2 MHz on the console, **31.25 MHz in Fritchii**, so a
+hard-coded 19.2 makes every duration 63% off there — with 19.2 MHz as the fallback. If the counter is missing or
+implausible, every helper returns the old 1/60-per-frame value and the module behaves as before.
+`g_clock_dbg` = `{ok, last frame us, accumulated ms, cntfrq kHz, fps}`; read it live to see the rate.
+
 ## 5. Features (where the logic lives)
 
 - **Stamina** — `features/stamina/`. Reads the player's **action state** (`player+0x244`: `Rolling`, `Jump`,
@@ -92,9 +102,13 @@ target swap, L3 sprint, language — the table is in `docs/GUIA-DESARROLLO.md` �
   R3. Guard uses the stock locomotion path: the feature only decides whether it is allowed.
 - **Controls** — `features/controls/`: ZL↔R3 swap, L3 sprint. Runs **before** manual shield and stamina so they
   see the swapped buttons.
-- **Button mapping** — `features/button_mapping/`: own B/L/R/ZR item buttons, per-age, per-save. The game keeps
+- **Button mapping** — `features/button_mapping/` + `core/remap.c`: the remap of every button (`ShbConfig.bm_role`,
+  needs `ShbConfig.button_mapping`) and, as a second switch, its item side: own B/L/R/ZR item buttons, per-age,
+  per-save (`ShbConfig.hud_custom_items`, `remap_items()`). The game keeps
   the item box (ZR) in `PlayerStatus.AssignableItem.Child/Adult`; assignments persist in the mod's own
   `slot_NN/ootmaster.bin` written when the game opens `progress.sav` (hook on `nn::fs::OpenFile`).
+  Without the item side `remap_apply()` lets an item role's press through untouched and `core/hud.c` appends no
+  button parts (`PART_TOT`), so the game's own item HUD and item logic run as stock.
   Quantities come from `PouchData.<item>.StockNum` (Int table, live value `+0x1C`), allowlisted by stackable item.
 - **Quick select** — `features/quick_select/`: D-pad down = Iron/Hover boots, up = Lens/mask. Writes the
   GameData `Equip*` String64 **value and copy** (`+0x74` and `+0xC4`) — value alone only changes the menu icon.

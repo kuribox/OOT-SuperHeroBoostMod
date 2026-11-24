@@ -9,9 +9,11 @@ Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**
 
 ## Rules (non-negotiable)
 
-1. **Branch first, never commit to `main`.** Use `feat/…`, `fix/…`, `docs/…`. Merge into `main` only after
-   the user says it is good, and use `--no-ff` so the branch stays visible:
-   `git checkout main && git merge --no-ff <branch>`. Never merge on your own initiative.
+1. **Branch first, and everything lands in `development`.** Work always starts on a branch (`feat/…`,
+   `fix/…`, `docs/…`). Once the user says it is good, the branch merges into **`development`** with `--no-ff`,
+   so it stays visible: `git checkout development && git merge --no-ff <branch>`. `development` reaches `main`
+   only when a release is cut, also with `--no-ff` (`git checkout main && git merge --no-ff development`).
+   Never commit to `main` or `development` directly, and never merge on your own initiative.
 2. **Code first, tests after.** Implement and build, then prove it in the emulator or a recomp. A successful
    build is not evidence that a feature works. Report what was verified and what was only assumed.
 3. **Live tests go through the emulator's debug server** (memory reads/writes and synthetic input), not by
@@ -58,6 +60,13 @@ export SHB_GAME="E:/Switch2/Roms/Zelda Ocarina.nup"
 # 1. module + IPS for the emulator/standalone variant the app installs (~2 s)
 python tools/build_core.py --features controls,manual_shield,stamina,songbook,button_mapping,quick_select \
     --slots --compat --base 0x4F80000
+# 1b. THE INSTALLER DOES NOT READ build/: it copies app/payload/standalone, which a plain build_core does not
+#     refresh (tested, easy to get wrong: the emulator then runs an older module). Copy what was just built:
+cp build/native/exefs/subsdk9 app/payload/standalone/subsdk9
+cp build/native/exefs/E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips app/payload/standalone/ours.ips
+#     (tools/make_release.py does this for all three variants and the romfs options, and is the release path)
+# --debug-dump keeps the save:/slot_00/shbdebug.bin diagnostic (it creates files in the player's save
+# volume): test builds only, never the release payload.
 # 2. install with the app or its CLI (this overwrites ShbConfig with the chosen profile)
 python app/main.py --cli --emu "$SHB_EMU" --profile recommended
 # 3. run, load the save, read diagnostics, take screenshots

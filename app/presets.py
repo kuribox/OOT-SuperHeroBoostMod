@@ -21,7 +21,8 @@ SPRINT_PROFILE = 125     # every named profile: the same +25 % (x1.25)
 @dataclass(frozen=True)
 class Profile:
     key: str
-    button_mapping: bool         # buttonMapping (own item buttons); style, layout and L mode are not part of a profile
+    button_mapping: bool         # buttonMapping (the remap); style, layout and L mode are not part of a profile
+    hud_items: bool              # custom item HUD: our own B / L / R / ZR buttons and items 1-3
     stamina: bool
     mode: int                    # index in STAMINA_MODES
     costs: tuple                 # one bool per KEYS entry
@@ -60,7 +61,7 @@ class Profile:
     controls: Optional[str] = None   # a button table of installer.REMAP_PRESETS the profile applies (None: the user's own)
 
 
-def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 6, combat_only=False,
+def _profile(key, *, button_mapping=True, hud_items=True, stamina=True, mode=0, costs=(True,) * 6, combat_only=False,
              enemy_hp=100, damage=100, no_heart_drop=False, sprint_speed=SPRINT_PROFILE,
              hud_rupees=True, hud_clock=True, clock_24h=True, songbook=True,
              quick_boots=True, quick_mask=True, hud_collectibles=False, hud_mode="simple",
@@ -71,7 +72,7 @@ def _profile(key, *, button_mapping=True, stamina=True, mode=0, costs=(True,) * 
              sprint_l3_toggle=None, armory=None, controls=None):
     if armory is None:   # every profile that has the pack's buttons has the armory on the held D-pad right
         armory = button_mapping
-    return Profile(key=key, button_mapping=button_mapping, stamina=stamina, mode=mode, costs=costs,
+    return Profile(key=key, button_mapping=button_mapping, hud_items=hud_items, stamina=stamina, mode=mode, costs=costs,
                    combat_only=combat_only, enemy_hp=enemy_hp, damage=damage,
                    no_heart_drop=no_heart_drop, sprint_speed=sprint_speed,
                    hud_rupees=hud_rupees, hud_clock=hud_clock, clock_24h=clock_24h,
@@ -124,7 +125,7 @@ PROFILES = {
     # Only the manual shield: vanilla difficulty/HUD/controls off, no stamina, no extra buttons.
     # The wide layout keeps its element switches, so with every counter off nothing is drawn (the "simple"
     # row always shows the four counters).
-    "manual-shield": _profile("manual-shield", stamina=False, button_mapping=False, songbook=False,
+    "manual-shield": _profile("manual-shield", stamina=False, hud_items=False, songbook=False,
                               hud_rupees=False, hud_clock=False, hud_mode="wide", quick_boots=False,
                               quick_mask=False, hud_collectibles=False, manual_shield=True),
     # Classic Hero Mode: x1.5 enemy health, x2 damage, no hearts, no stamina system.
@@ -170,7 +171,7 @@ DEFAULT_PROFILE = "recommended"
 
 def defaults() -> dict:
     """Balanced starting values (same shape as a profile, without a fixed key)."""
-    return dict(button_mapping=True, stamina=True, mode=0, costs=(True,) * 6, combat_only=False,
+    return dict(button_mapping=True, hud_items=True, stamina=True, mode=0, costs=(True,) * 6, combat_only=False,
                 enemy_hp=100, damage=100, no_heart_drop=False, sprint_speed=SPRINT_DEFAULT,
                 hud_rupees=True, hud_clock=True, clock_24h=True, songbook=True,
                 quick_boots=True, quick_mask=True, hud_collectibles=False, hud_mode="wide",
@@ -186,7 +187,7 @@ def profile_values(key: str) -> dict:
     p = PROFILES.get(key)
     if p is None:
         return defaults()
-    return dict(button_mapping=p.button_mapping, stamina=p.stamina, mode=p.mode, costs=p.costs,
+    return dict(button_mapping=p.button_mapping, hud_items=p.hud_items, stamina=p.stamina, mode=p.mode, costs=p.costs,
                 combat_only=p.combat_only, enemy_hp=p.enemy_hp, damage=p.damage,
                 no_heart_drop=p.no_heart_drop, sprint_speed=p.sprint_speed,
                 hud_rupees=p.hud_rupees, hud_clock=p.hud_clock, clock_24h=p.clock_24h,
@@ -212,7 +213,8 @@ def settings_kwargs(key: str) -> dict:
     v = profile_values(key)
     costs = dict(zip(KEYS, v["costs"]))
     table = I.REMAP_PRESETS[v["controls"]] if v["controls"] else I.CLASSIC_ROLES
-    return dict(bm_roles=I.roles_with_armory(table) if v["armory"] else dict(I.normalize_roles(table)), button_mapping=v["button_mapping"], stamina=v["stamina"], songbook=v["songbook"],
+    return dict(bm_roles=I.roles_with_armory(table) if v["armory"] else dict(I.normalize_roles(table)), button_mapping=v["button_mapping"],
+                hud_items=v["hud_items"], stamina=v["stamina"], songbook=v["songbook"],
                 preset=v["mode"], combat_only=v["combat_only"], **costs,
                 enemy_hp=v["enemy_hp"], damage=v["damage"], no_heart_drop=v["no_heart_drop"],
                 sprint_speed=v["sprint_speed"], hud_rupees=v["hud_rupees"], hud_clock=v["hud_clock"],

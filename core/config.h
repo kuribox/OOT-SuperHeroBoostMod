@@ -76,6 +76,10 @@ typedef struct {
     /* Held face buttons (core/remap.h): the role of the long press of A, B, X and Y, in that order. 0 = none. The
      * short press keeps its role in bm_role. Appended after bm_role_dr: an older app leaves them 0. */
     unsigned char bm_hold[4];
+    /* Custom item HUD (Nov 24): 1 = our own item buttons on the HUD (B / L / R / ZR) and items 1, 2 and 3
+     * assignable to remapped buttons; 0 = mapping only: the player's item HUD and the game's item logic stay
+     * untouched and no button may hold an item role. Appended after bm_hold: an older app leaves it 0. */
+    unsigned char hud_custom_items;
 } ShbConfig;
 
 extern volatile ShbConfig g_shbcfg;

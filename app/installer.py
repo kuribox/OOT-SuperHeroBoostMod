@@ -202,6 +202,10 @@ BOSS_ANIM_DIR = {k: v.replace("enemy_anim_", "boss_anim_") for k, v in ENEMY_ANI
 HUD_X0 = -1518
 HUD_GAP = 24
 HUD_PLATE_W = (466.4, 466.4, 425.9, 425.9)   # rupee, clock, skulltulas, heart pieces
+# The simple / plain row is drawn at full size (hud_sx 100) with its own spacing: the x of the first block and how
+# much room each block takes before the next one starts (rupee 250, clock 240, skull 230).
+HUD_SIMPLE_X0 = -1685
+HUD_SIMPLE_ADV = (250, 240, 230, 230)
 
 
 class InstallError(Exception):
@@ -250,7 +254,8 @@ class Settings:
     enemy_aggro: int = 0             # one of AGGRO_LEVELS: 0 off, 1 aggressive, 2 maximum
     great_fairy: bool = False        # reorder the three Great Fairy magic rewards
     farore_outdoor: bool = False     # allow Farore's Wind points outside dungeons
-    button_mapping: bool = True      # buttonMapping: our own item buttons B / L / R / ZR on the HUD
+    button_mapping: bool = True      # buttonMapping: the remap of what every button does (the whole Controls card)
+    hud_items: bool = True           # custom item HUD: our B / L / R / ZR buttons and items 1-3 assignable
     button_style: str = "switch"     # one of BUTTON_STYLES: the button mapping's own button pictures
     bm_layout: str = "nintendo"      # one of BM_LAYOUTS: face button positions of the button mapping HUD
     game_layout: str = "none"        # one of GAME_LAYOUTS: download the game's own PS/Xbox prompts (optional)
@@ -584,13 +589,23 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
     b[f + 26] = int(s.quick_mask)
     mode = s.hud_mode if s.hud_mode in HUD_MODES else "wide"
     # The HUD layout is four block x positions plus plate/text/icon scales. Wide keeps the user's element
-    # switches; simple always shows the four elements in one row behind a soft translucent bar; plain is the
-    # same row with no bar at all.
+    # switches; simple and plain keep them too and pack the visible counters left to right (a disabled one takes
+    # no room: the soft bar of the simple layout is sized from the first and last visible block).
     if mode in ("simple", "plain"):
-        pos = [-1685, -1435, -1195, -965]
-        rupees = clock = collectibles = True
+        # The row keeps the user's element switches and packs what is left: a counter that is off is gone and the
+        # others move left (the soft bar behind them follows: core/hud.c sizes it from the end blocks).
+        rupees, clock, collectibles = s.hud_rupees, s.hud_clock, s.hud_collectibles
+        slots = []
+        if rupees: slots.append(0)
+        if clock: slots.append(1)
+        if collectibles: slots += [2, 3]
+        pos = [-32768] * 4
+        x = float(HUD_SIMPLE_X0)
+        for block in slots:
+            pos[block] = int(round(x))
+            x += HUD_SIMPLE_ADV[block]
         sx, sy, ts, isc, plates, maph, hy, ioff, tx, ioff2 = (100, 48, 50, 45, 2 if mode == "simple" else 0,
-                                                              0, -1010, -140, 0, -80)
+                                                              0, -1010, -140, 10, -130)
     else:
         rupees, clock, collectibles = s.hud_rupees, s.hud_clock, s.hud_collectibles
         slots = []
@@ -627,13 +642,10 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                 b[f + 60] = int(s.no_magic_drop)        # struct 76: magic jars become rupees (romfs)
                 b[f + 61] = int(s.hide_minimap)         # struct 77: hide the corner minimap
                 b[f + 62] = int(s.sprint_l3_toggle)     # struct 78 (was padding): L3 sprint as a toggle
-                if size >= 0x5A and s.bm_remap:         # 0.9.0: button remap
+                if size >= 0x5A and s.bm_remap and s.button_mapping:         # 0.9.0: button remap
                     roles = normalize_roles(s.bm_roles)
                     if not s.manual_shield:             # the Shield role needs the manual shield
                         roles = {k: ("none" if v == "shield" else v) for k, v in roles.items()}
-                    if not s.button_mapping:            # no item slots without the item buttons
-                        roles = {k: ("none" if v in ("item1", "item2", "item3", "selector") else v)
-                                 for k, v in roles.items()}
                     b[f + 63] = 1                                            # struct 79: bm_remap
                     for k, btn in enumerate(REMAP_BUTTONS[:10]):             # struct 80..89: bm_role[]
                         b[f + 64 + k] = ROLES.index(roles[btn])
@@ -650,9 +662,23 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                     b[f + 54] = int(s.manual_shield)
                     b[f + 55] = 0                                            # target_r3: target can be on R3 itself
                     b[f + 56] = int(fl["sprint_l3"])
+                elif size >= 0x5A:
+                    # Button mapping off: nothing that rides on it may stay active in the module. The table stays in
+                    # the app's own settings, so turning it back on restores it; the module gets the classic layout.
+                    b[f + 63] = 0                                            # bm_remap
+                    b[f + 24] = 0                                            # bm_l_mode (L as the selector)
+                    b[f + 54] = b[f + 55] = b[f + 56] = 0                     # manual shield, target_r3, sprint L3
+                    b[f + 57] = b[f + 58] = 0                                # auto / switch target
+                    b[f + 62] = 0                                            # L3 sprint toggle
+                    if size >= 0x5D:
+                        b[f + 76] = 0                                        # bm_role_dr (the armory on D-pad right)
+                    if size >= 0x61:
+                        b[f + 77:f + 81] = b"\0\0\0\0"                        # bm_hold[]
     if size >= 0x5C:                                    # struct 90 / 91 (the old tail padding): HUD scales
         b[f + 74] = hud_scale(s.hud_ctrl_scale)
         b[f + 75] = hud_scale(s.hud_count_scale)
+    if size >= 0x62:                                    # struct 97: custom item HUD (our B / L / R / ZR buttons)
+        b[f + 81] = int(s.hud_items and s.button_mapping)   # (no button mapping, no item side)
     return bytes(b)
 
 
