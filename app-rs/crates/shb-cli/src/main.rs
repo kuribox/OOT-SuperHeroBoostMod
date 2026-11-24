@@ -604,6 +604,28 @@ fn run(args: &[String]) -> Result<()> {
             }
             Ok(())
         }
+        "play" => {
+            let emu = o.emu.clone().or_else(|| o.game.clone()).ok_or_else(|| {
+                Error::io(
+                    PathBuf::from("--emu"),
+                    std::io::Error::other("the emulator or game folder is required"),
+                )
+            })?;
+            let exe = shb_core::find::emulator_exe(&emu)
+                .or_else(|| {
+                    shb_core::rekarina::find(&emu)
+                        .and_then(|rk| shb_core::rekarina::launcher_of(&rk))
+                })
+                .or_else(|| {
+                    shb_core::game::find(&emu)
+                        .map(|game| game.root)
+                        .and_then(|root| shb_core::find::launcher_of(&root))
+                })
+                .ok_or_else(|| Error::NotAGame(emu.clone()))?;
+            shb_core::find::launch(&exe)?;
+            println!("opened {}", exe.display());
+            Ok(())
+        }
         "rebuild" => {
             let path = o.game.clone().ok_or_else(|| {
                 Error::io(

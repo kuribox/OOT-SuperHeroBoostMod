@@ -188,10 +188,13 @@ part of this app runs in Python:
   hooks need (74 mid-function resume points, the same the Python reference computes), write the expected-hash table
   with our module, check the base the lifter used, and replace the executable atomically.
 
-## Not ported yet
+## Everything the Python app does
 
-The GameCube UI artwork (`app/gamecube.py`): it cuts the prompts out of the game's own UI archive, which needs the
-dump. `tools/gen_gamecube.py` generates the texture table it uses; the cut itself is not in this port.
+The install of every target (emulator, recompiled game, Rekarina), its uninstall, the rebuild in all four flavours,
+the settings file, the presets and profiles, the enemy packs, the downloadable controller layouts, the GameCube UI
+artwork (`shb-core/src/gamecube.rs`, cut from the game's own archive), the updater, and **Play**: the button opens the
+emulator, the recompiled game's launcher or Rekarina's own executable, detached from the window (`shb play --emu <dir>`
+from the CLI).
 
 Known gap of the environment, not of this port: the builder the Python app drives (`tools/nx2/make_game.py`) is not
 on this PC any more (the installed Longshot is the .NET `LongshotBuilder`), so a Longshot rebuild fails for the

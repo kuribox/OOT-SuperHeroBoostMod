@@ -12,8 +12,11 @@ pub const TITLE_ID: &str = "0400486024DEC000";
 pub const MOD_NAME: &str = "zz-Super-Hero-Boost"; // must sort last: the loader lets the last mod win each file
 pub const MARKER: &str = ".super-hero-boost";
 
-const EMU_EXES: [&str; 9] = [
-    "eden", "citron", "sudachi", "suyu", "torzu", "yuzu", "ryujinx", "kenji-nx", "kenjinx",
+/// The emulators this port knows by name. `fritchii` and `lichii` are here because that is what the Switch 2
+/// emulator on this machine is called (its folder holds two programs, so "the only one" cannot decide).
+const EMU_EXES: [&str; 11] = [
+    "fritchii", "lichii", "eden", "citron", "sudachi", "suyu", "torzu", "yuzu", "ryujinx",
+    "kenji-nx", "kenjinx",
 ];
 const EMU_SKIP: [&str; 7] = [
     "maintenance",
@@ -375,4 +378,55 @@ mod tests {
         assert!(other_exefs_mods(&mods, &["00-Other"]).is_empty());
         let _ = fs::remove_dir_all(mods);
     }
+}
+
+/// The programs that open a recompiled game: its launcher first (ReLink.exe, longshot.exe…), then the game itself.
+pub const LAUNCHER_NAMES: [&str; 9] = [
+    "longshot.exe",
+    "longshot",
+    "hookshot.exe",
+    "hookshot",
+    "ReLink.exe",
+    "ReLink",
+    "relink.exe",
+    "relink",
+    "relink-game",
+];
+
+/// What opens a recompiled game: the launcher beside it, else the game under `bin/`.
+pub fn launcher_of(game: &Path) -> Option<PathBuf> {
+    for name in LAUNCHER_NAMES {
+        let candidate = game.join(name);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    crate::game::EXES
+        .iter()
+        .map(|name| game.join(name))
+        .find(|candidate| candidate.is_file())
+}
+
+/// Start a program away from this app: its own folder, no window of ours waiting for it, no inherited handles.
+///
+/// A rebuild cannot run while the game is open, and the player wants to see the game start now: it is detached (its
+/// own process group), so closing this window does not close it.
+pub fn launch(exe: &Path) -> crate::Result<()> {
+    use std::process::{Command, Stdio};
+    let mut cmd = Command::new(exe);
+    if let Some(dir) = exe.parent() {
+        cmd.current_dir(dir);
+    }
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const DETACHED_PROCESS: u32 = 0x0000_0008;
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
+    }
+    cmd.spawn().map_err(|e| crate::Error::io(exe, e))?;
+    Ok(())
 }

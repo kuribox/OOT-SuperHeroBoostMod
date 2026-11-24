@@ -299,6 +299,51 @@ impl App {
         }
     }
 
+    /// Open what the page points at: the emulator, the launcher of a recompiled game, or Rekarina's own executable.
+    fn play(&mut self) {
+        let path = PathBuf::from(self.emu.trim());
+        if self.emu.trim().is_empty() {
+            self.failed = true;
+            self.status = Some(fill(self.t("e_launch_emu"), &[("a", self.emu.trim())]));
+            return;
+        }
+        let found = match self.target {
+            Target::Emulator => shb_core::find::emulator_exe(&path),
+            Target::Recomp => {
+                let game = shb_core::game::find(&path).map(|game| game.root);
+                game.and_then(|root| shb_core::find::launcher_of(&root))
+            }
+            Target::Rekarina => {
+                shb_core::rekarina::find(&path).and_then(|rk| shb_core::rekarina::launcher_of(&rk))
+            }
+        };
+        let Some(exe) = found else {
+            self.failed = true;
+            let key = if self.target == Target::Emulator {
+                "e_launch_emu"
+            } else {
+                "e_launch_recomp"
+            };
+            self.status = Some(fill(self.t(key), &[("a", self.emu.trim())]));
+            return;
+        };
+        match shb_core::find::launch(&exe) {
+            Ok(()) => {
+                self.failed = false;
+                let name = exe
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                self.status = Some(fill(self.t("launched"), &[("a", &name)]));
+                self.say(format!("launched {name}"));
+            }
+            Err(err) => {
+                self.failed = true;
+                self.status = Some(format!("{err}"));
+            }
+        }
+    }
+
     /// Keep what the window knows about where things are: the three folders, the builder, the target, the profile and
     /// the language. It is the Python app's own set of keys, in its own file.
     fn remember(&mut self) {
@@ -1015,6 +1060,9 @@ impl eframe::App for App {
                 ui.horizontal(|ui| {
                     if primary_button(ui, tr(lang, "install")).clicked() {
                         self.install();
+                    }
+                    if ghost_button(ui, tr(lang, "launch")).clicked() {
+                        self.play();
                     }
                     if ghost_button(ui, tr(lang, "uninstall")).clicked() {
                         self.uninstall();

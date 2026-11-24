@@ -462,6 +462,14 @@ pub fn adopt_build(game: &Rekarina, s: &Settings, payload: &Path, built: &Path) 
     write_state(game, &sha256(&data), &new_sha, true, None)
 }
 
+/// What opens a Rekarina game: its own executable, under either spelling.
+pub fn launcher_of(game: &Rekarina) -> Option<PathBuf> {
+    [EXE_NAME, "rekarina"]
+        .iter()
+        .map(|name| game.root.join(name))
+        .find(|path| path.is_file())
+}
+
 /// Say that the game was rebuilt with the module (the state's `rebuilt` flag), from what is on disk now.
 pub fn mark_rebuilt(game: &Rekarina) -> Result<()> {
     let exe_sha = sha256(&read(&exe_path(game))?);
