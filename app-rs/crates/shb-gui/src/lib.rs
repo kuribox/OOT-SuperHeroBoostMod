@@ -139,6 +139,13 @@ impl Target {
     }
 }
 
+/// Which of the two folder fields asked for a folder: the page's path, or the builder of a recompiled game.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Browse {
+    Target,
+    Builder,
+}
+
 /// The stamina modes of the config block, with the Python app's names.
 const PRESET_KEYS: [&str; 4] = ["m_hardcore", "m_combat", "m_sprint", "m_advanced"];
 
@@ -237,7 +244,13 @@ impl App {
             rebuild_rx: None,
             rebuild_stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             pick_rx: None,
-            builder: state.builder.clone(),
+            // A remembered builder that is not one any more (the launcher was updated, the folder moved) must not
+            // stay in the field: it is what the rebuild would run.
+            builder: if shb_core::rebuild::is_builder(std::path::Path::new(&state.builder)) {
+                state.builder.clone()
+            } else {
+                String::new()
+            },
             busy: None,
             pick_builder: false,
             update_rx: None,
@@ -247,6 +260,13 @@ impl App {
             None => app.say(tr(app.ui_lang, "e_no_payload")),
         }
         app.refresh_emulator();
+        // `SHB_BROWSE=builder|game` opens that folder dialog at start: how a headless check sees the dialog the
+        // buttons open (the window keeps painting while the dialog runs in its own thread).
+        match std::env::var("SHB_BROWSE").as_deref() {
+            Ok("builder") => app.request_folder(Browse::Builder),
+            Ok("game") | Ok("target") => app.request_folder(Browse::Target),
+            _ => {}
+        }
         app
     }
 
@@ -300,6 +320,64 @@ impl App {
             return;
         }
 
+        // A recompiled game keeps its mods where its recompiler looks for them — `<game>/mods/<name>/romfs` — and not
+        // in the emulator's `user/load/<title>`; the module in its exefs is what says the mod is there.
+        if self.target == Target::Recomp {
+            match shb_core::game::find(&path) {
+                Some(game) => {
+                    let mods = shb_core::game::mods_dir(&game);
+                    let module = game.exefs.join("subsdk9");
+                    let installed = shb_core::game::is_installed(&game);
+                    self.status = Some(
+                        tr(
+                            self.ui_lang,
+                            if installed {
+                                "state_installed"
+                            } else {
+                                "state_not_installed"
+                            },
+                        )
+                        .to_string(),
+                    );
+                    let line = if mods.is_dir() {
+                        fill(self.t("mods_found"), &[("a", &mods.display().to_string())])
+                    } else {
+                        tr(self.ui_lang, "mods_missing").to_string()
+                    };
+                    self.say(line);
+                    // The module is the mod: the recompiler folds `mods/<name>` into its own merged folder during a
+                    // build, so that folder being gone afterwards says nothing about the install.
+                    self.say(format!(
+                        "{}: {}",
+                        module.display(),
+                        tr(
+                            self.ui_lang,
+                            if installed {
+                                "installed"
+                            } else {
+                                "state_not_installed"
+                            }
+                        )
+                    ));
+                    if let Some(exe) = shb_core::find::launcher_of(&game.root) {
+                        self.say(format!("{}: {}", tr(self.ui_lang, "launch"), exe.display()));
+                    }
+                    if !rebuild::is_builder(std::path::Path::new(self.builder.trim()))
+                        && let Some(found) = rebuild::detected_builder(&path)
+                    {
+                        self.builder = found.root.display().to_string();
+                        self.say(format!("builder: {}", self.builder));
+                    }
+                }
+                None => {
+                    let missing = tr(self.ui_lang, "mods_missing");
+                    self.status = Some(missing.to_string());
+                    self.say(format!("{} {}", missing, path.display()));
+                }
+            }
+            return;
+        }
+
         let info = install::inspect(&path);
         let installed = info.installed.as_ref().map(|p| {
             format!(
@@ -332,7 +410,7 @@ impl App {
         }
         // A recompiled game: the builder this port would run, so the player sees it and can change it.
         if self.target == Target::Recomp
-            && self.builder.trim().is_empty()
+            && !rebuild::is_builder(std::path::Path::new(self.builder.trim()))
             && let Some(found) = rebuild::detected_builder(&path)
         {
             self.builder = found.root.display().to_string();
@@ -455,11 +533,28 @@ impl App {
 
     /// Ask the system for a folder. The dialog blocks, so it runs in its own thread and the answer arrives through a
     /// channel — the window keeps drawing while it is open (and a dialog opened from the paint code would deadlock).
-    fn pick_folder(&mut self) {
+    /// One "Examinar…" for the two fields: it says which one asked (that is where the answer goes) and opens the
+    /// dialog at the folder that is in it.
+    fn request_folder(&mut self, which: Browse) {
+        self.pick_builder = which == Browse::Builder;
+        let start = match which {
+            Browse::Target => PathBuf::from(self.emu.trim()),
+            Browse::Builder => PathBuf::from(self.builder.trim()),
+        };
+        self.pick_folder_from(start);
+    }
+
+    fn pick_folder_from(&mut self, start: PathBuf) {
         if self.pick_rx.is_some() {
             return;
         }
-        let start = std::path::PathBuf::from(self.emu.trim());
+        // A test or a headless run says where the answer would come from instead of opening a window.
+        if std::env::var_os("SHB_NO_DIALOG").is_some() {
+            let (tx, rx) = channel();
+            let _ = tx.send(None);
+            self.pick_rx = Some(rx);
+            return;
+        }
         let title = tr(self.ui_lang, "pick_folder").to_string();
         let (tx, rx) = channel();
         std::thread::spawn(move || {
@@ -1240,7 +1335,7 @@ impl App {
                             .hint_text("E:/Switch2/Emu/…"),
                     );
                     if ghost_button(ui, tr(lang, "browse")).clicked() {
-                        self.pick_folder();
+                        self.request_folder(Browse::Target);
                     }
                 });
 
@@ -1261,7 +1356,7 @@ impl App {
                                 .hint_text(tr(lang, "recomp_builder_btn")),
                         );
                         if ghost_button(ui, tr(lang, "browse")).clicked() {
-                            self.pick_builder = true;
+                            self.request_folder(Browse::Builder);
                         }
                     });
                 }

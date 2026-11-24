@@ -165,6 +165,16 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// Where a recompiled game keeps its mods: `<game>/mods`, each one in its own folder with a `romfs` inside.
+pub fn mods_dir(game: &Game) -> PathBuf {
+    game.root.join("mods")
+}
+
+/// Our own folder inside `mods/`, whether or not it holds the files right now.
+pub fn our_mod_dir(game: &Game) -> PathBuf {
+    mods_dir(game).join(MOD_NAME)
+}
+
 /// The game holds our module (installed, whether or not it was compiled).
 pub fn is_installed(game: &Game) -> bool {
     game.exefs.join("subsdk9").is_file()
@@ -187,16 +197,20 @@ pub fn stage(game: &Game, s: &Settings, payload: &Path) -> Result<bool> {
     if !bid.is_empty() && !bid.starts_with(MODULE_BUILD) {
         return Err(Error::WrongBuild(bid));
     }
-    backup_once(game)?;
-
-    // exefs/subsdk9: the payload's module of this flavor, with the settings written into it.
+    // Read the payload first: a missing file must fail here, before the backup is taken and the folders are made,
+    // so a failed install leaves the game exactly as it was.
     let variant = game.flavor.payload_variant();
     let source = payload.join(variant).join("subsdk9");
     if !source.is_file() {
         return Err(Error::PayloadMissing(source));
     }
     let module = read(&source)?;
-    write(&game.exefs.join("subsdk9"), &patch_config(&module, s)?)?;
+    let module = patch_config(&module, s)?;
+
+    backup_once(game)?;
+
+    // exefs/subsdk9: the payload's module of this flavor, with the settings written into it.
+    write(&game.exefs.join("subsdk9"), &module)?;
 
     // image.bin carries the same block for the compiled executable.
     let image = game.root.join("image.bin");
@@ -331,6 +345,11 @@ pub fn uninstall(game: &Game) -> Result<bool> {
                 restored = true;
             }
         }
+    }
+    // The backup has served its purpose: a later install must take a fresh one from the restored files, not reuse
+    // this manifest (whose "created" entries would then delete files the player had before).
+    if restored {
+        let _ = std::fs::remove_dir_all(&backup);
     }
     Ok(restored)
 }

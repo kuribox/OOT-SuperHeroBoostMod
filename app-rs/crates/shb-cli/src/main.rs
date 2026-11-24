@@ -91,6 +91,10 @@ fn main() -> ExitCode {
     // One file, two faces: started with nothing (a double click, a shortcut) it opens the window; with a command it
     // is the CLI. `--gui` says it out loud, for a script that wants the window.
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    if matches!(argv.first().map(String::as_str), Some("--help" | "-h")) {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    }
     if matches!(
         argv.first().map(String::as_str),
         Some("--version" | "-V" | "-v")
@@ -761,7 +765,7 @@ fn run(args: &[String]) -> Result<()> {
                 if image { " and image.bin" } else { "" }
             );
             println!(
-                "the code has to be compiled into the game: that rebuild is not ported to the Rust app yet"
+                "the code has to be compiled into the game: `shb rebuild --mode recompile --game <folder>` does it"
             );
             Ok(())
         }

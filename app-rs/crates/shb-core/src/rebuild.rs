@@ -148,6 +148,14 @@ pub fn find_builders(game: &Path, flavor: Flavor) -> Vec<Builder> {
     out
 }
 
+/// Whether a folder is a builder this port can drive (`tools/nx2/make_game.py` inside it).
+pub fn is_builder(root: &Path) -> bool {
+    root.join("tools")
+        .join("nx2")
+        .join("make_game.py")
+        .is_file()
+}
+
 /// The builder this port would use for a game folder: the launcher's newest toolchain, or one beside the game.
 pub fn detected_builder(game: &Path) -> Option<Builder> {
     let found = game::find(game)
