@@ -74,11 +74,19 @@ extern const u64 REMAP_BIT[PB_N];
 #define REMAP_DR_HOLD 20u
 u32 remap_role_of(u32 phys);        /* the role on a physical button (bm_role_dr for PB_DR) */
 
-/* A, B, X, Y and D-pad right (PB_DR) can also have a role for the LONG press, in ShbConfig.bm_hold (A, B, X, Y) and
- * bm_role_dr. A button with a hold role is held back until it is known which press it is (REMAP_DR_HOLD HUD frames):
- * released before, its short role goes to the game as a short pulse; held longer, the hold role is pressed and the
- * short one never is. 0 = the button has no hold role. */
+/* A, B, X, Y, L, R and D-pad right (PB_DR) can also have a role for the LONG press, in ShbConfig.bm_hold (A, B, X, Y),
+ * bm_hold_lr (L, R) and bm_role_dr. A button whose short role is shield, target, sprint, the selector, the armory or an
+ * item has no hold (those roles act held or at once), and those roles are never a hold role (D-pad right excepted:
+ * its short press is the game's Navi call, not a role of ours). Two ways to tell the presses apart (remap_hold_wait):
+ *  - wait: the short role is held back until it is known which press it is (REMAP_DR_HOLD HUD frames): released
+ *    before, it goes to the game as a short pulse; held longer, only the hold role is pressed. A small delay on the
+ *    short role, but a hold never fires it.
+ *  - no wait: the short role acts at once and, when the press is held long enough, lets go and the hold role comes
+ *    on top (a hold does the short role first).
+ * 0 = the button has no hold role. */
 u32 remap_hold_role(u32 phys);
+/* 1: the short press of this held button waits for the hold (ShbConfig.bm_hold_wait), 0: it acts at once. */
+u32 remap_hold_wait(u32 phys);
 int remap_on(void);                 /* the player's own table is in use (needs ShbConfig.button_mapping) */
 /* The item side of the remap: our own item buttons on the HUD and the item roles (1, 2, 3, the selector and the
  * main item) assignable. ShbConfig.button_mapping gates the whole feature; the app writes

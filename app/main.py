@@ -361,6 +361,9 @@ def gui() -> None:
             I.CLASSIC_ROLES, manual_shield=bool(cfg.get("manual_shield", False)),
             target_r3=bool(cfg.get("target_r3", False)), sprint_l3=bool(cfg.get("sprint_l3", False)),
             l_selector=cfg.get("bm_l_mode") == "selector"))
+    # How each held button tells a short press from a long one (app/remap_ui.py): wait for the hold, or act at once.
+    _hw = cfg.get("bm_hold_wait") if isinstance(cfg.get("bm_hold_wait"), dict) else {}
+    hwait = {k: tk.BooleanVar(value=bool(_hw.get(k, I.DEFAULT_HOLD_WAIT[k]))) for k in I.HOLD_WAIT_KEYS}
     stamina = tk.BooleanVar(value=bool(cfg.get("stamina", True)))
     stamina_bar = tk.BooleanVar(value=bool(cfg.get("stamina_bar", False)))
     songbook = tk.BooleanVar(value=bool(cfg.get("songbook", True)))
@@ -609,7 +612,7 @@ def gui() -> None:
         refresh()
         autosave()
 
-    for var in (bstyle, bplace, glayout, bsimple, blmode):
+    for var in (bstyle, bplace, glayout, bsimple, blmode, *hwait.values()):
         var.trace_add("write", on_pref_change)
 
     def roles_to_flags(*_):
@@ -642,7 +645,7 @@ def gui() -> None:
         return I.Settings(button_mapping=bmap.get(), button_style=bstyle.get(), bm_simple=bsimple.get(),
                           bm_layout=bplace.get(), game_layout=glayout.get(),
                           bm_l_mode=blmode.get(), stamina=stamina.get(), stamina_bar=stamina_bar.get(),
-                          hud_items=hud_items.get(),
+                          hud_items=hud_items.get(), bm_hold_wait={k: v.get() for k, v in hwait.items()},
                           bm_remap=True, bm_roles=RM.roles_value(broles),
                           songbook=songbook.get(),
                           quick_boots=quick_boots.get(), quick_mask=quick_mask.get(),
@@ -680,6 +683,7 @@ def gui() -> None:
             "bm_layout": bplace.get(), "game_layout": glayout.get(),
             "bm_l_mode": blmode.get(),
             "bm_roles": RM.roles_value(broles),
+            "bm_hold_wait": {k: v.get() for k, v in hwait.items()},
             "stamina": stamina.get(), "stamina_bar": stamina_bar.get(), "songbook": songbook.get(),
             "quick_boots": quick_boots.get(), "quick_mask": quick_mask.get(),
             "manual_shield": manual_shield.get(),
@@ -1757,7 +1761,7 @@ def gui() -> None:
                      help=L("buttons_desc") + "\n\n" + L("bm_note") + "\n\n" + L("rm_help"))
         build_buttons(abody, embedded=True)
         ui["remap"] = RM.RemapEditor(abody, L, FAM, COLORS,
-                       dict(bmap=bmap, items=hud_items, roles=broles, bstyle=bstyle, bplace=bplace, bsimple=bsimple,
+                       dict(bmap=bmap, items=hud_items, roles=broles, hwait=hwait, bstyle=bstyle, bplace=bplace, bsimple=bsimple,
                             switch_target=switch_target, auto_target=auto_target, sprint_toggle=sprint_l3_toggle,
                             mshield=manual_shield))
 

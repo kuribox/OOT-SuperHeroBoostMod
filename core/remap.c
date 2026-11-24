@@ -53,15 +53,32 @@ u32 remap_role_of(u32 p) {
     return p < PB_DR ? g_shbcfg.bm_role[p] : ROLE_NONE;
 }
 
+/* Roles that act held or at once: a button with one has no hold, and none of them is a hold role. */
+static int hold_blocked(u32 r) {
+    return r == ROLE_SHIELD || r == ROLE_TARGET || r == ROLE_SPRINT || r == ROLE_SELECTOR || r == ROLE_ARMORY ||
+           r == ROLE_ITEM1 || r == ROLE_ITEM2 || r == ROLE_ITEM3 || r == ROLE_ITEM_MAIN;
+}
+
 u32 remap_hold_role(u32 p) {
+    u32 role;
     switch (p) {
-    case PB_DR: return g_shbcfg.bm_role_dr;
-    case PB_A:  return g_shbcfg.bm_hold[0];
-    case PB_B:  return g_shbcfg.bm_hold[1];
-    case PB_X:  return g_shbcfg.bm_hold[2];
-    case PB_Y:  return g_shbcfg.bm_hold[3];
+    case PB_DR: return g_shbcfg.bm_role_dr;   /* the arrow's short press is Navi's: nothing of ours to clash with */
+    case PB_A:  role = g_shbcfg.bm_hold[0]; break;
+    case PB_B:  role = g_shbcfg.bm_hold[1]; break;
+    case PB_X:  role = g_shbcfg.bm_hold[2]; break;
+    case PB_Y:  role = g_shbcfg.bm_hold[3]; break;
+    case PB_L:  role = g_shbcfg.bm_hold_lr[0]; break;
+    case PB_R:  role = g_shbcfg.bm_hold_lr[1]; break;
     default:    return ROLE_NONE;
     }
+    if (hold_blocked(remap_role_of(p)) || hold_blocked(role)) return ROLE_NONE;
+    return role;
+}
+
+u32 remap_hold_wait(u32 p) {
+    static const unsigned char BIT_OF[PB_N] = {5, 3, 6, 4, 1, 0xFF, 2, 0xFF, 0xFF, 0xFF, 0};   /* PB_ order: L X R Y A ZR B ZL L3 R3 DR; bit 0 DR 1 A 2 B 3 X 4 Y 5 L 6 R */
+    unsigned b = p < PB_N ? BIT_OF[p] : 0xFF;
+    return b == 0xFF ? 0 : (g_shbcfg.bm_hold_wait >> b) & 1u;
 }
 
 u32 remap_role_phys(u32 role) {

@@ -234,12 +234,12 @@ for _lang, _t in {
 
 # the author's own table: items on the triggers, the item selector on B
 for _lang, (_n, _d) in {
-    'en': ('Triggers', 'Items on the triggers (R, ZL, ZR), the item selector on B, the shield on L, target on R3. Hold B: Back (the B of the game).'),
-    'es': ('Gatillos', 'Objetos en los gatillos (R, ZL, ZR), selector de objetos en B, escudo en L, fijar en R3. Mantener B: la B del juego (Atrás).'),
-    'pt': ('Gatilhos', 'Itens nos gatilhos (R, ZL, ZR), seletor de itens no B, escudo no L, mirar no R3. Segurar B: o B do jogo (Voltar).'),
-    'fr': ('Gâchettes', "Objets sur les gâchettes (R, ZL, ZR), sélecteur d'objets sur B, bouclier sur L, cibler sur R3. Maintenir B : le B du jeu (Retour)."),
-    'de': ('Trigger', 'Items auf den Triggern (R, ZL, ZR), Item-Auswahl auf B, Schild auf L, Anvisieren auf R3. B halten: das B des Spiels (Zurück).'),
-    'it': ('Grilletti', 'Oggetti sui grilletti (R, ZL, ZR), selettore oggetti su B, scudo su L, mira su R3. Tieni B: il B del gioco (Indietro).'),
+    'en': ('Triggers', 'Items on the triggers (R, ZL, ZR), the item selector on B, the shield on L, target on R3. Hold X: Back (the B of the game).'),
+    'es': ('Gatillos', 'Objetos en los gatillos (R, ZL, ZR), selector de objetos en B, escudo en L, fijar en R3. Mantener X: la B del juego (Atrás).'),
+    'pt': ('Gatilhos', 'Itens nos gatilhos (R, ZL, ZR), seletor de itens no B, escudo no L, mirar no R3. Segurar X: o B do jogo (Voltar).'),
+    'fr': ('Gâchettes', "Objets sur les gâchettes (R, ZL, ZR), sélecteur d'objets sur B, bouclier sur L, cibler sur R3. Maintenir X : le B du jeu (Retour)."),
+    'de': ('Trigger', 'Items auf den Triggern (R, ZL, ZR), Item-Auswahl auf B, Schild auf L, Anvisieren auf R3. X halten: das B des Spiels (Zurück).'),
+    'it': ('Grilletti', 'Oggetti sui grilletti (R, ZL, ZR), selettore oggetti su B, scudo su L, mira su R3. Tieni X: il B del gioco (Indietro).'),
 }.items():
     if _lang in T:
         T[_lang]['preset_triggers'] = _n
@@ -265,9 +265,21 @@ for _lang, (_n, _h, _hh) in {
         T[_lang]['role_back_help'] = _h
         T[_lang]['hold_help'] = _hh
 
+
+# held buttons: L and R too, how the short press behaves while the button is held, and the buttons that have no hold
+_HOLD_TXT = {'en': ('Hold the button for about a third of a second to do this. Not available when the button above is the shield, target, sprint, the item selector, the armory or an item: those act while held or at once. The option below chooses what the short press does meanwhile.', 'Skip the tap action when held (adds a short delay)', 'ON: holding the button only does the hold action. To know which press it is, the tap action waits about a third of a second before it runs, so every tap on this button is a little late. OFF: the tap action runs at once, with no delay; if you keep holding, the hold action is done as well, after it.', "Don't call Navi when held (adds a short delay)", "ON: holding D-pad right only does the hold action; Navi's call waits about a third of a second to know which press it is, so a tap on the arrow calls her a little late. OFF: Navi answers at once and, if you keep holding, the hold action comes after.", 'No hold here: {a} acts while the button is held or at once.'), 'es': ('Mantén el botón un tercio de segundo para hacer esto. No disponible si el botón de arriba es escudo, fijar, sprint, selector de objetos, armería o un objeto: esas acciones actúan al mantener o al instante. La opción de abajo elige qué hace mientras tanto la pulsación corta.', 'Evitar la acción normal al mantener (añade un pequeño retraso)', 'ACTIVADO: al mantener el botón solo se hace la acción de mantener. Para saber qué pulsación es, la acción normal espera un tercio de segundo antes de ejecutarse, así que cada toque en este botón llega un poco tarde. DESACTIVADO: la acción normal se ejecuta al instante, sin retraso; si sigues manteniendo, se hace también la de mantener, después.', 'No llamar a Navi al mantener (añade un pequeño retraso)', 'ACTIVADO: al mantener la cruceta derecha solo se hace la acción de mantener; la llamada a Navi espera un tercio de segundo para saber qué pulsación es, así que un toque en la flecha la llama un poco tarde. DESACTIVADO: Navi responde al instante y, si sigues manteniendo, la acción de mantener va después.', 'Sin mantener aquí: {a} actúa mientras se mantiene el botón o al instante.'), 'pt': ('Segure o botão por cerca de um terço de segundo para fazer isto. Indisponível quando o botão de cima é escudo, mira, corrida, seletor de itens, arsenal ou um item: essas ações agem enquanto seguradas ou na hora. A opção abaixo escolhe o que o toque curto faz nesse meio tempo.', 'Evitar a ação normal ao segurar (adiciona um pequeno atraso)', 'LIGADO: ao segurar o botão só a ação de segurar acontece. Para saber qual toque é, a ação normal espera cerca de um terço de segundo antes de rodar, então cada toque neste botão chega um pouco atrasado. DESLIGADO: a ação normal roda na hora, sem atraso; se continuar segurando, a de segurar também acontece, depois.', 'Não chamar a Navi ao segurar (adiciona um pequeno atraso)', 'LIGADO: ao segurar o direcional direito só a ação de segurar acontece; a chamada da Navi espera cerca de um terço de segundo para saber qual toque é, então um toque na seta a chama um pouco atrasada. DESLIGADO: a Navi responde na hora e, se continuar segurando, a ação de segurar vem depois.', 'Sem segurar aqui: {a} age enquanto o botão é segurado ou na hora.'), 'fr': ("Maintenez le bouton environ un tiers de seconde pour faire ceci. Indisponible quand le bouton du dessus est le bouclier, cibler, le sprint, le sélecteur d'objets, l'armurerie ou un objet : ces actions agissent pendant le maintien ou tout de suite. L'option ci-dessous choisit ce que fait l'appui court entre-temps.", "Éviter l'action normale au maintien (ajoute un petit délai)", "ACTIVÉ : maintenir le bouton ne fait que l'action de maintien. Pour savoir de quel appui il s'agit, l'action normale attend environ un tiers de seconde avant de s'exécuter : chaque appui bref sur ce bouton arrive donc un peu en retard. DÉSACTIVÉ : l'action normale s'exécute tout de suite, sans délai ; si vous continuez à maintenir, l'action de maintien est faite aussi, après.", 'Ne pas appeler Navi au maintien (ajoute un petit délai)', "ACTIVÉ : maintenir la croix droite ne fait que l'action de maintien ; l'appel de Navi attend environ un tiers de seconde pour savoir de quel appui il s'agit, donc un appui bref sur la flèche l'appelle un peu en retard. DÉSACTIVÉ : Navi répond tout de suite et, si vous continuez à maintenir, l'action de maintien vient après.", 'Pas de maintien ici : {a} agit pendant le maintien du bouton ou tout de suite.'), 'de': ('Halte die Taste etwa eine Drittelsekunde, um dies zu tun. Nicht verfügbar, wenn die Taste darüber Schild, Anvisieren, Sprint, Item-Auswahl, Waffenkammer oder ein Item ist: Diese Aktionen wirken beim Halten oder sofort. Die Option darunter legt fest, was der kurze Druck derweil macht.', 'Normale Aktion beim Halten überspringen (kleine Verzögerung)', 'AN: Beim Halten der Taste passiert nur die Halten-Aktion. Um den Druck zu unterscheiden, wartet die normale Aktion etwa eine Drittelsekunde, bevor sie läuft; jeder kurze Druck auf diese Taste kommt also etwas später. AUS: Die normale Aktion läuft sofort, ohne Verzögerung; hältst du weiter, folgt danach auch die Halten-Aktion.', 'Navi beim Halten nicht rufen (kleine Verzögerung)', 'AN: Beim Halten von Steuerkreuz rechts passiert nur die Halten-Aktion; Navis Ruf wartet etwa eine Drittelsekunde, um den Druck zu unterscheiden, ein kurzer Druck auf den Pfeil ruft sie also etwas später. AUS: Navi antwortet sofort; hältst du weiter, folgt danach die Halten-Aktion.', 'Kein Halten hier: {a} wirkt, solange die Taste gehalten wird, oder sofort.'), 'it': ("Tieni premuto il tasto circa un terzo di secondo per fare questo. Non disponibile quando il tasto sopra è scudo, mira, sprint, selettore oggetti, armeria o un oggetto: quelle azioni agiscono durante la pressione o subito. L'opzione sotto sceglie cosa fa nel frattempo la pressione breve.", "Evita l'azione normale quando è tenuto (aggiunge un piccolo ritardo)", "ATTIVO: tenendo il tasto si fa solo l'azione di pressione lunga. Per capire quale pressione è, l'azione normale aspetta circa un terzo di secondo prima di partire, quindi ogni tocco su questo tasto arriva un po' in ritardo. DISATTIVO: l'azione normale parte subito, senza ritardo; se continui a tenere premuto si fa anche quella lunga, dopo.", 'Non chiamare Navi quando è tenuto (aggiunge un piccolo ritardo)', "ATTIVO: tenendo la croce destra si fa solo l'azione di pressione lunga; la chiamata di Navi aspetta circa un terzo di secondo per capire quale pressione è, quindi un tocco sulla freccia la chiama un po' in ritardo. DISATTIVO: Navi risponde subito e, se continui a tenere premuto, l'azione lunga viene dopo.", 'Nessuna pressione lunga qui: {a} agisce mentre il tasto è premuto o subito.')}
+for _lang, (_hh, _w, _wh, _wd, _wdh, _bl) in _HOLD_TXT.items():
+    if _lang in T:
+        T[_lang]['hold_help'] = _hh
+        T[_lang]['opt_hwait'] = _w
+        T[_lang]['opt_hwait_help'] = _wh
+        T[_lang]['opt_hwait_dr'] = _wd
+        T[_lang]['opt_hwait_dr_help'] = _wdh
+        T[_lang]['hold_blocked'] = _bl
+
 # ---------------------------------------------------------------- model
 # The order the editor lists the buttons in (face buttons, shoulders, sticks). The module's order is I.REMAP_BUTTONS.
-ROW_ORDER = ("X", "X_hold", "Y", "Y_hold", "A", "A_hold", "B", "B_hold", "L", "R", "ZL", "ZR", "L3", "R3", "DR")
+ROW_ORDER = ("X", "X_hold", "Y", "Y_hold", "A", "A_hold", "B", "B_hold", "L", "L_hold", "R", "R_hold", "ZL", "ZR", "L3", "R3", "DR")
 FACE = ("A", "B", "X", "Y")
 STICKS = ("L3", "R3")
 # glyph drawn for each game button per button style (tools/make_buttons.py GLYPHS)
@@ -419,8 +431,9 @@ class RemapEditor:
         for var in v["roles"].values():
             self._traces.append((var, var.trace_add("write", lambda *_: self.redraw())))
         self.frame.bind("<Destroy>", self._drop_traces)
-        self._shown_opts: dict[str, str] = {}
+        self._shown_opts: dict[str, tuple] = {}
         self._enabled = True
+        self._lock: set = set()   # the lists of the held rows that have no hold now (their button's own role acts held)
         self.redraw()
 
     # ---- helpers ----
@@ -450,7 +463,8 @@ class RemapEditor:
         """Every list and box of the table follows the switch (the role options are rebuilt on each redraw)."""
         if isinstance(w, (UI.Select, UI.Check)):
             try:
-                w.config(state=("readonly" if isinstance(w, UI.Select) else "normal") if self._enabled else "disabled")
+                live = self._enabled and w not in self._lock
+                w.config(state=("readonly" if isinstance(w, UI.Select) else "normal") if live else "disabled")
             except tk.TclError:
                 pass
         for c in w.winfo_children():
@@ -498,11 +512,12 @@ class RemapEditor:
             set_roles(rv, {b: ("none" if var.get() == "shield" else var.get()) for b, var in rv.items()})
         self.redraw()
 
-    def _options_for(self, btn: str, role: str):
-        """The options of the role on this row: target (switch, next one) and sprint (toggle)."""
-        if self._shown_opts.get(btn) == role:
+    def _options_for(self, btn: str, role: str, blocked_by: str | None = None):
+        """The options of the role on this row: target (switch, next one) and sprint (toggle); on a held row, how the
+        short press behaves, or why the row has no hold (blocked_by: the role of its button)."""
+        if self._shown_opts.get(btn) == (role, blocked_by):
             return
-        self._shown_opts[btn] = role
+        self._shown_opts[btn] = (role, blocked_by)
         help_slot, f = self.opts[btn]
         for w in list(f.winfo_children()) + list(help_slot.winfo_children()):
             w.destroy()
@@ -512,6 +527,9 @@ class RemapEditor:
                      ("opt_auto", self.v["auto_target"])]
         elif role == "sprint":
             items = [("opt_toggle", self.v["sprint_toggle"])]
+        wait_key = btn[:-5] if btn in I.HOLD_KEYS else ("DR" if btn == "DR" else None)
+        if wait_key and not blocked_by and role != "none":   # a hold is set: how its short press behaves
+            items.append(("opt_hwait_dr" if btn == "DR" else "opt_hwait", self.v["hwait"][wait_key]))
         bg = self.c["PANEL"]
         for key, var in items:
             line = UI.Frame(f, bg=bg)
@@ -523,6 +541,12 @@ class RemapEditor:
             help_icon(help_slot, self.L(ROLE_HELP[role]), self.c, self.fam).pack(side="left")
         if btn in I.HOLD_KEYS:   # what a long press means for this button
             help_icon(help_slot, self.L("hold_help"), self.c, self.fam).pack(side="left", padx=(4, 0))
+        if blocked_by:   # the button's own role acts held or at once: nothing to hold for
+            line = UI.Frame(f, bg=bg)
+            line.pack(anchor="w", pady=1)
+            UI.Label(line, text=self.L("hold_blocked", a=self.role_name(blocked_by)), bg=bg, fg=self.c["DIM"],
+                     font=(self.fam, 9), justify="left", anchor="w", wraplength=330).pack(side="left")
+            items = items or [None]
         if btn == "DR":   # the arrow is Navi's call: only the long press is the role
             line = UI.Frame(f, bg=bg)
             line.pack(anchor="w", pady=1)
@@ -545,11 +569,16 @@ class RemapEditor:
         roles = self._roles()
         on = self.v["bmap"].get()
         items = self._items_on()
+        self._lock = set()
         for b, cb in self.combos.items():
             # the item roles are only offered with the custom item HUD; without it the table's own stays visible
             ch = [r for r in self.choices[b] if ((on or r not in ("item1", "item2", "item3", "selector"))
                                                 and (items or r not in I.ITEM_ROLES or r == roles[b]))
                   and (r != "shield" or self.v["mshield"].get() or roles[b] == "shield")]
+            blocked = None
+            if b in I.HOLD_KEYS and roles[b[:-5]] in I.HOLD_BLOCK_ROLES:   # no hold on a shield / target / item ... button
+                blocked, ch = roles[b[:-5]], ["none"]
+                self._lock.add(cb)
             cb.config(values=[self.role_name(r) for r in ch])
             self.choices[b] = ch + [r for r in self.choices[b] if r not in ch]   # (hidden ones stay pickable by index)
             cb.current(ch.index(roles[b]) if roles[b] in ch else 0)
@@ -559,7 +588,7 @@ class RemapEditor:
                 self.chips[b].create_text(31, 14, text="↓", fill=self.c["DIM"], font=(self.fam, 11, "bold"))
             else:
                 self._chip(self.chips[b], 20, 14, b, 12)
-            self._options_for(b, roles[b])
+            self._options_for(b, roles[b], blocked)
         n_items = sum(1 for r in roles.values() if r in I.ITEM_ROLES)
         self.count.config(text=self.L("rm_items", n=n_items) if items else "")
         notes = []
