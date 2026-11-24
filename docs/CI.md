@@ -1,7 +1,9 @@
 # Builds (GitHub Actions)
 
-`.github/workflows/build.yml` builds the installation app on Windows, Linux and macOS and the presets zip,
-without a local machine of each OS.
+`.github/workflows/build.yml` builds the apps on Windows, Linux and macOS and the presets zip, without a local machine
+of each OS. `.github/workflows/rust-app.yml` is the current app alone: `cargo fmt --check`, `cargo clippy -D warnings`,
+`cargo test`, the generated texts and artwork (`gen_i18n.py --check`, `gen_gamecube.py --check`, `check_gui_keys.py`), a
+release build, and the parity check against the legacy app.
 
 ## When it runs
 
@@ -37,14 +39,19 @@ clear message if the release or the file is missing.
 
 | Job | File | Release asset |
 |---|---|---|
-| Windows | `release/SHB-OcarinaTweaks.exe` | `SHB-OcarinaTweaks.exe` |
-| Linux | `release/SHB-OcarinaTweaks-linux` | `SHB-OcarinaTweaks-linux` |
-| macOS | `release/SHB-OcarinaTweaks-macos.dmg` | `SHB-OcarinaTweaks-macos.dmg` |
+| Windows | `release/SHB-OcarinaTweaks.exe` (the current app, Rust) | `SHB-OcarinaTweaks.exe` |
+| Windows | `release/legacy/SHB-OcarinaTweaks.exe` (the legacy app) | artifact `app-windows-legacy`, not published |
+| Linux | `release/legacy/SHB-OcarinaTweaks` -> `release/SHB-OcarinaTweaks-linux` (legacy) | `SHB-OcarinaTweaks-linux` |
+| macOS | `release/legacy/SHB-OcarinaTweaks.app` (legacy) | `SHB-OcarinaTweaks-macos.dmg` |
 | Presets | `release/SuperHeroBoost-<version>-presets.zip` (+ `.sha256`) | same name |
+
+The Windows job builds **both** apps with `python tools/build_app.py --all`. Linux and macOS build the legacy one
+(`--legacy`): the Rust window has only been run on Windows so far, and publishing it untested on those systems would be
+worse than shipping the app that is known to work there.
 
 Every asset carries its platform in the name: `.exe` is Windows, `-linux` is the Linux binary (ELF, no
 extension by convention) and `-macos.dmg` is the macOS disk image with the `.app` inside. The names match what
-`app/updater.py` looks for (it also still accepts the older names), so the in-app update check keeps working.
+`app-legacy/updater.py` looks for (it also still accepts the older names), so the in-app update check keeps working.
 
 The release job then replaces the auto-generated notes with `docs/RELEASE-<version>.md` when that file exists,
 so the release page shows the full notes instead of just the changelog link.

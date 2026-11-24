@@ -156,7 +156,7 @@ reads them every frame (`g_shbcfg`). **Fields are only appended at the end** (us
 
 **Adding a new option:** field in `config.h` (taking bytes from `reserved`), default value in `config.c`, write in
 `installer.patch_config` (`f = magic + 16`), field in `installer.Settings`, flag in `main.cli`, control in `main.py`
-(variable, saved in `cfg`, `Settings(...)`) and texts in `app/i18n.py` for the 6 languages (`en es pt fr de it`).
+(variable, saved in `cfg`, `Settings(...)`) and texts in `app-legacy/i18n.py` for the 6 languages (`en es pt fr de it`).
 
 ## 4. Features
 
@@ -302,16 +302,16 @@ python tools/build_app.py        # native app binary (PyInstaller). Close the ap
 ```
 
 `build_app.py` works on Windows, macOS and Linux, but PyInstaller does not cross-compile: run it on each target OS.
-The app uses Tkinter and portable paths (`app/paths.py`); it needs no administrator permissions.
+The app uses Tkinter and portable paths (`app-legacy/paths.py`); it needs no administrator permissions.
 
-The app (`app/main.py` UI, `app/presets.py` profiles, `app/installer.py` logic, `app/i18n.py` texts):
+The app (`app-legacy/main.py` UI, `app-legacy/presets.py` profiles, `app-legacy/installer.py` logic, `app-legacy/i18n.py` texts):
 1. finds the emulator's mods folder (honours `load_directory`);
 2. copies the standalone variant and the textures of the chosen button style, and patches the configuration block;
 3. warns about other exefs mods that may conflict.
 
 It also has a command-line mode (the same install code):
 ```
-python app/main.py --cli --emu "EMULATOR_PATH" --profile hero-stamina --preset 0 --rupees --clock --sprint-speed 125
+python app-legacy/main.py --cli --emu "EMULATOR_PATH" --profile hero-stamina --preset 0 --rupees --clock --sprint-speed 125
 ```
 
 ## 7. Testing in the emulator

@@ -71,8 +71,8 @@ fields at `magic + 16`. The mod reads it every frame (`g_shbcfg`). **Append fiel
 target swap, L3 sprint, language — the table is in `docs/GUIA-DESARROLLO.md` §3.3.
 
 **Adding an option** touches six places: `config.h` field, default in `config.c`, write in
-`app/installer.patch_config`, field in `installer.Settings`, CLI flag in `app/main.py`, control + `cfg` entry in
-`main.py`, and texts in `app/i18n.py` for the six languages (`en es pt fr de it`).
+`app/installer.patch_config`, field in `installer.Settings`, CLI flag in `app-legacy/main.py`, control + `cfg` entry in
+`main.py`, and texts in `app-legacy/i18n.py` for the six languages (`en es pt fr de it`).
 
 ## 4.1 Time: a frame is not a millisecond
 

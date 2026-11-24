@@ -28,12 +28,18 @@ jobs:
         run: python tools/ci_payload.py
       - name: Install PyInstaller
         run: python -m pip install --upgrade pip pyinstaller zstandard
-      - name: Build
-        run: python tools/build_app.py
+      # Both apps: `app/` (Rust, the current one) and `app-legacy/` (Python).
+      - name: Build the current app (Rust) and the legacy one (Python)
+        run: python tools/build_app.py --all
       - uses: actions/upload-artifact@v4
         with:
           name: app-windows
           path: release/SHB-OcarinaTweaks.exe
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-windows-legacy
+          path: release/legacy/SHB-OcarinaTweaks.exe
           if-no-files-found: error
 
   linux:
@@ -48,10 +54,10 @@ jobs:
         run: python3 tools/ci_payload.py
       - name: Install PyInstaller
         run: python3 -m pip install --user --upgrade pyinstaller zstandard
-      - name: Build
-        run: python3 tools/build_app.py
+      - name: Build (the legacy app: the Rust one has only been run on Windows)
+        run: python3 tools/build_app.py --legacy
       - name: Name the binary
-        run: mv release/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-linux
+        run: mv release/legacy/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-linux
       - name: Check the binary
         run: test -x release/SHB-OcarinaTweaks-linux
       - uses: actions/upload-artifact@v4
@@ -72,19 +78,19 @@ jobs:
         run: python tools/ci_payload.py
       - name: Install PyInstaller
         run: python -m pip install --upgrade pip pyinstaller zstandard
-      - name: Build
-        run: python tools/build_app.py
+      - name: Build (the legacy app: the Rust one has only been run on Windows)
+        run: python tools/build_app.py --legacy
       - name: Package the app (dmg, or zip if the bundle is missing)
         run: |
           set -e
-          if [ -d release/SHB-OcarinaTweaks.app ]; then
+          if [ -d release/legacy/SHB-OcarinaTweaks.app ]; then
             mkdir -p build/dmg
-            cp -R release/SHB-OcarinaTweaks.app build/dmg/
+            cp -R release/legacy/SHB-OcarinaTweaks.app build/dmg/
             ln -s /Applications build/dmg/Applications
             hdiutil create -volname "SHB-OcarinaTweaks" -srcfolder build/dmg -ov \
               -format UDZO release/SHB-OcarinaTweaks-macos.dmg
           else
-            ditto -c -k release/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-macos.zip
+            ditto -c -k release/legacy/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-macos.zip
           fi
       - uses: actions/upload-artifact@v4
         with:

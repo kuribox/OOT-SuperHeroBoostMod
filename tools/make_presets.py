@@ -1,6 +1,6 @@
 """Build one GameBanana-ready zip with every profile of the app as a ready-to-install mod.
 
-For each named profile in app/presets.py this stages the exact folder the app's Install would write
+For each named profile in app-legacy/presets.py this stages the exact folder the app's Install would write
 (module patched with the profile, IPS patch, button textures and the optional romfs files) and packs
 all of them into:
 
@@ -20,7 +20,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "app"))
+sys.path.insert(0, str(ROOT / "app-legacy"))
 import i18n          # noqa: E402
 import installer as I  # noqa: E402
 import presets       # noqa: E402

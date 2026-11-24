@@ -5,7 +5,7 @@ Working agreement for every agent that touches this repo. It is the first file t
 (architecture, hooks, HUD, build) and `docs/RE-NOTES.md` (addresses, formats, what failed and why).
 
 Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**, `main` Build ID
-`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.9.3** (`app/version.py`).
+`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.10.0** (`app-legacy/version.py`, `app/Cargo.toml`).
 
 ## Rules (non-negotiable)
 
@@ -28,6 +28,27 @@ Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**
    translator mis-splits functions with tail calls; `build_core.py` enforces both.
 7. **Append config fields only at the end** of `ShbConfig` (`core/config.h`) — the app patches by offset.
 8. Code, comments and docs in English; answer the user in the language they write in (Spanish).
+
+## Repository layout
+
+| Folder | What it is |
+|---|---|
+| `core/`, `features/` | the module (C), built into `subsdk9` + an IPS over `main` |
+| `app/` | the **current app**: Rust, one executable (`SHB-OcarinaTweaks.exe`: the window with no arguments, the CLI with one). A cargo workspace (`crates/shb-core`, `shb-cli`, `shb-gui`) with its own `tools/` |
+| `app-legacy/` | the **first app**: Python (Tkinter / CustomTkinter), bundled with PyInstaller. Kept working, and kept as the reference the Rust app is compared against |
+| `app/payload/` | the built mod (module of each variant, IPS, button art, romfs options). **Shared by both apps**, made by `tools/make_release.py`, never committed |
+| `tools/` | build, release and research scripts; `tools/build_app.py` builds the apps |
+| `docs/` | documentation and release notes (`docs/RELEASE-<version>.md` is what CI publishes) |
+
+```bash
+python tools/build_app.py            # the current app (cargo build --release -p shb-cli) -> release/SHB-OcarinaTweaks.exe
+python tools/build_app.py --legacy   # the Python app (PyInstaller) -> release/legacy/ + the presets zip
+python tools/build_app.py --all      # both
+```
+
+Only source is committed under `app/`: `.gitignore` keeps out `target/`, `target-dev/` and the payload, and lets
+through the few non-code files the build needs (`app/assets/*.png`, `gamecube_textures.bin`, the settings fixtures of
+the tests). Cargo output of a long build goes to `app/target-dev` (`CARGO_TARGET_DIR`) so a running exe is not locked.
 
 ## Where things are on this PC
 
@@ -67,8 +88,10 @@ cp build/native/exefs/E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348.ips app/payload/s
 #     (tools/make_release.py does this for all three variants and the romfs options, and is the release path)
 # --debug-dump keeps the save:/slot_00/shbdebug.bin diagnostic (it creates files in the player's save
 # volume): test builds only, never the release payload.
-# 2. install with the app or its CLI (this overwrites ShbConfig with the chosen profile)
-python app/main.py --cli --emu "$SHB_EMU" --profile recommended
+# 2. install with the app or its CLI (this overwrites ShbConfig with the chosen profile). The current app is Rust:
+#    (cd app && cargo build --release -p shb-cli); the Python one still runs from the sources.
+app/target/release/SHB-OcarinaTweaks.exe install --emu "$SHB_EMU" --profile recommended
+#    python app-legacy/main.py --cli --emu "$SHB_EMU" --profile recommended    # the legacy app, same result
 # 3. run, load the save, read diagnostics, take screenshots
 python tools/live_check.py --load-a 4 --keep --linger 3
 ```
@@ -96,11 +119,12 @@ request at a time: while an input sequence runs, reads wait — measure through 
   branches reach it without relocations.
 - Rekarina builds for `main + 0x5200000` with `--rekarina` (synthetic `eh_frame_hdr` seed table).
 
-## The Rust configurator (`app-rs/`, branch `feat/rust-app`)
+## The current app (`app/`, Rust)
 
-A port of the app in Rust, byte-identical to the Python one (`tools/parity_check.py`: 56/56 patch images, 16/16
-install trees, 2/2 Rekarina installs). Build: `export PATH="/c/Users/Kuri/.cargo/bin:$PATH"` then
-`cargo build --release -p shb-cli` in `app-rs/` (one executable, `SHB-OcarinaTweaks.exe`: the window when
+The configurator, in Rust, byte-identical to the legacy Python one in `app-legacy/` (`app/tools/parity_check.py`:
+56/56 patch images, 7/7 install trees, 7/7 recompiled games — `main` with its hooks included — and 7/7 Rekarina
+installs). Build: `export PATH="/c/Users/Kuri/.cargo/bin:$PATH"` then
+`cargo build --release -p shb-cli` in `app/` (one executable, `SHB-OcarinaTweaks.exe`: the window when
 started with no arguments, the CLI with one); the window is eframe/egui 0.37 with the **wgpu** backend (glow
 segfaults here).
 
@@ -109,15 +133,14 @@ segfaults here).
   (1 169 files, 27 MB) so `SHB-OcarinaTweaks.exe` works alone, unpacking it once into
   `%LOCALAPPDATA%\SHB-OcarinaTweaks\payload\<content stamp>\`; a `payload/` folder beside the exe still wins.
 - **The rebuild is native for recompiled games** (`shb-core/src/recomp_build.rs` + `rebuild.rs`): it finds the builder
-  (Longshot's launcher keeps its toolchains under `%LOCALAPPDATA%\LongshotLauncher	oolchains\<version>\`), works out
+  (Longshot's launcher keeps its toolchains under `%LOCALAPPDATA%\LongshotLauncher\toolchains\<version>\`), works out
   DLSS/FSR/XeSS from the launcher's files, and drives `tools/nx2/make_game.py`, reading its `@@stage`/`@@progress`
   lines. The recompiler itself stays an external program — that is its compiler, not ours.
 - **Rekarina's rebuild is native too** (`shb-core/src/rekarina_build.rs`): it runs the setup's own `gen.py`,
   `build_game.py` and its converters (they are Rekarina's tools) but does this app's part — ExeFS staging, the
   patch tables, the extra `main` seeds, the expected hashes, the base check — in Rust.
   NSO sizes are `data`'s memory + decompressed + bss at `0x3c`, aligned to a page; modules are placed on **2 MiB**
-  boundaries, which is what makes `subsdk9` land at `main+0x5200000`. A run against `F:\Switch2
-ekarina` reports
+  boundaries, which is what makes `subsdk9` land at `main+0x5200000`. A run against `F:\Switch2\rekarina` reports
   `exefs: … .ips (49 sites)`, `74 extra main seeds`, 553 generated C files in 4 modules and 701 compile steps —
   the same numbers the Python reference gives.
 - **Verified end to end (2026-11-24)**: a Rekarina rebuild driven by `shb rebuild` produced a 374 MB `Rekarina.exe`,
@@ -147,23 +170,24 @@ ekarina` reports
 
 - Longshot's installed builder is `LongshotBuilder` **v3.0.0-rc.7 (.NET)** under
   `%LOCALAPPDATA%\LongshotLauncher\toolchains\v3.0.0-rc.7\LongshotBuilder`; `tools/install_longshot.py` and
-  `app/recomp.py` look for the older python builder (`tools/nx2/make_game.py`). A rebuild through them will
+  `app-legacy/recomp.py` look for the older python builder (`tools/nx2/make_game.py`). A rebuild through them will
   fail until the builder matches — check before promising a Longshot rebuild.
 - The Longshot builder keeps its work at `%LOCALAPPDATA%\LongshotLauncher\work` (`image/`, `sa/gen/`,
   `objcache/`); the lifted C chunks appear there during a build, not in the game folder.
 - `gh` is missing: open PRs and releases through `git push` + the GitHub web UI, or install the CLI.
 
-## Rust port of the companion app (`app-rs/`)
+## Notes on the Rust app (`app/`)
 
-Branch `feat/rust-app`: a second implementation of the app, to learn Rust against a known-good reference. It is
-**not** what the installer ships; the Python app in `app/` is.
+It was written against the Python app (now `app-legacy/`) as its reference, and `app-legacy/` stays: change a
+behaviour in one and the other must follow, or the parity check says so. Windows is the only OS the Rust window has
+been run on; Linux and macOS releases are still the legacy app.
 
 - Layout: `crates/shb-core` (settings, `ShbConfig` offsets, remap, presets, install, IPS, path/language
-  detection), `crates/shb-cli` (the binary, `SHB-OcarinaTweaks`), `crates/shb-gui` (the egui window as a library, English/Spanish only).
-- **Parity is the contract**: `py -3.12 app-rs/tools/parity_check.py --app app --payload app/payload --mode all`
-  patches and installs with both implementations and compares bytes. On 2026-11-23: 56/56 images identical
-  (16 profiles + 40 random settings), 16/16 install trees identical and 5/5 recompiled games identical (module,
-  `image.bin`, romfs), the enemy packs included (those compare after decompression with the game's dictionary: two
+  detection), `crates/shb-cli` (the binary, `SHB-OcarinaTweaks`), `crates/shb-gui` (the egui window as a library, six languages).
+- **Parity is the contract**: `py -3.12 app/tools/parity_check.py --app app-legacy --payload app/payload --mode all`
+  patches and installs with both implementations and compares bytes. Last run (0.10.0, after the app split): 56/56
+  images identical (16 profiles + 40 random settings), 7/7 install trees identical and 7/7 recompiled games identical
+  (`main` with its hooks, the module, `image.bin`, romfs), the enemy packs included (those compare after decompression with the game's dictionary: two
   zstd encoders need not emit the same frame). Python 3.12 is the one with `zstandard`; without it the pack
   profiles are skipped. Change the Python `patch_config`, `_patch_packs` or `recomp.apply_settings` and this check
   must be rerun.
@@ -174,26 +198,30 @@ Branch `feat/rust-app`: a second implementation of the app, to learn Rust agains
   like the Python app's `struct.pack_into`; doing the product in `f32` matched everything but the `x3`/`x1.5` attack
   cadence.
 - Recompiled games: `crates/shb-core/src/game.rs` finds a Longshot/Hookshot/ReLink folder (`.longshot_exefs` +
-  `bin/longshot.exe` …), backs up once into `.shb-backup`, writes the module, patches `image.bin` and copies the
-  romfs. What it cannot do is the build: the code is compiled into the executable by the external builder, so the
-  app says "needs a build" instead of pretending. Rekarina is detected (`rekarina.ini` + `exefs/main`) and not
-  written.
-- The window's texts are generated: `app-rs/tools/gen_i18n.py` turns `app/i18n.py` into
+  `bin/longshot.exe` …), backs up once into `.shb-backup`, writes the module, **writes the hooks into `main`** (the IPS
+  the Python app applies with `patch_main`; without them the module is loaded and never called), patches `image.bin`
+  and copies the romfs. The build is `rebuild.rs` + `recomp_build.rs`; a failed install is rolled back. Never clear the
+  environment of the builder's process: its clang needs `TEMP`/`TMP`.
+- The window's texts are generated: `app/tools/gen_i18n.py` turns `app-legacy/i18n.py` into
   `crates/shb-gui/src/i18n_table.rs` (389 keys × 6 languages). `--check` fails when it is stale; CI runs it.
 - The updater (`crates/shb-core/src/update.rs`): GitHub's latest release, this platform's asset, the SHA-256 check
   and the PowerShell restart script. `ureq` runs with `native-tls` on purpose: the rustls backend needs `ring`,
   whose build wants a C compiler this toolchain does not have.
-- Not ported: the two flows that run somebody else's compiler — the recompiled-game rebuild (Longshot/Hookshot/
-  ReLink, whose installed builder is now the .NET one and not `tools/nx2/make_game.py`) and Rekarina's three-stage
-  lift and compile. Everything around them is ported, including Rekarina's settings half (`rekarina.rs`: config
-  block, the module hash in `Rekarina.exe`, `mods_order`, `build-cache/mods-built.txt`) and the GameCube diagram
-  (`gamecube.rs`: the game's own UI atlas patched with the artwork generated from `app/gamecube_textures.py`).
+- Everything is ported, the two flows that run somebody else's compiler included (the recompiled-game rebuild and
+  Rekarina's three-stage lift and compile), plus Rekarina's settings half (`rekarina.rs`: config block, the module hash
+  in `Rekarina.exe`, `mods_order`, `build-cache/mods-built.txt`) and the GameCube diagram (`gamecube.rs`: the game's own
+  UI atlas patched with the artwork generated from `app-legacy/gamecube_textures.py`).
+- The window takes the **settings of its pages** into every install and rebuild (`RebuildRequest.settings`): a profile
+  name alone would lose what the player changed. Choosing a profile card applies it (`presets::apply_profile`, the Python
+  `apply_profile`: the stamina display, R3/L3 and the style/layout/language stay the player's).
+- The install page looks at the folders in a thread when they change (`path_status`), never per frame: Rekarina's
+  `is_built` hashes a 350 MB exe.
 - The PlayStation/Xbox prompt pack (`crates/shb-core/src/layouts.rs`) is ported: GameBanana download, ZIP extract
   of the three files, `RESTBL` parse/merge/compress (zstd 19) and the atlas copy, with the safe font from the
   payload. It is the last step of the romfs install, so its table wins the merge.
 - Toolchain on this PC: `stable-x86_64-pc-windows-gnu` (there is no MSVC C++ workload). Two things make it work:
   `llvm-dlltool.exe` from LLVM copied to `~/.cargo/bin/dlltool.exe` (the gnu target needs `dlltool`), and
-  `app-rs/.cargo/config.toml`, which links with `rust-lld`. GNU `ld` produced binaries that segfaulted **before
+  `app/.cargo/config.toml`, which links with `rust-lld`. GNU `ld` produced binaries that segfaulted **before
   `main`** (access violation, no output, not even in a build with only `wgpu` linked) — `rust-lld` builds the same
   crates correctly. Diagnose this kind of crash by writing a marker file as the first line of `main`: bare `winit`
   and bare `egui` windows run fine under GNU `ld`, so it is the link, not the code.

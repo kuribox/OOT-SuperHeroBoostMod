@@ -611,7 +611,7 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   `tools/make_gamecube_buttons.py`, which needs the game's UI zstd dictionary (`SHB_ROMFS` or
   `SHB_UI_DICTIONARY`) because it decompresses the stock `OotBtnS_*` BNTX files as templates.
 - The System tab's Basic Controls diagram lives in `UI/Layout2Archive/Common.Product.100.Nin_Ounce_NVN2.bntx.zs`:
-  a 244,460,000-byte BNTX compressed to 64,862,732 bytes. `app/gamecube.py` decompresses it, verifies the sha256 of
+  a 244,460,000-byte BNTX compressed to 64,862,732 bytes. `app-legacy/gamecube.py` decompresses it, verifies the sha256 of
   the three textures it replaces (two `Controller_Pro` half-diagrams and one more), patches them in place and
   recompresses at level 6 (72,937,387 bytes, ~10 s). No dictionary is needed to read or write that file.
 - An emulator install has no romfs dump on disk, so `prepare_gamecube_layout()` turns a missing/unsupported atlas
