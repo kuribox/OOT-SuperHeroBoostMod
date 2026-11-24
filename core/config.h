@@ -80,6 +80,13 @@ typedef struct {
      * assignable to remapped buttons; 0 = mapping only: the player's item HUD and the game's item logic stay
      * untouched and no button may hold an item role. Appended after bm_hold: an older app leaves it 0. */
     unsigned char hud_custom_items;
+    /* Long press of L and R (bm_hold covers A, B, X, Y): the role of each, 0 = none. Appended after
+     * hud_custom_items: an older app leaves them 0. */
+    unsigned char bm_hold_lr[2];
+    /* Per held button, 1 = the short press WAITS until it is known whether the button is held (a small delay on
+     * its own role, but a hold never also fires it); 0 = the short role fires at once and the hold role comes on
+     * top. Bit per button: 0 D-pad right, 1 A, 2 B, 3 X, 4 Y, 5 L, 6 R. */
+    unsigned char bm_hold_wait;
 } ShbConfig;
 
 extern volatile ShbConfig g_shbcfg;

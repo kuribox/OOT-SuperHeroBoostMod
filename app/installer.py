@@ -37,15 +37,37 @@ REMAP_BUTTONS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL", "L3", "R3", "DR")
 # byte bm_role_dr, appended at the end of the block). Roles that need no HUD button only.
 ROLES = ("none", "jump", "sword", "action", "target", "item1", "item2", "item3", "item_main",
          "camera", "sprint", "shield", "selector", "armory", "back")   # byte value = index (core/remap.h ROLE_*)
-# A, B, X and Y can also have a role for their LONG press (config bytes bm_hold[0..3], after bm_role_dr). The table keeps
-# them under these keys, next to the buttons'; they are not buttons of the pad (no HUD art, no item roles).
-HOLD_KEYS = ("A_hold", "B_hold", "X_hold", "Y_hold")
+# A, B, X, Y, L and R can also have a role for their LONG press (config bytes bm_hold[0..3] and bm_hold_lr[0..1]). The
+# table keeps them under these keys, next to the buttons'; they are not buttons of the pad (no HUD art, no item roles).
+HOLD_KEYS = ("A_hold", "B_hold", "X_hold", "Y_hold", "L_hold", "R_hold")
+# Each held button (and D-pad right) also chooses how the press is told apart (bm_hold_wait, a bit per button in this
+# order): True = the short press WAITS for the hold (a small delay, a hold never fires it), False = it acts at once and
+# the hold comes on top. D-pad right waits by default: its short press is the game's Navi call.
+HOLD_WAIT_KEYS = ("DR", "A", "B", "X", "Y", "L", "R")
+DEFAULT_HOLD_WAIT = {"DR": True, "A": False, "B": False, "X": False, "Y": False, "L": False, "R": False}
+
+
+def hold_wait_byte(wait) -> int:
+    """bm_hold_wait: the HOLD_WAIT_KEYS bits of a {button: bool} dict (a missing button takes its default)."""
+    w = {**DEFAULT_HOLD_WAIT, **(wait if isinstance(wait, dict) else {})}
+    return sum(1 << i for i, k in enumerate(HOLD_WAIT_KEYS) if w.get(k))
+
+
+# Roles that act held or at once: a button that has one has no hold, and none of them is a hold role (core/remap.c
+# hold_blocked). D-pad right is the exception: its short press is Navi's, not a role of ours.
+HOLD_BLOCK_ROLES = ("shield", "target", "sprint", "selector", "armory", "item1", "item2", "item3", "item_main")
 ROLE_KEYS = (*REMAP_BUTTONS, *HOLD_KEYS)
 ITEM_ROLES = ("item1", "item2", "item3", "item_main")
+# Roles that may sit on more than one button at once: the game only needs one of each, so a second one is a
+# shortcut (jump on X and R, the sword on Y and L3, the selector / the armory / Back twice). The HUD draws the
+# ones that have art (jump and sword): the module keeps a second part for each.
+DUP_ROLES = ("jump", "sword", "selector", "armory", "back")
+# The game's own basic actions: the controls list says which of them have no button at all.
+BASE_ROLES = ("jump", "sword", "action", "target")
 # Roles limited to some buttons (everything else goes anywhere)
 _NO_STICKS = ("L", "X", "R", "Y", "A", "ZR", "B", "ZL")
 _DR_ROLES = ("jump", "sword", "camera", "sprint", "shield", "selector", "armory", "back")
-_HOLD_ROLES = ("jump", "sword", "action", "camera", "sprint", "shield", "selector", "armory", "back")
+_HOLD_ROLES = ("jump", "sword", "action", "camera", "back")   # what a held A / B / X / Y / L / R can do
 ROLE_BUTTONS = {"selector": (*_NO_STICKS, "DR"),   # any button, not the sticks
                 "target": ("ZL", "ZR", "L3", "R3"),
                 # action: a face button only (the game's context prompt draws one of A / B / X / Y)
@@ -57,14 +79,15 @@ CLASSIC_ROLES = {"L": "item2", "X": "jump", "R": "item3", "Y": "sword", "A": "ac
 # Ready-made tables (the app's preset list). Options (toggle sprint, switch target...) are kept apart.
 REMAP_PRESETS = {
     "classic": dict(CLASSIC_ROLES),
-    # (B no longer sends the game's B in the two tables where it is not item 1: holding it does, as the Back role)
-    "action_down": dict(CLASSIC_ROLES, A="item1", B="action", B_hold="back"),
+    # (B no longer sends the game's B in the two tables where it is not item 1: a held button does, as the Back role.
+    #  Here the action sits on B, so Back is on the held X: a preset never asks for a wait on the button it holds.)
+    "action_down": dict(CLASSIC_ROLES, A="item1", B="action", X_hold="back"),
     "shield": dict(CLASSIC_ROLES, L="shield", L3="sprint"),   # item 2 gives L to the shield
     "souls": {"L": "shield", "X": "jump", "R": "item2", "Y": "sword", "A": "action", "ZR": "item_main",
               "B": "item1", "ZL": "item3", "L3": "sprint", "R3": "target"},
     # The author's own table: items on the triggers (R, ZL and ZR), the item selector on B, the shield on L
     "triggers": {"L": "shield", "X": "jump", "R": "item1", "Y": "sword", "A": "action", "ZR": "item_main",
-                 "B": "selector", "ZL": "item2", "L3": "sprint", "R3": "target", "B_hold": "back"},
+                 "B": "selector", "ZL": "item2", "L3": "sprint", "R3": "target", "X_hold": "back"},
 }
 REMAP_PRESET_KEYS = ("classic", "action_down", "shield", "souls", "triggers")
 
@@ -81,7 +104,7 @@ def roles_with_armory(roles) -> dict:
 
 def keep_holds(table: dict, current: dict) -> dict:
     """A preset's table with the user's long-press roles (the arrow's and A / B / X / Y's). A preset only sets the holds it
-    names (Back on the held B where B is not item 1); every other hold keeps what the user had, and so does the arrow."""
+    names (Back on the held X where B is the action); every other hold keeps what the user had, and so does the arrow."""
     out = dict(table)
     out["DR"] = current.get("DR", "none")
     for k in HOLD_KEYS:
@@ -107,17 +130,19 @@ def normalize_roles(roles) -> dict:
         r = src.get(b, CLASSIC_ROLES[b])
         if not role_allowed(r, b):
             r = "none"
-        if r != "none" and r in used:
-            r = "none"
+        if b in HOLD_KEYS and out[b[:-5]] in HOLD_BLOCK_ROLES:
+            r = "none"                   # the button's own role acts held or at once: no hold on it
+        if r != "none" and r in used and r not in DUP_ROLES:
+            r = "none"                 # one button per role, but the shortcut roles may repeat
         out[b] = r
         used.add(r)
     return out
 
 
 def roles_missing(roles) -> list:
-    """The basic roles no button has (jump, sword, action, target): the game cannot do those then."""
+    """The game's basic roles no button has (jump, sword, action, target): the game cannot do those then."""
     have = set(normalize_roles(roles).values())
-    return [r for r in ("jump", "sword", "action", "target") if r not in have]
+    return [r for r in BASE_ROLES if r not in have]
 
 
 def roles_flags(roles) -> dict:
@@ -256,6 +281,7 @@ class Settings:
     farore_outdoor: bool = False     # allow Farore's Wind points outside dungeons
     button_mapping: bool = True      # buttonMapping: the remap of what every button does (the whole Controls card)
     hud_items: bool = True           # custom item HUD: our B / L / R / ZR buttons and items 1-3 assignable
+    bm_hold_wait: dict = field(default_factory=lambda: dict(DEFAULT_HOLD_WAIT))   # per held button: short press waits
     button_style: str = "switch"     # one of BUTTON_STYLES: the button mapping's own button pictures
     bm_layout: str = "nintendo"      # one of BM_LAYOUTS: face button positions of the button mapping HUD
     game_layout: str = "none"        # one of GAME_LAYOUTS: download the game's own PS/Xbox prompts (optional)
@@ -652,8 +678,12 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                     if size >= 0x5D:                                         # struct 92: bm_role_dr (long press)
                         b[f + 76] = ROLES.index(roles["DR"])
                     if size >= 0x61:                                         # struct 93..96: bm_hold[] (A, B, X, Y long press)
-                        for k, key in enumerate(HOLD_KEYS):
+                        for k, key in enumerate(HOLD_KEYS[:4]):
                             b[f + 77 + k] = ROLES.index(roles[key])
+                    if size >= 0x66:                                         # struct 98 / 99: bm_hold_lr[] (L, R long press)
+                        b[f + 82] = ROLES.index(roles["L_hold"])
+                        b[f + 83] = ROLES.index(roles["R_hold"])
+                        b[f + 84] = hold_wait_byte(s.bm_hold_wait)           # struct 100: bm_hold_wait
                     # the options the table implies (they used to be separate switches)
                     fl = roles_flags(roles)
                     if s.bm_layout != "gamecube":                             # preserve prior custom-remap geometry
@@ -674,6 +704,8 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
                         b[f + 76] = 0                                        # bm_role_dr (the armory on D-pad right)
                     if size >= 0x61:
                         b[f + 77:f + 81] = b"\0\0\0\0"                        # bm_hold[]
+                    if size >= 0x66:
+                        b[f + 82:f + 85] = bytes(3)                          # bm_hold_lr[], bm_hold_wait
     if size >= 0x5C:                                    # struct 90 / 91 (the old tail padding): HUD scales
         b[f + 74] = hud_scale(s.hud_ctrl_scale)
         b[f + 75] = hud_scale(s.hud_count_scale)

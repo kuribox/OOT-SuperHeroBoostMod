@@ -786,3 +786,22 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
 - The block switches drive `show_r` / `show_c` / `show_s` / `show_h`, which hide the text, icons and plates;
   the wide layout keeps its per-block plates and the tuned icon offsets.
 - Diagnostic: `g_hud_bg_dbg[0..3]` = the bar's x0, x1 and the first and last visible block x.
+
+## Held L and R, wait or no wait, and buttons with no hold (Nov 24)
+
+- `ShbConfig` grows by three bytes after `hud_custom_items` (struct 97): `bm_hold_lr[2]` (98 / 99, the long press of
+  L and R) and `bm_hold_wait` (100, one bit per held button: 0 DR, 1 A, 2 B, 3 X, 4 Y, 5 L, 6 R). **`sizeof` is 0x68
+  now** (101 bytes, rounded to the struct's 4-byte alignment; it was 0x64 for 98), so the installer's size gate for
+  these bytes is `>= 0x66` and an older module (0x64) is simply not written there. The app's `f + 82..84` are those
+  bytes (`f` = struct offset - 16).
+- Wait (bit 1) is the old behaviour of the arrow generalised: the short press is cleared from the read while it may
+  still be a hold and replayed as a 3-read pulse if released early. No wait (bit 0) is the old behaviour of A / B / X / Y.
+  The arrow used to wait unconditionally; it is now the app's default (`DEFAULT_HOLD_WAIT`), and a module that reads
+  `bm_hold_wait == 0` lets Navi answer at once and the hold comes after.
+- Verified over the debug server (L short = camera with Back held, wait on; R short = sword with jump held, wait
+  off): a 6-frame tap of L bumps `g_remap_dr[0]` (replayed), a 6-frame tap of R does not; a 70-frame hold of either
+  bumps its own `g_remap_hold[]` slot (5 and 6).
+- `remap_hold_role()` returns none when the button's own role is shield / target / sprint / selector / armory / an
+  item, and when the hold role itself is one of those (the arrow is exempt). The app enforces the same in
+  `normalize_roles()`, so the table, the editor and the module agree; the module check is the backstop for a config
+  written by hand.

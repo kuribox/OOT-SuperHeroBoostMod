@@ -236,15 +236,15 @@ static void dbg_tick(void);   /* diagnostic dump (below, beside the save code) *
  * game's own prompts there name them. The game fills the samples again on every read, so this is done once per read. */
 u32 g_remap_dbg[3];   /* reads remapped, reads left alone, last physical -> virtual (low bits) */
 u32 g_remap_live;     /* the last read was remapped: the HUD prompts name the roles' buttons (core/hud.c) */
-/* Held buttons: D-pad right (its short press is the game's Navi call) and A / B / X / Y (whose short press is their own
- * role) can have a role for the LONG press (remap_hold_role). Per button: the frame the press went down, the replay
- * reads left of a short press, and whether the long press already fired. */
-#define HOLD_N 5
-static const unsigned char HOLD_PB[HOLD_N] = {PB_DR, PB_A, PB_B, PB_X, PB_Y};
+/* Held buttons: D-pad right (its short press is the game's Navi call) and A / B / X / Y / L / R (whose short press is
+ * their own role) can have a role for the LONG press (remap_hold_role). Per button: the frame the press went down, the
+ * replay reads left of a short press, and whether the long press already fired. */
+#define HOLD_N 7
+static const unsigned char HOLD_PB[HOLD_N] = {PB_DR, PB_A, PB_B, PB_X, PB_Y, PB_L, PB_R};
 static u32 hold_since[HOLD_N], hold_pulse[HOLD_N];
 static unsigned char hold_fired[HOLD_N];
 u32 g_remap_dr[2];   /* diagnostics: short presses replayed, long presses that fired a role (all held buttons) */
-u32 g_remap_hold[HOLD_N];   /* diagnostics: long presses that fired, per button: DR A B X Y */
+u32 g_remap_hold[HOLD_N];   /* diagnostics: long presses that fired, per button: DR A B X Y L R */
 static void hold_reset(void) {
     for (u32 h = 0; h < HOLD_N; h++) { hold_since[h] = hold_pulse[h] = 0; hold_fired[h] = 0; }
 }
@@ -279,9 +279,11 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
     }
     g_remap_live = 1;
     HidView view = {a0, count, 0};
-    /* Held buttons: short press = the button's own role (Navi for D-pad right), long press = its hold role. The press is
-     * held back until it is known which: released early it is replayed as a short pulse (the physical bit goes through
-     * the remap, so the short role fires), held it never reaches the game as the short one. */
+    /* Held buttons: short press = the button's own role (Navi for D-pad right), long press = its hold role. Two ways,
+     * per button (remap_hold_wait): WAIT - the press is held back until it is known which: released early it is
+     * replayed as a short pulse (the physical bit goes through the remap, so the short role fires), held it never
+     * reaches the game as the short one; NO WAIT - the short role acts at once and, when the press turns out long,
+     * lets go while the hold role takes over (the short role has acted by then). */
     u64 add = 0, clear = 0, pulse_add = 0, all = 0;
     for (u32 i = 0; i < count; i++) all |= hid_get_buttons(&view, i);
     for (u32 h = 0; h < HOLD_N; h++) {
@@ -295,11 +297,11 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
                 hold_fired[h] = 1;
                 add |= remap_role_virt(role);
                 clear |= bit;                       /* the short role lets go, the hold role takes over */
-            } else if (p == PB_DR) {
-                clear |= bit;                       /* Navi (the arrow's short press) waits to know which press it is */
-            }                                       /* A / B / X / Y: the short role goes through at once, no delay */
+            } else if (remap_hold_wait(p)) {
+                clear |= bit;                       /* the short role waits to know which press it is */
+            }                                       /* otherwise it goes through at once, no delay */
         } else {
-            if (p == PB_DR && hold_since[h] && !hold_fired[h]) { hold_pulse[h] = 3; g_remap_dr[0]++; }   /* a short press of the arrow: let the game see it now, for three reads */
+            if (remap_hold_wait(p) && hold_since[h] && !hold_fired[h]) { hold_pulse[h] = 3; g_remap_dr[0]++; }   /* a short press that waited: let the game see it now, for three reads */
             hold_since[h] = 0;
             hold_fired[h] = 0;
         }

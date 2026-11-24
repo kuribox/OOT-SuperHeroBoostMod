@@ -112,7 +112,10 @@ as a bar; the rest keep the ring.
   nothing is remapped and the options that ride on it (target, L3 sprint, manual shield, the target pair) are not
   written to the mod at all. **Custom item HUD** is its item side: on, our own B / L / R / ZR buttons are drawn and
   items 1, 2 and 3 can go on any button; off, the buttons are still remapped but the player's item HUD and the game's
-  item logic stay untouched (an item button keeps the game's own press).
+  item logic stay untouched (an item button keeps the game's own press). Some roles may sit on two buttons at
+  once (jump, sword, the item selector, the armory and Back); the HUD draws a role once, on its first button.
+  Under the summary, the controls card says which of the game's own actions (jump, sword, action, target) have no
+  button at all.
 - **HUD**: rupee counter, clock (**off / 12 h / 24 h**, one selector), HUD layout, the area collectibles counter and
   **hide the minimap** (the corner map is not drawn while playing; the map screen still works).
 - **HUD layout**: **Wide** (the four native-style plates at the bottom), **Simple** (the four counters at the bottom,
