@@ -62,25 +62,60 @@ struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no rol
 - The app lists the arrow as the last row of Controls, with a note under it. It is not part of the presets: choosing
   one keeps the arrow's role, and the preset buttons ignore it when they decide which preset is active.
 
-## Held face buttons (A, B, X, Y) and the Back role
+## Roles that may repeat (jump, sword, selector, armory, Back)
 
-**Hold roles.** A, B, X and Y can also have a role for their long press, in `ShbConfig.bm_hold[4]` (A, B, X, Y order,
-struct 93..96, appended after `bm_role_dr`; the struct is 0x64 bytes now, an older app leaves them 0 = none).
-`button_remap_on_input` reads them with the arrow's code (`HOLD_PB` = DR, A, B, X, Y, `remap_hold_role()`):
+One role is on one button at most, except these: `DUP_ROLES` in `app/installer.py` lets jump, sword, the item
+selector, the armory and Back sit on two (or more) buttons at once, so a shortcut can be added without taking the
+role away from its usual button. `normalize_roles()` keeps the repeats; the editor does not move the role away
+from the other button when one of them is picked.
 
-- A, B, X and Y: the short role goes through **at once**, with no delay. Held for `REMAP_DR_HOLD` (20 HUD frames) the
-  hold role's virtual button is set as well and the physical bit is cleared, so the short role lets go (no sword
-  charge or A-held sprint can run past that point); the hold role stays down while the button does. (A first version
-  held the short press back until release, like the arrow; it felt late on the sword and the jump.) The short action
-  has already happened when the hold fires: pick a hold role that does not mind it. The arrow keeps the delayed
-  behaviour, because its short press is Navi's call and must not fire on every hold.
-- Roles a hold takes (`_HOLD_ROLES`): jump, sword, action, camera, sprint, shield, selector, armory and **back**. No
-  items and no target (their buttons show on the HUD or need the held state). A role is still on one button at most,
-  hold rows included: picking it for a hold moves it from the button that had it.
-- The app keeps them in the same role table under `A_hold` ... `Y_hold` (`HOLD_KEYS`); presets never touch them
-  (`keep_holds`), nor does the preset detection. `remap_selector_on()` also looks at them (`hold_has`): a selector on a
-  hold needs no short-press button.
-- Diagnostics: `g_remap_hold[5]` (DR, A, B, X, Y) counts long presses that fired.
+- Input needs nothing new: `remap_apply()` maps every physical button by its own role, so both fire.
+- The HUD parts are **one per role**, so a duplicated role is drawn once, on the first button that holds it
+(the second button acts, but has no part of its own). Extra parts for the duplicates were built and reverted:
+they broke the parts' pane grouping (icons, letters and quantities ended up on the wrong buttons), so the
+duplicate side waits for a design that does not add panes.
+
+## Item slots and the table
+
+The save keeps one item per slot (B, L, R and the game's own box on ZR). The mod **never clears those slots**:
+`hud_slot_item()` publishes each slot to the HUD part of its role (part 11 = item 1, 7 = item 2, 8 = item 3), and
+those parts are drawn on whichever button holds that role, so the item follows the button the player assigned.
+An item whose role has no button is simply not drawn (the slot keeps its item). A save written for an older table
+therefore loads as it was: reassigning a role does not drop the item, and the mod does not rewrite the save's
+slots. Two item roles on the same button are prevented by the app (`normalize_roles()`), not at run time.
+The hold of an item button stays blocked (`hold_blocked()`, `HOLD_BLOCK_ROLES`).
+
+## Held buttons (A, B, X, Y, L, R) and the Back role
+
+**Hold roles.** A, B, X, Y, L and R can also have a role for their long press: `ShbConfig.bm_hold[4]` (A, B, X, Y,
+struct 93..96, appended after `bm_role_dr`) and `ShbConfig.bm_hold_lr[2]` (L, R, struct 98 / 99, appended after
+`hud_custom_items`; the struct is 0x68 bytes now, an older app leaves them 0 = none). `button_remap_on_input` reads
+them with the arrow's code (`HOLD_PB` = DR, A, B, X, Y, L, R, `remap_hold_role()`).
+
+- **Two ways to tell a short press from a long one**, per button (`ShbConfig.bm_hold_wait`, one bit per button: 0 DR,
+  1 A, 2 B, 3 X, 4 Y, 5 L, 6 R; `remap_hold_wait()`; the app's checkbox, "Skip the tap action when held"):
+  - **No wait** (bit 0): the short role goes through **at once**, with no delay. Held for `REMAP_DR_HOLD` (20 HUD
+    frames) the hold role's virtual button is set as well and the physical bit is cleared, so the short role lets go
+    (no sword charge or A-held sprint can run past that point); the hold role stays down while the button does. The
+    short action has already happened when the hold fires: pick a hold role that does not mind it.
+  - **Wait** (bit 1): the short press is held back until it is known which press it is: released before 20 frames it is
+    replayed to the game as a three-read pulse (the short role answers a little late), held longer only the hold role
+    is pressed and the short one never is. A small delay on every tap of that button; the app's help says so.
+  - D-pad right waits by default (its short press is Navi's call, which would otherwise fire on every hold); the rest
+    do not, as a first version that waited felt late on the sword and the jump. `DEFAULT_HOLD_WAIT` in the installer.
+- **A button whose own role acts held or at once has no hold**, and those roles are no hold role either
+  (`hold_blocked()` in `core/remap.c`, `HOLD_BLOCK_ROLES` in the installer): shield, target, sprint, selector, armory,
+  items 1 / 2 / 3 and the main item. The module returns `ROLE_NONE` for such a hold whatever the config says;
+  `normalize_roles()` clears it in the table and the editor greys the row with the reason. D-pad right is outside the
+  rule (its short press is no role of ours), so its hold still takes the selector and the armory.
+- Roles a hold takes (`_HOLD_ROLES`): jump, sword, action, camera and **back**. A role is still on one button at most,
+  hold rows included: picking it for a hold moves it from the button that had it. The Triggers preset therefore has its
+  Back on the **held X** (B is its selector, so the held B is gone).
+- The app keeps them in the same role table under `A_hold` ... `R_hold` (`HOLD_KEYS`); presets never touch them
+  (`keep_holds`), nor does the preset detection. `remap_selector_on()` also looks at them (`hold_has`): a selector on
+  the arrow's hold needs no short-press button.
+- Diagnostics: `g_remap_hold[7]` (DR, A, B, X, Y, L, R) counts long presses that fired; `g_remap_dr[0]` short presses
+  that waited and were replayed, `[1]` long presses in all.
 
 **Back role (`ROLE_BACK`, `VBTN_BACK` = HID bit 27).** The game's own B: let go of a ledge, cancel, get off ... With the
 remap the only way to send B was the button holding item 1, so those actions were lost whenever item 1 sat somewhere
