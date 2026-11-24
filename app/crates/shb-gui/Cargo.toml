@@ -25,6 +25,8 @@ rfd = { version = "0.15", default-features = false }
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 # Linux and the BSDs: the folder picker through the XDG desktop portal (D-Bus). Pure Rust — no GTK headers, which is
-# what the CI runner has — and the dialog is the desktop's own.
+# what the CI runner has — and the dialog is the desktop's own. The portal needs one async runtime of its own: rfd
+# leaves `ashpd` with no default features, and `async-std` is the one its defaults pick (without it `zbus` refuses to
+# build: "Either async-io (default) or tokio must be enabled").
 [target.'cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))'.dependencies]
-rfd = { version = "0.15", default-features = false, features = ["xdg-portal"] }
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "async-std"] }
