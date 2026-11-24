@@ -65,7 +65,7 @@ def random_settings(installer, rng: random.Random):
     for key in ("jump", "attack", "sprint", "block", "shoot", "roll"):
         setattr(settings, key, rng.random() < 0.6)
     settings.combat_only = rng.random() < 0.3
-    settings.enemy_hp = rng.choice([50, 100, 150, 200, 250, 300, 400, 65535])
+    settings.enemy_hp = rng.choice([50, 100, 150, 200, 250, 300, 400, 500, 600, 65535])
     settings.damage = rng.choice([50, 100, 150, 200, 300, 65535])
     settings.sprint_speed = rng.choice([100, 110, 125, 150, 200])
     settings.no_heart_drop = rng.random() < 0.5

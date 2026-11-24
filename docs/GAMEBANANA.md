@@ -31,7 +31,7 @@ after a rebuild, and the app picking a ReLink or Hookshot builder for a Longshot
 - Stamina ring next to Link, or a segmented bar under the magic gauge (yellow, red while recharging).
 
 **Difficulty**
-- Enemy health and damage taken multipliers (x1 to x3).
+- Enemy health and damage taken multipliers (x1 to x6).
 - No heart drops: hearts become green rupees.
 
 **Movement**

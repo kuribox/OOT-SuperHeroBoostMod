@@ -335,14 +335,22 @@ pub fn percent_slider(
     changed
 }
 
-/// The three difficulty multipliers, named the way the Python app names them ("Vanilla", "×1.5", …).
+/// The difficulty multipliers, named the way the Python app names them ("Vanilla", "×1.5", … ×6). The ladder is
+/// the Python app's `MULT`; the module scales from the percentage, so a new step needs only a label.
 pub fn mult_options(lang: Lang) -> Vec<(u16, String)> {
-    vec![
-        (100, tr(lang, "mult_van").to_string()),
-        (150, tr(lang, "mult_15").to_string()),
-        (200, tr(lang, "mult_2").to_string()),
-        (300, tr(lang, "mult_3").to_string()),
+    [
+        (100u16, "mult_van"),
+        (150, "mult_15"),
+        (200, "mult_2"),
+        (250, "mult_25"),
+        (300, "mult_3"),
+        (400, "mult_4"),
+        (500, "mult_5"),
+        (600, "mult_6"),
     ]
+    .into_iter()
+    .map(|(value, key)| (value, tr(lang, key).to_string()))
+    .collect()
 }
 
 /// The sprint speeds: "Vanilla" and then the multiplier, as the Python app's dropdown.
@@ -462,5 +470,16 @@ mod tests {
         let item = rects[3];
         frame(&ctx, click(item.center()), &mut value, &mut rects);
         assert_eq!(value, 200, "the dropdown did not write the chosen value");
+    }
+
+    /// The difficulty ladder is the Python app's `MULT` (app-legacy/main.py): up to ×6, in every language.
+    #[test]
+    fn the_multiplier_ladder_reaches_x6() {
+        for lang in [Lang::En, Lang::Es, Lang::Pt, Lang::Fr, Lang::De, Lang::It] {
+            let options = mult_options(lang);
+            let values: Vec<u16> = options.iter().map(|(value, _)| *value).collect();
+            assert_eq!(values, [100, 150, 200, 250, 300, 400, 500, 600]);
+            assert_eq!(options.last().unwrap().1, "×6");
+        }
     }
 }

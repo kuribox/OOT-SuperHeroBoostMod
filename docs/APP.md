@@ -113,7 +113,8 @@ as a bar; the rest keep the ring.
 - **Stamina**: on/off, stamina style, what costs stamina (the checkboxes update automatically for each style), sprint
   speed and the stamina display (ring around the hero, or a segmented bar under the magic gauge; yellow, red while
   recharging).
-- **Difficulty**: enemy health, damage taken, heart and magic-jar drops (both become green rupees) and the two beta
+- **Difficulty**: enemy health and damage taken (×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5 and ×6, the same ladder in both
+  apps), heart and magic-jar drops (both become green rupees) and the two beta
   enemy tools, generated from the user's dump at build time and installed as extra romfs files:
   - **Duplicate enemies (Option A)**: clones generic enemy placements in `Banc` and doubles field auto-spawn counts.
     Bosses, minibosses and scripted enemies are excluded.

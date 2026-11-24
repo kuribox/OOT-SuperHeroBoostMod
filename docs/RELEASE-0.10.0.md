@@ -72,6 +72,11 @@ target, the L3 sprint, the button style, the layout, the language and the HUD si
   soft bar is sized from what is drawn, and every icon sits right before its number (a long clock no longer ran past
   the bar, a short rupee count no longer left its icon far away).
 
+**Difficulty**
+
+- **The multipliers go up to ×6.** Enemy health and damage taken now run ×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5 and ×6, in
+  both apps: the module scales from the percentage, so the ladder was the only limit.
+
 **Module**
 
 - **Durations are real seconds now.** Every duration used to be a number of frames at a fixed 1/60 s, which is only

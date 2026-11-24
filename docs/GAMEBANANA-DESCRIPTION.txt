@@ -60,7 +60,7 @@ STAMINA
 - Four styles: hardcore (every action costs), combat only, sprint only, or advanced (choose which actions cost). Exhaustion and regeneration, with individual costs for rolling, jumping, attacking, shooting, sprinting and blocking.
 - A ring next to Link, or a segmented bar under the magic gauge (yellow, red while recharging).
 DIFFICULTY
-- Enemy health and damage taken multipliers (x1 to x3). No heart drops and no magic jar drops: they become green rupees.
+- Enemy health and damage taken multipliers (x1 to x6). No heart drops and no magic jar drops: they become green rupees.
 - Configurable sprint speed (x1.25 in the profiles).
 HUD
 - Always-visible rupee counter and clock (off / 12 h / 24 h). Per-area Skulltula and heart-piece counter. Option to hide the corner minimap.
