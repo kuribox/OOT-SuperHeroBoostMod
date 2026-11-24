@@ -11,6 +11,83 @@ include!("i18n_table.rs");
 /// Keys this port has that the Python app does not (its own extra labels).
 static EXTRA: &[(&str, [&str; 6])] = &[
     (
+        "result_ok_title",
+        [
+            "Done",
+            "Listo",
+            "Concluído",
+            "Terminé",
+            "Fertig",
+            "Fatto",
+        ],
+    ),
+    (
+        "result_fail_title",
+        [
+            "It failed",
+            "Falló",
+            "Falhou",
+            "Échec",
+            "Fehlgeschlagen",
+            "Non riuscito",
+        ],
+    ),
+    (
+        "result_close",
+        [
+            "Close",
+            "Cerrar",
+            "Fechar",
+            "Fermer",
+            "Schließen",
+            "Chiudi",
+        ],
+    ),
+    (
+        "path_ok",
+        [
+            "This folder is right: it opens {a}.",
+            "La carpeta es válida: abre {a}.",
+            "A pasta está certa: abre {a}.",
+            "Le dossier est bon : il ouvre {a}.",
+            "Der Ordner stimmt: er öffnet {a}.",
+            "La cartella va bene: apre {a}.",
+        ],
+    ),
+    (
+        "e_path_emulator",
+        [
+            "No emulator in that folder: pick the one with its .exe.",
+            "No hay ningún emulador en esa carpeta: elige la que tiene su .exe.",
+            "Não há nenhum emulador nessa pasta: escolhe a que tem o .exe.",
+            "Aucun émulateur dans ce dossier : choisis celui qui contient son .exe.",
+            "Kein Emulator in diesem Ordner: wähle den mit seiner .exe.",
+            "Nessun emulatore in quella cartella: scegli quella con il suo .exe.",
+        ],
+    ),
+    (
+        "e_path_game",
+        [
+            "Not a recompiled game: no ExeFS (`.longshot_exefs`, `.relink_exefs`…) or no launcher in it.",
+            "No es un juego recompilado: falta su ExeFS (`.longshot_exefs`, `.relink_exefs`…) o su lanzador.",
+            "Não é um jogo recompilado: falta o ExeFS (`.longshot_exefs`, `.relink_exefs`…) ou o lançador.",
+            "Ce n'est pas un jeu recompilé : il manque l'ExeFS (`.longshot_exefs`, `.relink_exefs`…) ou le lanceur.",
+            "Kein rekompiliertes Spiel: es fehlt die ExeFS (`.longshot_exefs`, `.relink_exefs`…) oder der Starter.",
+            "Non è un gioco ricompilato: manca l'ExeFS (`.longshot_exefs`, `.relink_exefs`…) o l'avvio.",
+        ],
+    ),
+    (
+        "e_path_builder",
+        [
+            "Not a builder: the folder needs `tools/nx2/make_game.py` inside it.",
+            "No es un builder: la carpeta debe tener `tools/nx2/make_game.py` dentro.",
+            "Não é um builder: a pasta tem de ter `tools/nx2/make_game.py` dentro.",
+            "Ce n'est pas un builder : le dossier doit contenir `tools/nx2/make_game.py`.",
+            "Kein Builder: der Ordner braucht `tools/nx2/make_game.py` darin.",
+            "Non è un builder: la cartella deve contenere `tools/nx2/make_game.py`.",
+        ],
+    ),
+    (
         "rekarina_setup_missing",
         [
             "Rekarina's setup folder (with its own compiler) was not found beside the game.",

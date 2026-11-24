@@ -172,6 +172,42 @@ pub fn run(
     stop: Arc<AtomicBool>,
     mut report: impl FnMut(BuildEvent),
 ) -> Result<()> {
+    let result = run_steps(req, stop, &mut report);
+    if let Err(err) = &result
+        && matches!(req.mode, Mode::Install | Mode::Reinstall)
+        && req.rebuild
+    {
+        // A failed install must not leave the mod half in: the folder goes back to what it was before.
+        match roll_back(&req.game) {
+            Ok(true) => report(BuildEvent::Note(format!(
+                "the install failed ({err}); the mod was removed again, nothing is left half installed"
+            ))),
+            Ok(false) => {}
+            Err(why) => report(BuildEvent::Note(format!(
+                "the install failed and the mod could not be removed again: {why}"
+            ))),
+        }
+    }
+    result
+}
+
+/// Undo what a failed install put in a game folder (a recompiled game or a Rekarina install). `true` when there was
+/// something to undo.
+fn roll_back(folder: &Path) -> Result<bool> {
+    if let Some(rk) = crate::rekarina::find(folder) {
+        return crate::rekarina::uninstall(&rk);
+    }
+    match game::find(folder) {
+        Some(found) => game::uninstall(&found),
+        None => Ok(false),
+    }
+}
+
+fn run_steps(
+    req: &RebuildRequest,
+    stop: Arc<AtomicBool>,
+    mut report: impl FnMut(BuildEvent),
+) -> Result<()> {
     let settings = presets::settings_for(&req.profile);
     let payload = req.payload();
     if crate::rekarina::find(&req.game).is_some() {
@@ -263,6 +299,11 @@ fn run_rekarina(
         ));
         return Ok(());
     }
+    if req.mode == Mode::Reinstall {
+        crate::rekarina::uninstall(&rk)?;
+    }
+    // The mod's folder has to be in `mods/` before the converter runs: it reads our IPS from there.
+    crate::rekarina::stage(&rk, settings, payload)?;
     let exe = crate::rekarina_build::build(&rk, settings, payload, stop.clone(), &mut report)?;
     if stop.load(Ordering::Relaxed) {
         return Err(Error::Build {
@@ -321,6 +362,57 @@ mod tests {
         assert_eq!(Mode::parse("settings"), Some(Mode::Settings));
         assert_eq!(Mode::parse("nonsense"), None);
         assert_eq!(Mode::Install.name(), "install");
+    }
+
+    #[test]
+    fn a_failed_install_leaves_the_game_as_it_was() {
+        let root = std::env::temp_dir().join(format!("shb-rollback-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let game_dir = root.join("game");
+        let exefs = game_dir.join(".longshot_exefs");
+        std::fs::create_dir_all(game_dir.join("bin")).unwrap();
+        std::fs::create_dir_all(&exefs).unwrap();
+        std::fs::write(game_dir.join("bin/longshot.exe"), b"exe").unwrap();
+        let mut main = vec![0u8; 0x100];
+        main[0x40..0x44].copy_from_slice(&[0xE0, 0xF3, 0xCC, 0xFA]);
+        std::fs::write(exefs.join("main"), &main).unwrap();
+        let magic = b"SHBCFG01";
+        let mut stock = vec![0x22u8; 0x400];
+        stock[0x100..0x108].copy_from_slice(magic);
+        stock[0x108..0x10C].copy_from_slice(&1u32.to_le_bytes());
+        stock[0x10C..0x110].copy_from_slice(&0x61u32.to_le_bytes());
+        // A game that was never given the mod has no module in its ExeFS.
+        std::fs::write(game_dir.join("image.bin"), &stock).unwrap();
+        let app = root.join("app");
+        let variant = app.join("payload").join("standalone");
+        std::fs::create_dir_all(&variant).unwrap();
+        let mut ours = stock.clone();
+        ours.iter_mut().skip(0x200).for_each(|b| *b = 0x33);
+        std::fs::write(variant.join("subsdk9"), &ours).unwrap();
+        std::fs::write(variant.join("ours.ips"), b"IPS32EEOF").unwrap();
+
+        let req = RebuildRequest {
+            game: game_dir.clone(),
+            profile: "recommended".to_string(),
+            app,
+            mode: Mode::Install,
+            rebuild: true,
+            // A builder that is not there: the compile step fails after the mod was copied in.
+            builder: Some(root.join("no-builder")),
+        };
+        let mut notes: Vec<String> = Vec::new();
+        let result = run(&req, Arc::new(AtomicBool::new(false)), |event| {
+            if let BuildEvent::Note(text) = event {
+                notes.push(text);
+            }
+        });
+        assert!(result.is_err(), "the build cannot run without a builder");
+        let found = game::find(&game_dir).unwrap();
+        assert!(!game::is_installed(&found), "left installed: {notes:?}");
+        assert!(!exefs.join("subsdk9").exists());
+        assert_eq!(std::fs::read(game_dir.join("image.bin")).unwrap(), stock);
+        assert!(notes.iter().any(|n| n.contains("removed again")), "{notes:?}");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

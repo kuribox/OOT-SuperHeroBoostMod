@@ -139,6 +139,41 @@ impl Target {
     }
 }
 
+/// Why a folder cannot be used: the message the page shows and the actions it disables.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Problem {
+    /// Not an emulator folder: no program in it.
+    Emulator,
+    /// Not a recompiled game: no ExeFS or no launcher.
+    Game,
+    /// Not a builder: no `tools/nx2/make_game.py`.
+    Builder,
+    /// Not a Rekarina install.
+    Rekarina,
+    /// A Rekarina install without its `setup/<version>/` (its own compiler).
+    Setup,
+}
+
+impl Problem {
+    fn key(self) -> &'static str {
+        match self {
+            Problem::Emulator => "e_path_emulator",
+            Problem::Game => "e_path_game",
+            Problem::Builder => "e_path_builder",
+            Problem::Rekarina => "rekarina_missing",
+            Problem::Setup => "rekarina_setup_missing",
+        }
+    }
+}
+
+/// How an action ended, for the window that reports it.
+#[derive(Clone, Debug)]
+struct Outcome {
+    ok: bool,
+    headline: String,
+    detail: Vec<String>,
+}
+
 /// Which of the two folder fields asked for a folder: the page's path, or the builder of a recompiled game.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Browse {
@@ -168,6 +203,8 @@ struct App {
     update: UpdateState,
     /// The key of the text a "?" opened, painted as a window over the page.
     help: Option<&'static str>,
+    /// How the last action ended, shown in a window that has to be dismissed: success or failure, never silence.
+    outcome: Option<Outcome>,
     /// The frame it opened on: the click that opens it is outside the window it just created, and closing on that
     /// click made every "?" look dead.
     help_frame: u64,
@@ -237,6 +274,19 @@ impl App {
             status: None,
             update: UpdateState::Idle,
             help_frame: 0,
+            // `SHB_OUTCOME=ok|fail` opens the result window at start: how its screenshots are taken.
+            outcome: std::env::var("SHB_OUTCOME").ok().and_then(|how| {
+                let ok = how == "ok";
+                (ok || how == "fail").then(|| Outcome {
+                    ok,
+                    headline: if ok { "Mod installed." } else { "The action failed." }.to_string(),
+                    detail: if ok {
+                        Vec::new()
+                    } else {
+                        vec!["recomp_build_failed: the builder's own compiler could not build a test program".to_string()]
+                    },
+                })
+            }),
             // `SHB_HELP=variant_d` opens that text at start: how the docs' screenshots are taken.
             help: std::env::var("SHB_HELP")
                 .ok()
@@ -272,6 +322,62 @@ impl App {
 
     fn t(&self, key: &'static str) -> &'static str {
         tr(self.ui_lang, key)
+    }
+
+    /// The window that closes an action: green and short on success, red with the reason on failure.
+    fn show_outcome(&mut self, ui: &mut egui::Ui) {
+        let Some(outcome) = &self.outcome else {
+            return;
+        };
+        let lang = self.ui_lang;
+        let (title_key, colour) = if outcome.ok {
+            ("result_ok_title", theme::TEAL)
+        } else {
+            ("result_fail_title", theme::RED)
+        };
+        let frame = egui::Frame::window(ui.style()).inner_margin(egui::Margin::symmetric(22, 18));
+        let modal = egui::Modal::new(ui.make_persistent_id("shb-outcome"))
+            .frame(frame)
+            .show(ui.ctx(), |ui| {
+                ui.set_width(460.0);
+                ui.label(
+                    egui::RichText::new(tr(lang, title_key))
+                        .size(18.0)
+                        .strong()
+                        .color(colour),
+                );
+                ui.add_space(8.0);
+                ui.label(egui::RichText::new(&outcome.headline).size(13.5).color(theme::TEXT));
+                if !outcome.detail.is_empty() {
+                    ui.add_space(8.0);
+                    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+                        for line in &outcome.detail {
+                            ui.label(egui::RichText::new(line).size(12.0).color(theme::DIM));
+                        }
+                    });
+                }
+                ui.add_space(14.0);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.button(egui::RichText::new(tr(lang, "result_close")).size(13.0))
+                        .clicked()
+                })
+                .inner
+            });
+        if modal.inner || modal.should_close() {
+            self.outcome = None;
+        }
+    }
+
+    /// An action ended: say so in the status line and in a window the player has to close.
+    fn conclude(&mut self, ok: bool, headline: impl Into<String>, detail: Vec<String>) {
+        let headline = headline.into();
+        self.failed = !ok;
+        self.status = Some(headline.clone());
+        self.outcome = Some(Outcome {
+            ok,
+            headline,
+            detail,
+        });
     }
 
     fn say(&mut self, line: impl Into<String>) {
@@ -420,31 +526,13 @@ impl App {
 
     /// Open what the page points at: the emulator, the launcher of a recompiled game, or Rekarina's own executable.
     fn play(&mut self) {
-        let path = PathBuf::from(self.emu.trim());
-        if self.emu.trim().is_empty() {
-            self.failed = true;
-            self.status = Some(fill(self.t("e_launch_emu"), &[("a", self.emu.trim())]));
-            return;
-        }
-        let found = match self.target {
-            Target::Emulator => shb_core::find::emulator_exe(&path),
-            Target::Recomp => {
-                let game = shb_core::game::find(&path).map(|game| game.root);
-                game.and_then(|root| shb_core::find::launcher_of(&root))
+        let exe = match self.check_paths() {
+            Ok(exe) => exe,
+            Err(problem) => {
+                self.failed = true;
+                self.status = Some(self.t(problem.key()).to_string());
+                return;
             }
-            Target::Rekarina => {
-                shb_core::rekarina::find(&path).and_then(|rk| shb_core::rekarina::launcher_of(&rk))
-            }
-        };
-        let Some(exe) = found else {
-            self.failed = true;
-            let key = if self.target == Target::Emulator {
-                "e_launch_emu"
-            } else {
-                "e_launch_recomp"
-            };
-            self.status = Some(fill(self.t(key), &[("a", self.emu.trim())]));
-            return;
         };
         match shb_core::find::launch(&exe) {
             Ok(()) => {
@@ -486,6 +574,45 @@ impl App {
     }
 
     /// Whether the mod is in the folder the page points at (what the actions depend on).
+    /// Whether the folder on the page is the kind of folder the target needs — the emulator's program, a
+    /// recompiled game's ExeFS and launcher, a Rekarina install with its `setup/` — and the program it would open.
+    fn check_paths(&self) -> Result<std::path::PathBuf, Problem> {
+        let path = PathBuf::from(self.emu.trim());
+        if self.emu.trim().is_empty() {
+            return Err(match self.target {
+                Target::Emulator => Problem::Emulator,
+                Target::Recomp => Problem::Game,
+                Target::Rekarina => Problem::Rekarina,
+            });
+        }
+        match self.target {
+            Target::Emulator => shb_core::find::emulator_exe(&path).ok_or(Problem::Emulator),
+            Target::Recomp => shb_core::find::launcher_of(&path)
+                .filter(|_| shb_core::game::find(&path).is_some())
+                .ok_or(Problem::Game),
+            Target::Rekarina => {
+                let rk = shb_core::rekarina::find(&path).ok_or(Problem::Rekarina)?;
+                // Rekarina's compiler ships in a `setup/<version>/` next to the game: without it nothing can be built.
+                if shb_core::rekarina_build::find_setup(&rk.root).is_none() {
+                    return Err(Problem::Setup);
+                }
+                shb_core::rekarina::launcher_of(&rk).ok_or(Problem::Rekarina)
+            }
+        }
+    }
+
+    /// The builder field: it only applies to a recompiled game (Rekarina brings its own toolchain).
+    fn check_builder(&self) -> Result<(), Problem> {
+        if self.target != Target::Recomp || self.builder.trim().is_empty() {
+            return Ok(());
+        }
+        if shb_core::rebuild::is_builder(std::path::Path::new(self.builder.trim())) {
+            Ok(())
+        } else {
+            Err(Problem::Builder)
+        }
+    }
+
     fn is_installed_now(&self) -> bool {
         let path = PathBuf::from(self.emu.trim());
         match self.target {
@@ -682,13 +809,14 @@ impl App {
                     self.refresh_emulator();
                     match error {
                         None => {
-                            self.failed = false;
-                            self.status = Some(tr(self.ui_lang, action_done(mode)).to_string());
+                            self.notes.clear();
+                            let done = tr(self.ui_lang, action_done(mode)).to_string();
+                            self.conclude(true, done, Vec::new());
                         }
                         Some(why) => {
-                            self.failed = true;
-                            self.status = Some(self.t("install_failed").to_string());
-                            self.notes = vec![why];
+                            self.notes = vec![why.clone()];
+                            let failed = self.t("install_failed").to_string();
+                            self.conclude(false, failed, vec![why]);
                         }
                     }
                 }
@@ -737,15 +865,18 @@ impl App {
         );
         match install::install(&req) {
             Ok(result) => {
-                self.failed = false;
                 self.notes = result.notes;
                 let line = format!("{} {}", self.t("installed"), result.target.display());
-                self.say(line);
+                self.say(line.clone());
                 self.refresh_emulator();
+                let notes = self.notes.clone();
+                self.conclude(true, line, notes);
             }
             Err(err) => {
-                self.failed = true;
-                self.notes = vec![format!("error: {err}")];
+                let why = format!("error: {err}");
+                self.notes = vec![why.clone()];
+                let failed = self.t("install_failed").to_string();
+                self.conclude(false, failed, vec![why]);
             }
         }
     }
@@ -755,43 +886,36 @@ impl App {
             return;
         }
         let emu = PathBuf::from(self.emu.trim());
-        if self.target == Target::Rekarina
+        let result = if self.target == Target::Rekarina
             && let Some(found) = shb_core::rekarina::find(&emu)
         {
-            match shb_core::rekarina::uninstall(&found) {
-                Ok(true) => {
-                    self.notes.clear();
-                    self.failed = false;
-                    self.say(self.t("uninstalled"));
-                }
-                Ok(false) => self.say(self.t("nothing")),
-                Err(err) => self.say(format!("error: {err}")),
-            }
-            return;
-        }
-        if self.target == Target::Recomp
+            shb_core::rekarina::uninstall(&found)
+        } else if self.target == Target::Recomp
             && let Some(found) = shb_core::game::find(&emu)
         {
-            match shb_core::game::uninstall(&found) {
-                Ok(true) => {
-                    self.notes.clear();
-                    self.failed = false;
-                    self.say(self.t("uninstalled"));
-                }
-                Ok(false) => self.say(self.t("nothing")),
-                Err(err) => self.say(format!("error: {err}")),
-            }
-            return;
-        }
-        match install::uninstall(&emu) {
+            shb_core::game::uninstall(&found)
+        } else {
+            install::uninstall(&emu)
+        };
+        match result {
             Ok(true) => {
                 self.notes.clear();
-                self.failed = false;
-                self.say(self.t("uninstalled"));
+                let done = self.t("uninstalled").to_string();
+                self.say(done.clone());
                 self.refresh_emulator();
+                self.conclude(true, done, Vec::new());
             }
-            Ok(false) => self.say(self.t("nothing")),
-            Err(err) => self.say(format!("error: {err}")),
+            Ok(false) => {
+                let nothing = self.t("nothing").to_string();
+                self.say(nothing.clone());
+                self.conclude(true, nothing, Vec::new());
+            }
+            Err(err) => {
+                let why = format!("error: {err}");
+                self.say(why.clone());
+                let failed = self.t("install_failed").to_string();
+                self.conclude(false, failed, vec![why]);
+            }
         }
     }
 
@@ -1233,6 +1357,8 @@ impl eframe::App for App {
                     });
             });
 
+        self.show_outcome(ui);
+
         if let Some(key) = self.help {
             let mut open = true;
             let text = tr(lang, key).to_string();
@@ -1361,8 +1487,13 @@ impl App {
                     });
                 }
 
+                // The folder has to be the right one before anything can be done with it: the page says so and the
+                // actions stay off until it is (a wrong path is the most common way to get a bare error).
+                let valid = self.check_paths();
+                let builder_ok = self.check_builder();
                 let installed = self.is_installed_now();
                 let busy = self.busy.is_some();
+                let ready = !busy && valid.is_ok() && builder_ok.is_ok();
                 ui.add_space(6.0);
                 ui.label(
                     egui::RichText::new(format!(
@@ -1381,18 +1512,30 @@ impl App {
                     .color(if installed { theme::TEAL } else { theme::DIM }),
                 );
 
+                // The verdict on the folders: what is wrong, or what it will open.
+                match (&valid, &builder_ok) {
+                    (Ok(exe), Ok(())) => {
+                        let label = fill(self.t("path_ok"), &[("a", &exe.display().to_string())]);
+                        ui.label(egui::RichText::new(label).size(11.5).color(theme::TEAL));
+                    }
+                    (Ok(_), Err(problem)) | (Err(problem), _) => {
+                        let label = tr(lang, problem.key());
+                        ui.label(egui::RichText::new(label).size(11.5).color(theme::AMBER));
+                    }
+                }
+
                 // What this target can do. An emulator only installs; a recompiled game can compile without copying
                 // the mod, copy the settings without compiling, or do both from scratch.
                 ui.add_space(4.0);
                 ui.horizontal_wrapped(|ui| {
                     if self.target == Target::Emulator {
-                        if theme::primary_button_enabled(ui, tr(lang, "install"), !busy).clicked() {
+                        if theme::primary_button_enabled(ui, tr(lang, "install"), ready).clicked() {
                             self.install();
                         }
                         if theme::ghost_button_enabled(
                             ui,
                             tr(lang, "uninstall"),
-                            !busy && installed,
+                            ready && installed,
                         )
                         .clicked()
                         {
@@ -1408,9 +1551,9 @@ impl App {
                         for (mode, enabled) in modes {
                             let label = tr(lang, action_name(mode));
                             let clicked = if mode == shb_core::rebuild::Mode::Install {
-                                theme::primary_button_enabled(ui, label, !busy).clicked()
+                                theme::primary_button_enabled(ui, label, ready).clicked()
                             } else {
-                                theme::ghost_button_enabled(ui, label, !busy && enabled).clicked()
+                                theme::ghost_button_enabled(ui, label, ready && enabled).clicked()
                             };
                             if clicked {
                                 self.start_mode(mode);
@@ -2244,11 +2387,14 @@ impl App {
             .values()
             .filter(|r| matches!(r, Role::Item1 | Role::Item2 | Role::Item3 | Role::ItemMain))
             .count();
-        ui.label(
-            egui::RichText::new(fill(tr(lang, "rm_items"), &[("n", &items.to_string())]))
-                .size(11.5)
-                .color(theme::DIM),
-        );
+        // The counter is about the item side of the mapping: with the item HUD off there is nothing to count.
+        if self.settings.hud_items && self.settings.button_mapping {
+            ui.label(
+                egui::RichText::new(fill(tr(lang, "rm_items"), &[("n", &items.to_string())]))
+                    .size(11.5)
+                    .color(theme::DIM),
+            );
+        }
         let rows: [Button; 15] = [
             Button::X,
             Button::XHold,
@@ -2290,10 +2436,23 @@ impl App {
                     .copied()
                     .unwrap_or(Role::None);
                 let mut picked = current;
+                // The list follows the switches, as the Python editor's does: the item roles are only offered with
+                // the custom item HUD, and the shield only with the manual shield. The role a button already has
+                // stays in the list, so a table that was made before is not silently rewritten.
+                let items_on = self.settings.hud_items && self.settings.button_mapping;
+                let shield_on = self.settings.manual_shield;
                 let choices: Vec<(Role, String)> = Role::ALL
                     .iter()
                     .copied()
                     .filter(|role| shb_core::roles::role_allowed(*role, button))
+                    .filter(|role| {
+                        let item = matches!(
+                            role,
+                            Role::Item1 | Role::Item2 | Role::Item3 | Role::Selector
+                        );
+                        let hidden = (item && !items_on) || (*role == Role::Shield && !shield_on);
+                        !hidden || *role == current
+                    })
                     .map(|role| (role, into_role_name(lang, role)))
                     .collect();
                 if widgets::combo_row(

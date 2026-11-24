@@ -686,8 +686,9 @@ pub fn build(
         .current_dir(&plan.cwd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .stdin(Stdio::null())
-        .env_clear();
+        .stdin(Stdio::null());
+    // The builder's own compiler needs the whole environment (TEMP/TMP above all: without them clang cannot make
+    // a temporary file), so ours is laid over the inherited one.
     for (key, value) in &env {
         cmd.env(key, value);
     }

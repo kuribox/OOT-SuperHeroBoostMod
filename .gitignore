@@ -52,3 +52,4 @@ app-rs/target/
 Thumbs.db
 desktop.ini
 .venv/
+app-rs/target-dev/

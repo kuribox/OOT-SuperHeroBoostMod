@@ -380,6 +380,14 @@ pub fn uninstall(game: &Rekarina) -> Result<bool> {
     Ok(restored)
 }
 
+/// What a build needs in the game folder before it starts: the backup to come back to, the mod's own folder (its
+/// ExeFS patch file is what Rekarina's converter turns into the hooks) and the first place in `mods_order`.
+pub fn stage(game: &Rekarina, s: &Settings, payload: &Path) -> Result<()> {
+    backup_once(game)?;
+    install_romfs(game, s, payload)?;
+    set_mod_order(game)
+}
+
 /// The settings half of an install: the module's config block, the exe's expected hash, the romfs and the mod order.
 pub fn apply_settings(game: &Rekarina, s: &Settings, payload: &Path) -> Result<()> {
     if !is_built(game) {
