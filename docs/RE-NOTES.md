@@ -684,11 +684,20 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   so a dialogue showed a world glyph - and was removed.
 - The interaction guide (the "Blandir ZR" / "Guardar B" bar): rewriting its keys was tried and reverted (the game
   re-sets the panes, two writers blink; a shared glyph buffer made every entry show the same letter). It is now
-  **hidden by default whenever the button-mapping HUD is on, with no option** (`gi_*` in core/hud.c, branch
-  feat/hide-interaction-guide). The text hook remembers the layout of any `T_Icon_NN` / `T_Guide_NN` / `T_Btn_NN`
-  write (validated: the layout must hold a `T_Guide_NN` pane, so `T_GuideA_00` and menus are untouched), and every
-  frame all its panes get scale 0, tint alpha 0 and y = 4000; the plate, shadow and end masks that live in the parent
-  layout (`W_GuideBg*`, `W_GuideBgSh*`, `P_MaskL/R_00`) get the same. `g_gi_hidden` = panes hidden last frame.
+  **hidden by default whenever the button-mapping HUD is on, with no option** (`gi_*` in core/hud.c).
+  - The bar is ONE container layout: `RootPane`, `N_All_00`, `W_Bg_00` (the dark plate), `A_Align_00`,
+    `Pa_GuideReverse_00`, `Pa_Guide_00..04`. The entries (`N_InOut_00`, `T_Guide_00`, `T_Icon_00..04`) are its child
+    layouts. A child layout's `+0` / `+8` are its previous / next sibling and the first child's `+0` is the list head
+    `container + 0x128`: that is how the container is found (it is **not** `*(u64 *)layout`, which is a sibling).
+  - The pause menu's footer legend has entries with the same pane names but another container, so the container is
+    recognised by `W_Bg_00` + `Pa_GuideReverse_00` and only then touched. The text hook only finds it (a `T_Icon_NN`
+    / `T_Guide_NN` / `T_Btn_NN` write); not every entry is written through that hook.
+  - **Hide = move the container's panes (all but `RootPane`) to y = -4000, nothing else.** Scale 0 + tint alpha 0 +
+    y = 4000 hid it too, but froze the game the moment an item other than the stick was used (stock `development`
+    does not: A/B with the same ZL, R, ZR sequence over the debug server). Position only is stable.
+  - Debug: `g_gi_hidden` = panes moved last frame (0 with the bar on screen = container not found), `g_gi_off` = 1
+    stops it live. Panes written from outside the module (debug server) are re-set by the game's per-frame
+    animation, so a hide can only be judged from the module's own per-frame write.
 
 ## HUD counts: the ZR button followed the borrowed item (Nov 23)
 

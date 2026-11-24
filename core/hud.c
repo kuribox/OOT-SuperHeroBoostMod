@@ -2919,25 +2919,22 @@ static int gi_container(u64 lay) {   /* the in-game guide bar, not a menu footer
     const u8 *r = (const u8 *)ptr(lay, 0xF8);
     return name_index(r, 0x20, "W_Bg_00") >= 0 && name_index(r, 0x20, "Pa_GuideReverse_00") >= 0;
 }
+/* Moved down out of the screen, nothing else: zeroing the scale / alpha of these panes froze the game as soon as an
+ * item other than the stick was used (the bar is rebuilt then), while the stock game never does. */
 static void gi_hide_rec(u64 r) {
-    *(float *)(r + 0x60) = 0.0f; *(float *)(r + 0x64) = 0.0f;
-    *(float *)(r + 0x70) = 4000.0f;
+    *(float *)(r + 0x70) = -4000.0f;
     *(u32 *)r |= 0x6F;
-    tint_rec(r, 1.0f, 1.0f, 1.0f, 0.0f);
 }
 static u32 gi_hide_panes(u64 lay) {
     u32 n = 0;
     if (!gi_layout(lay)) return 0;
     u32 cnt = w((const u8 *)ptr(lay, 0xF8), 0x38);
     u64 arr = ptr(lay, 0x100);
-    for (u32 i = 0; i < cnt; i++) { gi_hide_rec(arr + (u64)i * 0xB0); n++; }
+    for (u32 i = 1; i < cnt; i++) { gi_hide_rec(arr + (u64)i * 0xB0); n++; }   /* all but RootPane */
     return n;
 }
 static u32 gi_hide_bar(u64 cont) {
-    u32 n = gi_hide_panes(cont);
-    u64 head = cont + 0x128, c = ptr(head, 8);
-    for (u32 i = 0; i < 12 && c != head && gi_layout(c); i++, c = ptr(c, 8)) n += gi_hide_panes(c);
-    return n;
+    return gi_hide_panes(cont);   /* the children (entries) hang on its Pa_Guide_* parts and move with them */
 }
 /* the container behind one of its entries' layouts (0: not an in-game guide entry) */
 static u64 gi_find_container(u64 lay) {
