@@ -104,7 +104,12 @@ segfaults here).
   `build_game.py` and its converters (they are Rekarina's tools) but does this app's part — ExeFS staging, the
   patch tables, the extra `main` seeds, the expected hashes, the base check — in Rust. `app/rebuild.py` is unused.
   NSO sizes are `data`'s memory + decompressed + bss at `0x3c`, aligned to a page; modules are placed on **2 MiB**
-  boundaries, which is what makes `subsdk9` land at `main+0x5200000`.
+  boundaries, which is what makes `subsdk9` land at `main+0x5200000`. A run against `F:\Switch2ekarina` reports
+  `exefs: … .ips (49 sites)`, `74 extra main seeds`, 553 generated C files in 4 modules and 701 compile steps —
+  the same numbers the Python reference gives.
+- **A full rebuild needs the machine's memory**: `build_game` gates the compile on free RAM (one job when the emulator
+  holds 9 GB). A test build must run in a game copy that keeps `exefs/`, `mods/`, `Rekarina.exe` and `rekarina.ini`
+  beside the shared `setup/` (the romfs of a real install is 23 GB and the lift does not need it).
 - Dev aids: `SHB_PAGE=<install|presets|gameplay|difficulty|controls|hud|misc|help|about>` opens a page directly,
   `SHB_WINDOW=WxH` sizes the window and `SHB_HELP=<key>` opens one help text — how the screenshots in
   `docs/capturas/` are taken. `tests` before a release build, and `Stop-Process -Name shb-gui -Force` before
