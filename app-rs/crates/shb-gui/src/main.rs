@@ -168,6 +168,8 @@ struct App {
     rebuild_rx: Option<channel::Receiver<String>>,
     /// Set to stop a running build.
     rebuild_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    /// The folder dialog, while the player is choosing one: the OS dialog blocks, so it runs in a thread.
+    pick_rx: Option<channel::Receiver<Option<std::path::PathBuf>>>,
     update_rx: Option<Receiver<UpdateMsg>>,
 }
 
@@ -201,6 +203,7 @@ impl App {
                 .and_then(|key| HELP_KEYS.iter().copied().find(|known| *known == key)),
             rebuild_rx: None,
             rebuild_stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            pick_rx: None,
             update_rx: None,
         };
         match app.payload.clone() {
@@ -288,6 +291,41 @@ impl App {
         self.target = target;
         self.emu = self.paths[index(target)].clone();
         self.refresh_emulator();
+    }
+
+    /// Ask the system for a folder. The dialog blocks, so it runs in its own thread and the answer arrives through a
+    /// channel — the window keeps drawing while it is open (and a dialog opened from the paint code would deadlock).
+    fn pick_folder(&mut self) {
+        if self.pick_rx.is_some() {
+            return;
+        }
+        let start = std::path::PathBuf::from(self.emu.trim());
+        let title = tr(self.ui_lang, "pick_folder").to_string();
+        let (tx, rx) = channel();
+        std::thread::spawn(move || {
+            let mut dialog = rfd::FileDialog::new();
+            if let Some(dir) = start.parent().filter(|dir| dir.is_dir()) {
+                dialog = dialog.set_directory(dir);
+            }
+            let chosen = dialog.set_title(&title).pick_folder();
+            let _ = tx.send(chosen);
+        });
+        self.pick_rx = Some(rx);
+    }
+
+    /// Take the folder the player chose, if the dialog has answered.
+    fn poll_folder_choice(&mut self) {
+        let Some(rx) = &self.pick_rx else { return };
+        match rx.try_recv() {
+            Ok(Some(path)) => {
+                self.emu = path.display().to_string();
+                self.pick_rx = None;
+                self.refresh_emulator();
+            }
+            Ok(None) => self.pick_rx = None,
+            Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.pick_rx = None,
+        }
     }
 
     /// Rebuild the game: the driver is this app (`shb_core::rebuild`); the lift and the link are the recompiler's own
@@ -799,6 +837,7 @@ impl eframe::App for App {
         let mut changed = false;
         self.poll_update();
         self.poll_rebuild();
+        self.poll_folder_choice();
 
         egui::Panel::top("header")
             .frame(
@@ -1064,7 +1103,7 @@ impl App {
                             .hint_text("E:/Switch2/Emu/…"),
                     );
                     if ghost_button(ui, tr(lang, "browse")).clicked() {
-                        self.refresh_emulator();
+                        self.pick_folder();
                     }
                 });
                 if let Some(status) = &self.status {

@@ -11,6 +11,17 @@ include!("i18n_table.rs");
 /// Keys this port has that the Python app does not (its own extra labels).
 static EXTRA: &[(&str, [&str; 6])] = &[
     (
+        "pick_folder",
+        [
+            "Choose a folder",
+            "Elige una carpeta",
+            "Escolha uma pasta",
+            "Choisir un dossier",
+            "Ordner wählen",
+            "Scegli una cartella",
+        ],
+    ),
+    (
         "rust_note",
         [
             "This window is the Rust version of the configurator: it installs the same module and writes the same bytes.",
