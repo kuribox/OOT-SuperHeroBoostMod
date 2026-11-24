@@ -104,9 +104,15 @@ segfaults here).
   `build_game.py` and its converters (they are Rekarina's tools) but does this app's part — ExeFS staging, the
   patch tables, the extra `main` seeds, the expected hashes, the base check — in Rust. `app/rebuild.py` is unused.
   NSO sizes are `data`'s memory + decompressed + bss at `0x3c`, aligned to a page; modules are placed on **2 MiB**
-  boundaries, which is what makes `subsdk9` land at `main+0x5200000`. A run against `F:\Switch2ekarina` reports
+  boundaries, which is what makes `subsdk9` land at `main+0x5200000`. A run against `F:\Switch2
+ekarina` reports
   `exefs: … .ips (49 sites)`, `74 extra main seeds`, 553 generated C files in 4 modules and 701 compile steps —
   the same numbers the Python reference gives.
+- **Verified end to end (2026-11-24)**: a Rekarina rebuild driven by `shb rebuild` produced a 374 MB `Rekarina.exe`,
+  wrote the settings into the module and its SHA-256 into the executable, and left `state.json` with `rebuilt: true`;
+  `shb game` afterwards patched the module and the hash again without rebuilding. The recomp driver reaches further:
+  it found Longshot v3.1.1's own builder and started its build (which then failed on a scratch folder because that
+  builder's compiler could not write temp files there — its toolchain, not ours).
 - **A full rebuild needs the machine's memory**: `build_game` gates the compile on free RAM (one job when the emulator
   holds 9 GB). A test build must run in a game copy that keeps `exefs/`, `mods/`, `Rekarina.exe` and `rekarina.ini`
   beside the shared `setup/` (the romfs of a real install is 23 GB and the lift does not need it).
