@@ -1,5 +1,16 @@
 # Companion app (SHB-OcarinaTweaks)
 
+The companion app exists twice, and both are kept:
+
+| Folder | App | Notes |
+|---|---|---|
+| `app/` | the **current app**, Rust (cargo workspace: `shb-core`, `shb-cli`, `shb-gui`) | one executable, the window and the command line; carries the payload; rebuilds recompiled games and Rekarina itself. Windows is the only OS it has been run on. See [app/README.md](../app/README.md) |
+| `app-legacy/` | the **first app**, Python (Tkinter / CustomTkinter) | `python app-legacy/main.py`, or the PyInstaller bundle; still the Linux and macOS download. It is also the reference `app/tools/parity_check.py` compares the Rust app against |
+
+Both read and write the same settings file (`SHB-OcarinaTweaks.json`) and install the same folder, so they can be
+swapped at any time. The page names and the texts below apply to both: the Rust window draws the Python app's pages
+from the same `i18n.py` strings.
+
 The app does **not** compile anything. The mod ships precompiled as the standalone variant (`app/payload/standalone`)
 and reads a small config block (`core/config.h`, magic `SHBCFG01`) when the game loads.
 The app only:
@@ -23,13 +34,18 @@ The app only:
 
 | File | Purpose |
 |---|---|
-| `app/main.py` | window, navigation and `--cli` mode |
-| `app/presets.py` | complete game profiles |
-| `app/installer.py` | install logic and config patching |
-| `app/updater.py` | GitHub Releases update check, download and self-replace |
-| `app/version.py` | project version (shown in the window and used by the release tools) |
-| `app/paths.py` | portable/per-user settings paths (Windows, macOS, Linux) |
-| `app/i18n.py` | texts in en / es / pt / fr / de / it |
+| `app-legacy/main.py` | window, navigation and `--cli` mode |
+| `app-legacy/presets.py` | complete game profiles |
+| `app-legacy/installer.py` | install logic and config patching |
+| `app-legacy/updater.py` | GitHub Releases update check, download and self-replace |
+| `app-legacy/version.py` | project version (shown in the window and used by the release tools) |
+| `app-legacy/paths.py` | portable/per-user settings paths (Windows, macOS, Linux) |
+| `app-legacy/i18n.py` | texts in en / es / pt / fr / de / it |
+
+The Rust app keeps the same split in `app/crates/`: `shb-core` is `installer.py` + `presets.py` + `recomp.py` +
+`rekarina.py` + `updater.py` in one library (`settings.rs`, `config.rs`, `roles.rs`, `presets.rs`, `install.rs`,
+`game.rs`, `rebuild.rs`, `recomp_build.rs`, `rekarina.rs`, `rekarina_build.rs`, `update.rs`…), `shb-cli` is `main.py`
+without the window, and `shb-gui` is the window.
 
 Settings are remembered in `SHB-OcarinaTweaks.json` next to the program; if that folder is read-only, in the
 per-user configuration folder (see the README). The app never needs administrator rights.
@@ -171,7 +187,7 @@ The **Controls** section has a **Manual shield** card (off by default):
 
 On startup the app asks GitHub for the latest release of
 [OOT-SuperHeroBoostMod](https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/latest) in a background thread. If
-the tag is newer than `app/version.py`, a bar appears under the header with **Download / Later**; it is also
+the tag is newer than `app-legacy/version.py`, a bar appears under the header with **Download / Later**; it is also
 available as **Check for updates** in *About*.
 
 - The download is the release asset for the platform (`SHB-OcarinaTweaks.exe` on Windows,
@@ -193,13 +209,13 @@ The updater is only active in the GUI (`--cli` does not check), and it needs no 
 The same install code is available without a window:
 
 ```
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended
-python app/main.py --cli --emu "EMULATOR_PATH" --preset 3 --off jump,shoot --combat-only
-python app/main.py --cli --emu "EMULATOR_PATH" --profile hero-explorer --rupees --clock --clock24
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended --no-songbook
-python app/main.py --cli --emu "EMULATOR_PATH" --profile base --enemy-move 1 --enemy-anim 2 --enemy-attack 2 --enemy-proj 2 --stamina-bar
-python app/main.py --cli --emu "EMULATOR_PATH" --profile recommended --lang en
-python app/main.py --list-profiles
+python app-legacy/main.py --cli --emu "EMULATOR_PATH" --profile recommended
+python app-legacy/main.py --cli --emu "EMULATOR_PATH" --preset 3 --off jump,shoot --combat-only
+python app-legacy/main.py --cli --emu "EMULATOR_PATH" --profile hero-explorer --rupees --clock --clock24
+python app-legacy/main.py --cli --emu "EMULATOR_PATH" --profile recommended --no-songbook
+python app-legacy/main.py --cli --emu "EMULATOR_PATH" --profile base --enemy-move 1 --enemy-anim 2 --enemy-attack 2 --enemy-proj 2 --stamina-bar
+python app-legacy/main.py --cli --emu "EMULATOR_PATH" --profile recommended --lang en
+python app-legacy/main.py --list-profiles
 ```
 
 `--profile` applies a complete profile first; the individual flags override it. `--preset` keeps the numeric stamina

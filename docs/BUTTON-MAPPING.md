@@ -53,7 +53,7 @@ still reaches the game. Only the **long press** is a role, in `ShbConfig.bm_role
 struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no role).
 
 - The roles it takes are the ones that need no HUD button: jump, sword, camera, sprint, shield, **item selector** and
-  **armory** (`_DR_ROLES` in `app/installer.py`). No item slots, target or action, like L3 / R3.
+  **armory** (`_DR_ROLES` in `app-legacy/installer.py`). No item slots, target or action, like L3 / R3.
 - `button_remap_on_input` holds the press back: released before `REMAP_DR_HOLD` (20) HUD frames it is replayed to
   the game as a three-read pulse (Navi answers a little late, after the release); held longer the arrow is cleared for
   good and the role's virtual button is set for as long as it is held. State is reset whenever the remap is off
@@ -64,7 +64,7 @@ struct 92; the struct is 0x60 bytes now, an older app leaves the byte 0 = no rol
 
 ## Roles that may repeat (jump, sword, selector, armory, Back)
 
-One role is on one button at most, except these: `DUP_ROLES` in `app/installer.py` lets jump, sword, the item
+One role is on one button at most, except these: `DUP_ROLES` in `app-legacy/installer.py` lets jump, sword, the item
 selector, the armory and Back sit on two (or more) buttons at once, so a shortcut can be added without taking the
 role away from its usual button. `normalize_roles()` keeps the repeats; the editor does not move the role away
 from the other button when one of them is picked.
