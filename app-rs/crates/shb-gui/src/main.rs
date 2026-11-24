@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc as channel;
 use std::sync::mpsc::{Receiver, channel};
-use theme::{ghost_button, primary_button, section, title};
+use theme::{ghost_button, primary_button, section};
 
 /// What the update check is doing, so the page can paint it.
 enum UpdateState {
@@ -819,14 +819,34 @@ impl eframe::App for App {
                         ui.image((logo.id(), egui::vec2(width, height)));
                         ui.add_space(6.0);
                     }
-                    ui.vertical(|ui| {
-                        ui.label(title(19.0, tr(lang, "app_title")));
-                        ui.label(
-                            egui::RichText::new(tr(lang, "subtitle"))
-                                .size(11.0)
-                                .color(theme::DIM),
-                        );
-                    });
+                    // The two lines, drawn as one block of *measured* height and centred against the logo.
+                    //
+                    // Laid out as widgets, the block either took the whole row's height (the title at the top, the
+                    // subtitle at the bottom) or overflowed a guessed height and made the header taller. The galleys
+                    // say exactly how tall the text is, so the block is allocated at that size and the two lines are
+                    // placed inside it: the row's `Align::Center` then centres the block against the icon.
+                    let title_text = tr(lang, "app_title").to_string();
+                    let sub_text = tr(lang, "subtitle").to_string();
+                    let title_font =
+                        egui::FontId::new(19.0, egui::FontFamily::Name(theme::DISPLAY.into()));
+                    let sub_font = egui::FontId::new(11.0, egui::FontFamily::Proportional);
+                    let title_galley =
+                        ui.painter()
+                            .layout_no_wrap(title_text, title_font, theme::TEXT);
+                    let sub_galley = ui.painter().layout_no_wrap(sub_text, sub_font, theme::DIM);
+                    let gap = 1.0;
+                    let block = egui::vec2(
+                        title_galley.size().x.max(sub_galley.size().x),
+                        title_galley.size().y + gap + sub_galley.size().y,
+                    );
+                    let (rect, _) = ui.allocate_exact_size(block, egui::Sense::hover());
+                    let painter = ui.painter();
+                    painter.galley(rect.left_top(), title_galley.clone(), theme::TEXT);
+                    painter.galley(
+                        egui::pos2(rect.left(), rect.top() + title_galley.size().y + gap),
+                        sub_galley,
+                        theme::DIM,
+                    );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // The flag beside the name: the fonts carry no flag emoji, so it is drawn.
                         ui.horizontal(|ui| {
@@ -1711,13 +1731,21 @@ impl App {
         // The editor: one row per button, its roles, and the two previews.
         ui.add_space(8.0);
         theme::section(ui, tr(lang, "rm_title"), Some(tr(lang, "rm_help")), |ui| {
-            widgets::two_columns(ui, 720.0, 0.58, 300.0, |ui, column| match column {
+            // The rows are about 260 px wide: the previews sit right beside them with a gap of 18, in the same place
+            // whatever buttons the table has (a percentage split left them far right of the selects).
+            widgets::two_columns_sized(ui, 300.0, 18.0, 320.0, |ui, column| match column {
                 widgets::Column::Left => self.remap_rows(ui, lang, &mut changed, &mut help),
                 widgets::Column::Right => self.remap_previews(ui, lang, &mut help),
             });
         });
         self.help = help;
         changed
+    }
+
+    /// Whether the settings are exactly this preset: its table with the user's own long presses, and the layout it
+    /// sets (the GameCube preset is the classic table with the GameCube positions).
+    fn preset_matches(&self, key: &str) -> bool {
+        preset_matches(&self.settings, key)
     }
 
     /// One card of the presets: its name, the first sentence of its description, and the rest behind the "?".
@@ -1731,12 +1759,9 @@ impl App {
         changed: &mut bool,
     ) -> bool {
         let lang = self.ui_lang;
-        let selected = shb_core::roles::remap_preset(key)
-            .map(|table| {
-                shb_core::roles::keep_holds(&table, &self.settings.bm_roles)
-                    == self.settings.bm_roles
-            })
-            .unwrap_or(false);
+        // "Switch GameCube" is the classic table with the GameCube face-button positions: comparing the tables alone
+        // marked "Clásico" as well, and the first card of the list won.
+        let selected = self.preset_matches(key);
         let width = ui.available_width();
         let frame = egui::Frame::NONE
             .fill(if selected {
@@ -2394,6 +2419,19 @@ fn card_pressed(ui: &egui::Ui, card: egui::Rect, help: Option<egui::Rect>) -> bo
     ui.input(|i| i.pointer.primary_clicked())
 }
 
+/// Whether the settings are exactly this preset: its table with the user's own long presses, *and* the face-button
+/// layout it sets. Without the layout, "Switch GameCube" (the classic table with the GameCube positions) marked the
+/// classic card too, and the first card of the list won.
+fn preset_matches(s: &shb_core::settings::Settings, key: &str) -> bool {
+    let table_key = if key == "gamecube" { "classic" } else { key };
+    let Some(table) = shb_core::roles::remap_preset(table_key) else {
+        return false;
+    };
+    let roles = shb_core::roles::keep_holds(&table, &s.bm_roles) == s.bm_roles;
+    let gamecube = s.bm_layout == shb_core::settings::BmLayout::Gamecube;
+    roles && (gamecube == (key == "gamecube"))
+}
+
 /// Whether a click outside the help window closes it.
 ///
 /// The click that opens the window is, by definition, outside the window that did not exist yet when it landed, so the
@@ -2440,7 +2478,7 @@ fn main() -> eframe::Result {
 
 #[cfg(test)]
 mod tests {
-    use super::closes_help;
+    use super::{closes_help, preset_matches};
 
     #[test]
     fn the_click_that_opens_a_help_window_does_not_close_it() {
@@ -2450,5 +2488,27 @@ mod tests {
         // Any later click outside does close it, and one inside never does.
         assert!(closes_help(12, 10, true));
         assert!(!closes_help(12, 10, false));
+    }
+
+    #[test]
+    fn the_gamecube_preset_is_the_classic_table_with_its_own_layout() {
+        use shb_core::settings::{BmLayout, Settings};
+        let classic = shb_core::roles::remap_preset("classic").unwrap();
+        let mut s = Settings {
+            bm_roles: classic,
+            bm_layout: BmLayout::Nintendo,
+            ..Settings::default()
+        };
+        assert!(
+            preset_matches(&s, "classic"),
+            "the classic table with Nintendo positions is Clasico"
+        );
+        assert!(!preset_matches(&s, "gamecube"), "and not Switch GameCube");
+        s.bm_layout = BmLayout::Gamecube;
+        assert!(
+            preset_matches(&s, "gamecube"),
+            "the same table with GameCube positions is Switch GameCube"
+        );
+        assert!(!preset_matches(&s, "classic"), "and not Clasico any more");
     }
 }

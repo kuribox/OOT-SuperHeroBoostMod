@@ -5,10 +5,10 @@
 //! the builder the launcher installed, and drive it (`recomp_build`) — the recompiler's `make_game.py` and the
 //! toolchain it uses are external programs, like a C project's compiler, and nothing of *this* app runs in Python.
 //!
-//! Rekarina is the exception, and it is one on purpose: its three stages (`gen.py`, `build_game.py`, its own patches)
-//! are Rekarina's own toolchain, shipped with its `setup/` folder and a private interpreter. This module runs that
-//! pipeline whole (`app/rebuild.py`), because re-implementing a lifter is not what a configurator should do; the parts
-//! this app decides — which module, which settings, which hook seeds — are already its own.
+//! Rekarina is the other kind: its three stages (`gen.py`, `build_game.py`, its patch converters) are Rekarina's own
+//! toolchain, shipped with its `setup/` folder and a private interpreter. `rekarina_build` runs that pipeline and does
+//! this app's part of it in Rust (the ExeFS, the patch tables, the extra seeds, the expected hashes). Either way, no
+//! part of *this* app runs in Python.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;

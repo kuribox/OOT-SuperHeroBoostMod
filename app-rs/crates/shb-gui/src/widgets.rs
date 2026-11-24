@@ -44,6 +44,36 @@ pub enum Column {
 /// The body runs once per column, so a page keeps its own borrows: `|ui, column| match column { … }`.
 /// `min_width` is where two columns still make sense; the left one keeps `share` of it, the right one the rest,
 /// never less than `right_min`.
+/// Two columns, the left one a fixed width: the right one starts right beside it, at the same place whatever the
+/// rows of the left one are (a column that shrinks with its content drags its neighbour along).
+pub fn two_columns_sized(
+    ui: &mut egui::Ui,
+    left_width: f32,
+    gap: f32,
+    right_min: f32,
+    mut body: impl FnMut(&mut egui::Ui, Column),
+) {
+    let total = ui.available_width();
+    if total >= left_width + gap + right_min {
+        let right_width = total - left_width - gap;
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(left_width);
+                body(ui, Column::Left);
+            });
+            ui.add_space(gap);
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                body(ui, Column::Right);
+            });
+        });
+    } else {
+        body(ui, Column::Left);
+        ui.add_space(12.0);
+        body(ui, Column::Right);
+    }
+}
+
 pub fn two_columns(
     ui: &mut egui::Ui,
     min_width: f32,
@@ -56,20 +86,19 @@ pub fn two_columns(
         let left_width = (total * share)
             .min(total - right_min - 16.0)
             .max(total * 0.4);
+        let right_width = (total - left_width - 16.0).max(right_min);
+        // Both columns take their width from the layout, not from their contents: a column whose rows are shorter
+        // used to shrink and let the other one slide left (the preview moving when a preset had fewer options).
         ui.horizontal_top(|ui| {
-            let mut first = true;
-            ui.allocate_ui_with_layout(
-                egui::vec2(left_width, 0.0),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| {
-                    if first {
-                        body(ui, Column::Left);
-                    }
-                    first = false;
-                },
-            );
+            ui.vertical(|ui| {
+                ui.set_width(left_width);
+                body(ui, Column::Left);
+            });
             ui.add_space(16.0);
-            ui.vertical(|ui| body(ui, Column::Right));
+            ui.vertical(|ui| {
+                ui.set_width(right_width);
+                body(ui, Column::Right);
+            });
         });
     } else {
         body(ui, Column::Left);
