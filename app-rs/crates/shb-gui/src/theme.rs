@@ -255,3 +255,30 @@ pub fn icon() -> Option<egui::IconData> {
         height: image.height(),
     })
 }
+
+/// A primary button that can be disabled (a running build, an action that needs the mod installed).
+pub fn primary_button_enabled(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response {
+    if !enabled {
+        return ui.add_enabled(
+            false,
+            egui::Button::new(egui::RichText::new(text).color(DIM))
+                .fill(PANEL2)
+                .corner_radius(egui::CornerRadius::same(8)),
+        );
+    }
+    primary_button(ui, text)
+}
+
+/// A quiet button that can be disabled.
+pub fn ghost_button_enabled(ui: &mut egui::Ui, text: &str, enabled: bool) -> egui::Response {
+    if !enabled {
+        return ui.add_enabled(
+            false,
+            egui::Button::new(egui::RichText::new(text).color(DIM))
+                .fill(egui::Color32::TRANSPARENT)
+                .stroke(egui::Stroke::new(1.0, BORDER))
+                .corner_radius(egui::CornerRadius::same(8)),
+        );
+    }
+    ghost_button(ui, text)
+}

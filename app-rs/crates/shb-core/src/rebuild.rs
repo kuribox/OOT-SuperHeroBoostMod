@@ -20,6 +20,45 @@ use crate::presets;
 use crate::recomp_build::{self, BuildEvent};
 use crate::settings::Settings;
 
+/// What the install page can do with a recompiled game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    /// Copy the mod and compile it: the whole thing.
+    Install,
+    /// Only run the builder, on what is already in the game folder (hand edits included). Needs the mod installed.
+    Recompile,
+    /// Write the module, its settings block, `image.bin` and the romfs — nothing has to be compiled.
+    Settings,
+    /// Uninstall first, then install: the mod files are copied again from scratch.
+    Reinstall,
+}
+
+impl Mode {
+    pub fn parse(text: &str) -> Option<Mode> {
+        match text {
+            "install" => Some(Mode::Install),
+            "recompile" | "rebuild" => Some(Mode::Recompile),
+            "settings" | "apply" => Some(Mode::Settings),
+            "reinstall" => Some(Mode::Reinstall),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Mode::Install => "install",
+            Mode::Recompile => "recompile",
+            Mode::Settings => "settings",
+            Mode::Reinstall => "reinstall",
+        }
+    }
+
+    /// Whether this mode runs the compiler.
+    pub fn compiles(self) -> bool {
+        matches!(self, Mode::Install | Mode::Recompile | Mode::Reinstall)
+    }
+}
+
 /// What to rebuild.
 #[derive(Debug, Clone)]
 pub struct RebuildRequest {
@@ -28,6 +67,8 @@ pub struct RebuildRequest {
     pub profile: String,
     /// The app folder (the one that holds `payload/`).
     pub app: PathBuf,
+    /// What to do (a recompiled game).
+    pub mode: Mode,
     /// `false` patches the settings only: the code stays as the last build left it.
     pub rebuild: bool,
     /// A builder folder to use instead of the one the launcher installed.
@@ -107,6 +148,14 @@ pub fn find_builders(game: &Path, flavor: Flavor) -> Vec<Builder> {
     out
 }
 
+/// The builder this port would use for a game folder: the launcher's newest toolchain, or one beside the game.
+pub fn detected_builder(game: &Path) -> Option<Builder> {
+    let found = game::find(game)
+        .ok_or_else(|| Error::NotAGame(game.to_path_buf()))
+        .ok()?;
+    find_builders(&found.root, found.flavor).into_iter().next()
+}
+
 /// Do it: write the settings, rebuild when asked, and report as the build goes.
 ///
 /// `stop` is the window's cancel flag; the recompiler is killed when it is set.
@@ -121,8 +170,35 @@ pub fn run(
         return run_rekarina(req, &settings, &payload, stop, report);
     }
     let game = game::find(&req.game).ok_or_else(|| Error::NotAGame(req.game.clone()))?;
-    // The module has to be in exefs/ before the lift, and written again after the build (which replaces the file).
-    game::stage(&game, &settings, &payload)?;
+    match req.mode {
+        Mode::Settings => {
+            // The settings and the romfs only: nothing here needs the compiler.
+            game::apply_settings(&game, &settings, &payload)?;
+            report(BuildEvent::Note(
+                "settings and romfs written; the code was not rebuilt".to_string(),
+            ));
+            return Ok(());
+        }
+        Mode::Recompile => {
+            // Only the builder: the mod is not copied, so whatever is in the game folder is what gets compiled.
+            if !game::is_installed(&game) {
+                return Err(Error::Build {
+                    key: "recomp_needs_install".to_string(),
+                    arg: game.root.display().to_string(),
+                });
+            }
+        }
+        Mode::Reinstall => {
+            if game::is_installed(&game) {
+                game::uninstall(&game)?;
+            }
+            game::stage(&game, &settings, &payload)?;
+        }
+        Mode::Install => {
+            // The module has to be in exefs/ before the lift, and written again after the build (which replaces it).
+            game::stage(&game, &settings, &payload)?;
+        }
+    }
     if !req.rebuild {
         report(BuildEvent::Note(
             "settings written; the code was not rebuilt".to_string(),
@@ -147,9 +223,11 @@ pub fn run(
         builder.root.display()
     )));
     recomp_build::build(&game.root, &builder.root, None, stop, &mut report)?;
-    // The build rewrites the executable and may have rewritten the module: write the settings into it again so the
-    // compiled code and the file agree.
-    game::stage(&game, &settings, &payload)?;
+    if req.mode == Mode::Reinstall || req.mode == Mode::Install {
+        // The build rewrites the executable and may have rewritten the module: write the settings into it again so the
+        // compiled code and the file agree.
+        game::stage(&game, &settings, &payload)?;
+    }
     report(BuildEvent::Note(format!(
         "the rebuild finished: the module is now part of {}",
         game.root.join("image.bin").display()
@@ -170,7 +248,7 @@ fn run_rekarina(
     mut report: impl FnMut(BuildEvent),
 ) -> Result<()> {
     let rk = crate::rekarina::find(&req.game).ok_or_else(|| Error::NotAGame(req.game.clone()))?;
-    if !req.rebuild {
+    if req.mode == Mode::Settings || !req.rebuild {
         crate::rekarina::apply_settings(&rk, settings, payload)?;
         report(BuildEvent::Note(
             "Rekarina: settings written; the game was not rebuilt".to_string(),
@@ -218,10 +296,23 @@ mod tests {
             game: PathBuf::from("g"),
             profile: "recommended".to_string(),
             app: PathBuf::from("F:/project/super-hero-boost/app"),
+            mode: Mode::Install,
             rebuild: true,
             builder: None,
         };
         assert!(req.payload().ends_with("payload"));
+    }
+
+    #[test]
+    fn the_modes_say_which_ones_compile() {
+        assert!(Mode::Install.compiles());
+        assert!(Mode::Recompile.compiles());
+        assert!(Mode::Reinstall.compiles());
+        assert!(!Mode::Settings.compiles());
+        assert_eq!(Mode::parse("recompile"), Some(Mode::Recompile));
+        assert_eq!(Mode::parse("settings"), Some(Mode::Settings));
+        assert_eq!(Mode::parse("nonsense"), None);
+        assert_eq!(Mode::Install.name(), "install");
     }
 
     #[test]

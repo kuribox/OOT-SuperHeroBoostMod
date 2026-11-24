@@ -154,7 +154,7 @@ shb rebuild --game "F:/Switch2/Longshot/rc" --profile recommended      # rebuild
 shb rebuild --game "F:/Switch2/rekarina" --profile souls --no-rebuild  # settings only
 ```
 
-`shb rebuild` runs `app/rebuild.py` (the small entry point added for this), streams the build's own output, and
+`shb rebuild` runs the build from here, streams its own output, and
 returns its exit code; the window's Install page has the same action as "Recompilar" for the recompiled-game and
 Rekarina targets, with the log in the card below. `SHB_PYTHON` picks the interpreter (`py -3.12` on Windows by
 default) and `--app` the Python folder when it is not the payload's parent.
@@ -186,8 +186,7 @@ part of this app runs in Python:
   private interpreter, `recomp/gen.py`, `tools/build_game.py`, `tools/cheats.py`, `tools/exefs_patches.py`), and does
   this app's part of it here: stage the ExeFS, convert the mods' patch tables, compute the extra `main` seeds our
   hooks need (74 mid-function resume points, the same the Python reference computes), write the expected-hash table
-  with our module, check the base the lifter used, and replace the executable atomically. `app/rebuild.py` is no
-  longer used.
+  with our module, check the base the lifter used, and replace the executable atomically.
 
 ## Not ported yet
 

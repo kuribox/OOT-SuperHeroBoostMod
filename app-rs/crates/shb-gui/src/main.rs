@@ -165,11 +165,17 @@ struct App {
     /// click made every "?" look dead.
     help_frame: u64,
     /// The lines of a rebuild in progress: the Python app's own build, run in a thread.
-    rebuild_rx: Option<channel::Receiver<String>>,
+    rebuild_rx: Option<channel::Receiver<Busy>>,
     /// Set to stop a running build.
     rebuild_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// The folder dialog, while the player is choosing one: the OS dialog blocks, so it runs in a thread.
     pick_rx: Option<channel::Receiver<Option<std::path::PathBuf>>>,
+    /// The builder of a recompiled game: detected when the folder is chosen, and editable (some people keep several).
+    builder: String,
+    /// What a running action is doing, for the bar.
+    busy: Option<Busy>,
+    /// Whether the next folder to come back is the builder rather than the game folder.
+    pick_builder: bool,
     update_rx: Option<Receiver<UpdateMsg>>,
 }
 
@@ -177,17 +183,37 @@ impl App {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         theme::install(&cc.egui_ctx);
         let (settings, _) = paths::load_settings();
-        let emu = std::env::var("SHB_EMU").unwrap_or_default();
+        // The folders, the builder and the target are remembered in the same settings file the Python app uses, so a
+        // user keeps them when switching between the two (and `SHB_EMU` still overrides for a test run).
+        let state = paths::load_ui_state();
+        let emu = match std::env::var("SHB_EMU") {
+            Ok(from_env) if !from_env.is_empty() => from_env,
+            _ => state.emu.clone(),
+        };
         // The window speaks the system language when it is one of ours, like the Python app.
-        let ui_lang = system_lang();
+        let ui_lang = shb_core::settings::Lang::parse(&state.lang).unwrap_or_else(system_lang);
+        let target = match state.target.as_str() {
+            "recomp" => Target::Recomp,
+            "rekarina" => Target::Rekarina,
+            _ => Target::Emulator,
+        };
+        let profile = if state.profile.is_empty() {
+            presets::DEFAULT_PROFILE.to_string()
+        } else {
+            state.profile.clone()
+        };
         let mut app = App {
             // `SHB_PAGE=difficulty` opens straight on that page: how the screenshots of this window are taken.
             page: Page::from_env(),
-            target: Target::Emulator,
+            target,
             emu: emu.clone(),
-            paths: [emu, String::new(), String::new()],
+            paths: match target {
+                Target::Emulator => [emu, state.recomp.clone(), state.rekarina.clone()],
+                Target::Recomp => [state.emu.clone(), emu, state.rekarina.clone()],
+                Target::Rekarina => [state.emu.clone(), state.recomp.clone(), emu],
+            },
             settings,
-            profile: presets::DEFAULT_PROFILE.to_string(),
+            profile,
             ui_lang,
             payload: payload_root(None),
             log: Vec::new(),
@@ -204,6 +230,9 @@ impl App {
             rebuild_rx: None,
             rebuild_stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             pick_rx: None,
+            builder: state.builder.clone(),
+            busy: None,
+            pick_builder: false,
             update_rx: None,
         };
         match app.payload.clone() {
@@ -260,6 +289,50 @@ impl App {
         if let Some(exe) = info.exe {
             self.say(format!("emulator: {}", exe.display()));
         }
+        // A recompiled game: the builder this port would run, so the player sees it and can change it.
+        if self.target != Target::Emulator
+            && self.builder.trim().is_empty()
+            && let Some(found) = rebuild::detected_builder(&emu)
+        {
+            self.builder = found.root.display().to_string();
+            self.say(format!("builder: {}", self.builder));
+        }
+    }
+
+    /// Keep what the window knows about where things are: the three folders, the builder, the target, the profile and
+    /// the language. It is the Python app's own set of keys, in its own file.
+    fn remember(&mut self) {
+        let state = paths::UiState {
+            emu: self.paths[0].clone(),
+            recomp: self.paths[1].clone(),
+            rekarina: self.paths[2].clone(),
+            builder: self.builder.clone(),
+            target: match self.target {
+                Target::Emulator => "emulator",
+                Target::Recomp => "recomp",
+                Target::Rekarina => "rekarina",
+            }
+            .to_string(),
+            profile: self.profile.clone(),
+            lang: self.ui_lang.as_str().to_string(),
+        };
+        if let Err(err) = paths::save_ui_state(&state) {
+            self.say(format!("could not remember the folders: {err}"));
+        }
+    }
+
+    /// Whether the mod is in the folder the page points at (what the actions depend on).
+    fn is_installed_now(&self) -> bool {
+        let path = PathBuf::from(self.emu.trim());
+        match self.target {
+            Target::Emulator => install::inspect(&path).installed.is_some(),
+            Target::Recomp => shb_core::game::find(&path)
+                .map(|game| shb_core::game::is_installed(&game))
+                .unwrap_or(false),
+            Target::Rekarina => shb_core::rekarina::find(&path)
+                .map(|rk| shb_core::rekarina::is_built(&rk))
+                .unwrap_or(false),
+        }
     }
 
     fn apply_profile(&mut self) {
@@ -291,6 +364,7 @@ impl App {
         self.target = target;
         self.emu = self.paths[index(target)].clone();
         self.refresh_emulator();
+        self.remember();
     }
 
     /// Ask the system for a folder. The dialog blocks, so it runs in its own thread and the answer arrives through a
@@ -315,22 +389,34 @@ impl App {
 
     /// Take the folder the player chose, if the dialog has answered.
     fn poll_folder_choice(&mut self) {
-        let Some(rx) = &self.pick_rx else { return };
+        let Some(rx) = self.pick_rx.take() else {
+            return;
+        };
         match rx.try_recv() {
             Ok(Some(path)) => {
-                self.emu = path.display().to_string();
-                self.pick_rx = None;
-                self.refresh_emulator();
+                if self.pick_builder {
+                    self.builder = path.display().to_string();
+                    self.pick_builder = false;
+                } else {
+                    self.emu = path.display().to_string();
+                    self.refresh_emulator();
+                }
+                self.remember();
             }
-            Ok(None) => self.pick_rx = None,
-            Err(std::sync::mpsc::TryRecvError::Empty) => {}
-            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.pick_rx = None,
+            Ok(None) => self.pick_builder = false,
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                // Still open: put it back.
+                self.pick_rx = Some(rx);
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.pick_builder = false,
         }
     }
 
-    /// Rebuild the game: the driver is this app (`shb_core::rebuild`); the lift and the link are the recompiler's own
-    /// program, which it runs the way a compiler is run.
-    fn start_rebuild(&mut self) {
+    /// Run one of the actions of a recompiled game (or of Rekarina): install, recompile, settings, reinstall.
+    fn start_mode(&mut self, mode: shb_core::rebuild::Mode) {
+        if self.busy.is_some() {
+            return;
+        }
         let Some(payload) = self.payload.clone() else {
             self.failed = true;
             self.notes = vec![self.t("e_no_payload").to_string()];
@@ -340,64 +426,101 @@ impl App {
             .parent()
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| payload.clone());
+        let builder = self.builder.trim();
         let request = rebuild::RebuildRequest {
             game: PathBuf::from(self.emu.trim()),
             profile: self.profile.clone(),
+            mode,
             rebuild: true,
             app,
-            builder: None,
+            builder: (!builder.is_empty()).then(|| PathBuf::from(builder)),
         };
         let (tx, rx) = channel();
-        let started = request.game.display().to_string();
+        let started = format!(
+            "{} {}",
+            tr(self.ui_lang, action_name(mode)),
+            request.game.display()
+        );
         let stop = self.rebuild_stop.clone();
         stop.store(false, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(move || {
             let sender = tx.clone();
             let result = rebuild::run(&request, stop, |event| {
-                let text = match event {
+                let _ = sender.send(match event {
                     shb_core::recomp_build::BuildEvent::Progress {
                         fraction,
                         text,
                         stage,
-                    } => {
-                        if text.is_empty() {
-                            format!("[{stage}] {:3.0}%", fraction * 100.0)
-                        } else {
-                            format!("[{stage}] {:3.0}% {text}", fraction * 100.0)
-                        }
-                    }
-                    shb_core::recomp_build::BuildEvent::Line(text) => text,
-                    shb_core::recomp_build::BuildEvent::Note(text) => format!("· {text}"),
-                };
-                let _ = sender.send(text);
+                    } => Busy::Progress {
+                        fraction,
+                        stage,
+                        text,
+                    },
+                    shb_core::recomp_build::BuildEvent::Line(text) => Busy::Line(text),
+                    shb_core::recomp_build::BuildEvent::Note(text) => Busy::Note(text),
+                });
             });
-            match result {
-                Ok(()) => {
-                    let _ = tx.send(format!("{} {}", request.game.display(), "rebuilt"));
-                }
-                Err(err) => {
-                    let _ = tx.send(format!("error: {err}"));
-                }
-            }
+            let _ = tx.send(Busy::Done(result.err().map(|err| format!("{err}")), mode));
         });
         self.rebuild_rx = Some(rx);
+        self.busy = Some(Busy::Progress {
+            fraction: 0.0,
+            stage: "read".to_string(),
+            text: tr(self.ui_lang, "starting").to_string(),
+        });
         self.log.clear();
         self.log.push(started);
         self.failed = false;
+        self.status = None;
     }
 
-    /// Take the lines the build printed since the last frame.
+    /// Take what a running action printed since the last frame, and finish it.
     fn poll_rebuild(&mut self) {
-        let Some(rx) = &self.rebuild_rx else { return };
+        let Some(rx) = self.rebuild_rx.take() else {
+            return;
+        };
+        let mut finished = false;
         loop {
             match rx.try_recv() {
-                Ok(line) => self.log.push(line),
+                Ok(Busy::Line(line)) => self.log.push(line),
+                Ok(Busy::Note(note)) => self.log.push(format!("· {note}")),
+                Ok(Busy::Progress {
+                    fraction,
+                    stage,
+                    text,
+                }) => {
+                    self.busy = Some(Busy::Progress {
+                        fraction,
+                        stage,
+                        text,
+                    });
+                }
+                Ok(Busy::Done(error, mode)) => {
+                    finished = true;
+                    self.busy = None;
+                    self.refresh_emulator();
+                    match error {
+                        None => {
+                            self.failed = false;
+                            self.status = Some(tr(self.ui_lang, action_done(mode)).to_string());
+                        }
+                        Some(why) => {
+                            self.failed = true;
+                            self.status = Some(self.t("install_failed").to_string());
+                            self.notes = vec![why];
+                        }
+                    }
+                }
                 Err(std::sync::mpsc::TryRecvError::Empty) => break,
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    self.rebuild_rx = None;
+                    finished = true;
+                    self.busy = None;
                     break;
                 }
             }
+        }
+        if !finished {
+            self.rebuild_rx = Some(rx);
         }
         if self.log.len() > 500 {
             let extra = self.log.len() - 500;
@@ -407,83 +530,11 @@ impl App {
 
     fn install(&mut self) {
         match self.target {
+            // An emulator takes the mod as files: nothing to compile.
             Target::Emulator => self.install_emulator(),
-            Target::Recomp => self.install_game(),
-            Target::Rekarina => self.install_rekarina(),
-        }
-    }
-
-    /// A Rekarina install: the settings half only — the module's config block, the hash `Rekarina.exe` stores for it,
-    /// the romfs files and our mod first in `mods_order`. The lift and the compile are Rekarina's build.
-    fn install_rekarina(&mut self) {
-        let Some(payload) = self.payload.clone() else {
-            self.failed = true;
-            self.notes = vec![self.t("e_no_payload").to_string()];
-            return;
-        };
-        let path = PathBuf::from(self.emu.trim());
-        let Some(found) = shb_core::rekarina::find(&path) else {
-            self.failed = true;
-            self.notes = vec![format!("{} {}", self.t("rekarina_missing"), path.display())];
-            return;
-        };
-        match shb_core::rekarina::apply_settings(&found, &self.settings, &payload) {
-            Ok(()) => {
-                self.failed = false;
-                self.notes = vec![
-                    format!("{} (rekarina)", found.root.display()),
-                    self.t("rekarina_built").to_string(),
-                ];
-                let line = format!("{} {}", self.t("installed"), found.root.display());
-                self.say(line);
-            }
-            Err(err) => {
-                self.failed = true;
-                self.notes = vec![format!("{err}")];
-            }
-        }
-    }
-
-    /// A recompiled game (Longshot / Hookshot / ReLink): the module, `image.bin` and the romfs files.
-    fn install_game(&mut self) {
-        let Some(payload) = self.payload.clone() else {
-            self.failed = true;
-            self.notes = vec![self.t("e_no_payload").to_string()];
-            return;
-        };
-        let path = PathBuf::from(self.emu.trim());
-        let Some(found) = shb_core::game::find(&path) else {
-            self.failed = true;
-            self.notes = vec![if shb_core::game::looks_like_rekarina(&path) {
-                self.t("e_rekarina_needs_build").to_string()
-            } else {
-                format!("{} {}", self.t("recomp_missing"), path.display())
-            }];
-            return;
-        };
-        match shb_core::game::apply_settings(&found, &self.settings, &payload) {
-            Ok(image) => {
-                self.failed = false;
-                self.notes = vec![
-                    format!(
-                        "{} ({}, {})",
-                        found.root.display(),
-                        found.flavor.name(),
-                        found.exefs.display()
-                    ),
-                    if image {
-                        self.t("recomp_applied").to_string()
-                    } else {
-                        self.t("recomp_needs_build").to_string()
-                    },
-                ];
-                let line = format!("{} {}", self.t("installed"), found.root.display());
-                self.say(line);
-            }
-            Err(err) => {
-                self.failed = true;
-                self.notes = vec![format!("error: {err}")];
-            }
+            // A recompiled game or a Rekarina install: the mod files *and* the build, which is what "install" means
+            // there (the settings-only path is its own button).
+            _ => self.start_mode(shb_core::rebuild::Mode::Install),
         }
     }
 
@@ -608,6 +659,7 @@ impl App {
     }
 
     fn save(&mut self) {
+        self.remember();
         match paths::save_settings(&self.settings) {
             Ok(path) => {
                 let line = format!("{}: {}", self.t("status"), path.display());
@@ -1106,30 +1158,106 @@ impl App {
                         self.pick_folder();
                     }
                 });
-                if let Some(status) = &self.status {
-                    ui.label(egui::RichText::new(status).size(12.0).color(theme::TEAL));
-                }
+
+                // A recompiled game: which builder will run, and the way to change it. It is detected when the folder
+                // is chosen, and the player can point at another one (a second install, a newer version).
                 if self.target != Target::Emulator {
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
-                        if ghost_button(ui, tr(lang, "recomp_recompile")).clicked() {
-                            self.start_rebuild();
-                        }
                         ui.label(
-                            egui::RichText::new(tr(lang, "recomp_hint"))
-                                .size(11.0)
+                            egui::RichText::new(tr(lang, "builder_label"))
+                                .size(12.0)
                                 .color(theme::DIM),
                         );
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.builder)
+                                .desired_width(ui.available_width() - 110.0)
+                                .hint_text(tr(lang, "recomp_builder_btn")),
+                        );
+                        if ghost_button(ui, tr(lang, "browse")).clicked() {
+                            self.pick_builder = true;
+                        }
                     });
+                }
+
+                let installed = self.is_installed_now();
+                let busy = self.busy.is_some();
+                ui.add_space(6.0);
+                ui.label(
+                    egui::RichText::new(format!(
+                        "{} {}",
+                        tr(lang, "state"),
+                        tr(
+                            lang,
+                            if installed {
+                                "state_installed"
+                            } else {
+                                "state_not_installed"
+                            }
+                        )
+                    ))
+                    .size(12.0)
+                    .color(if installed { theme::TEAL } else { theme::DIM }),
+                );
+
+                // What this target can do. An emulator only installs; a recompiled game can compile without copying
+                // the mod, copy the settings without compiling, or do both from scratch.
+                ui.add_space(4.0);
+                ui.horizontal_wrapped(|ui| {
+                    if self.target == Target::Emulator {
+                        if theme::primary_button_enabled(ui, tr(lang, "install"), !busy).clicked() {
+                            self.install();
+                        }
+                    } else {
+                        let modes: [(shb_core::rebuild::Mode, bool); 4] = [
+                            (shb_core::rebuild::Mode::Install, true),
+                            (shb_core::rebuild::Mode::Settings, installed),
+                            (shb_core::rebuild::Mode::Recompile, installed),
+                            (shb_core::rebuild::Mode::Reinstall, installed),
+                        ];
+                        for (mode, enabled) in modes {
+                            let label = tr(lang, action_name(mode));
+                            let clicked = if mode == shb_core::rebuild::Mode::Install {
+                                theme::primary_button_enabled(ui, label, !busy).clicked()
+                            } else {
+                                theme::ghost_button_enabled(ui, label, !busy && enabled).clicked()
+                            };
+                            if clicked {
+                                self.start_mode(mode);
+                            }
+                        }
+                    }
+                });
+
+                // The bar: the builder's own progress, in the stage it is in.
+                if let Some(Busy::Progress {
+                    fraction,
+                    stage,
+                    text,
+                }) = &self.busy
+                {
+                    ui.add_space(4.0);
+                    let label = if text.is_empty() {
+                        format!("{stage}  {:.0} %", fraction * 100.0)
+                    } else {
+                        format!("{stage}  {:.0} %  {text}", fraction * 100.0)
+                    };
+                    ui.add(egui::ProgressBar::new(*fraction).text(label));
+                    if ghost_button(ui, tr(lang, "recomp_cancel")).clicked() {
+                        self.rebuild_stop
+                            .store(true, std::sync::atomic::Ordering::Relaxed);
+                    }
+                }
+
+                if let Some(status) = &self.status {
                     ui.label(
-                        egui::RichText::new(format!(
-                            "{} {} / {}",
-                            tr(lang, "target"),
-                            tr(lang, "target_recomp"),
-                            tr(lang, "target_rekarina")
-                        ))
-                        .size(12.0)
-                        .color(theme::AMBER),
+                        egui::RichText::new(status)
+                            .size(12.0)
+                            .color(if self.failed {
+                                theme::AMBER
+                            } else {
+                                theme::TEAL
+                            }),
                     );
                 }
             },
@@ -2465,6 +2593,43 @@ fn preset_matches(s: &shb_core::settings::Settings, key: &str) -> bool {
     let roles = shb_core::roles::keep_holds(&table, &s.bm_roles) == s.bm_roles;
     let gamecube = s.bm_layout == shb_core::settings::BmLayout::Gamecube;
     roles && (gamecube == (key == "gamecube"))
+}
+
+/// What a running action sends to the window.
+#[derive(Debug, Clone)]
+enum Busy {
+    /// A line of the builder's own output.
+    Line(String),
+    /// Something this app says about the build (the builder it chose, DLSS kept, …).
+    Note(String),
+    /// How far it is, in which stage, and what it is doing.
+    Progress {
+        fraction: f32,
+        stage: String,
+        text: String,
+    },
+    /// The end: the error, when there was one, and what was being done.
+    Done(Option<String>, shb_core::rebuild::Mode),
+}
+
+/// The text key of an action, for the button and for the log.
+fn action_name(mode: shb_core::rebuild::Mode) -> &'static str {
+    match mode {
+        shb_core::rebuild::Mode::Install => "install",
+        shb_core::rebuild::Mode::Recompile => "recomp_recompile",
+        shb_core::rebuild::Mode::Settings => "recomp_settings",
+        shb_core::rebuild::Mode::Reinstall => "recomp_reinstall",
+    }
+}
+
+/// The text key of what an action did, when it worked.
+fn action_done(mode: shb_core::rebuild::Mode) -> &'static str {
+    match mode {
+        shb_core::rebuild::Mode::Install => "install_ok",
+        shb_core::rebuild::Mode::Recompile => "recomp_ok",
+        shb_core::rebuild::Mode::Settings => "settings_ok",
+        shb_core::rebuild::Mode::Reinstall => "reinstall_ok",
+    }
 }
 
 /// Whether a click outside the help window closes it.

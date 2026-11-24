@@ -104,7 +104,7 @@ segfaults here).
   lines. The recompiler itself stays an external program — that is its compiler, not ours.
 - **Rekarina's rebuild is native too** (`shb-core/src/rekarina_build.rs`): it runs the setup's own `gen.py`,
   `build_game.py` and its converters (they are Rekarina's tools) but does this app's part — ExeFS staging, the
-  patch tables, the extra `main` seeds, the expected hashes, the base check — in Rust. `app/rebuild.py` is unused.
+  patch tables, the extra `main` seeds, the expected hashes, the base check — in Rust.
   NSO sizes are `data`'s memory + decompressed + bss at `0x3c`, aligned to a page; modules are placed on **2 MiB**
   boundaries, which is what makes `subsdk9` land at `main+0x5200000`. A run against `F:\Switch2
 ekarina` reports

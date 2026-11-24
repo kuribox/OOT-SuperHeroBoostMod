@@ -11,6 +11,122 @@ include!("i18n_table.rs");
 /// Keys this port has that the Python app does not (its own extra labels).
 static EXTRA: &[(&str, [&str; 6])] = &[
     (
+        "recomp_settings",
+        [
+            "Update settings",
+            "Actualizar ajustes",
+            "Atualizar ajustes",
+            "Mettre à jour les réglages",
+            "Einstellungen aktualisieren",
+            "Aggiorna impostazioni",
+        ],
+    ),
+    (
+        "builder_label",
+        [
+            "Builder",
+            "Builder",
+            "Builder",
+            "Compilateur",
+            "Builder",
+            "Builder",
+        ],
+    ),
+    (
+        "state",
+        [
+            "State:", "Estado:", "Estado:", "État :", "Status:", "Stato:",
+        ],
+    ),
+    (
+        "state_installed",
+        [
+            "mod installed",
+            "mod instalado",
+            "mod instalado",
+            "mod installé",
+            "Mod installiert",
+            "mod installato",
+        ],
+    ),
+    (
+        "state_not_installed",
+        [
+            "mod not installed",
+            "mod no instalado",
+            "mod não instalado",
+            "mod non installé",
+            "Mod nicht installiert",
+            "mod non installato",
+        ],
+    ),
+    (
+        "install_ok",
+        [
+            "Mod installed.",
+            "Mod instalado.",
+            "Mod instalado.",
+            "Mod installé.",
+            "Mod installiert.",
+            "Mod installato.",
+        ],
+    ),
+    (
+        "install_failed",
+        [
+            "The action failed.",
+            "La acción falló.",
+            "A ação falhou.",
+            "L'action a échoué.",
+            "Die Aktion ist fehlgeschlagen.",
+            "L'azione è fallita.",
+        ],
+    ),
+    (
+        "recomp_ok",
+        [
+            "Recompiled.",
+            "Recompilado.",
+            "Recompilado.",
+            "Recompilé.",
+            "Neu kompiliert.",
+            "Ricompilato.",
+        ],
+    ),
+    (
+        "settings_ok",
+        [
+            "Settings updated (nothing was recompiled).",
+            "Ajustes actualizados (no se recompiló nada).",
+            "Ajustes atualizados (nada foi recompilado).",
+            "Réglages mis à jour (rien n'a été recompilé).",
+            "Einstellungen aktualisiert (nichts neu kompiliert).",
+            "Impostazioni aggiornate (niente è stato ricompilato).",
+        ],
+    ),
+    (
+        "reinstall_ok",
+        [
+            "Uninstalled, installed and recompiled.",
+            "Desinstalado, instalado y recompilado.",
+            "Desinstalado, instalado e recompilado.",
+            "Désinstallé, installé et recompilé.",
+            "Deinstalliert, installiert und neu kompiliert.",
+            "Disinstallato, installato e ricompilato.",
+        ],
+    ),
+    (
+        "starting",
+        [
+            "starting…",
+            "empezando…",
+            "começando…",
+            "démarrage…",
+            "startet…",
+            "avvio…",
+        ],
+    ),
+    (
         "pick_folder",
         [
             "Choose a folder",

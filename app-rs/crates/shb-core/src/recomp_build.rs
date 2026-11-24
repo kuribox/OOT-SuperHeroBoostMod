@@ -362,6 +362,44 @@ fn which(name: &str) -> Option<PathBuf> {
     None
 }
 
+/// The DLSS SDK ("ngx-sdk"), when it is on this machine: the launcher's copy, one inside the game folder (a game
+/// shipped with it) or one the builder carries. The rebuild needs it to compile the DLSS path; without any of them
+/// that path is compiled out, so this is looked for before deciding.
+pub fn find_ngx(game: &Path, builder: &Path) -> Option<PathBuf> {
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    for base in [game, builder] {
+        for sub in [
+            "ngx-sdk",
+            "tools/ngx-sdk",
+            "bin/ngx-sdk",
+            "runtime/ngx-sdk",
+            "sdk/ngx-sdk",
+        ] {
+            candidates.push(base.join(sub));
+        }
+        if let Some(parent) = base.parent() {
+            candidates.push(parent.join("ngx-sdk"));
+        }
+    }
+    candidates.into_iter().find(|dir| {
+        dir.is_dir()
+            && (dir.join("include").is_dir()
+                || dir.join("lib").is_dir()
+                || dir.join("bin").is_dir())
+    })
+}
+
+/// The FidelityFX (FSR) files of the game, when they are there: what the runtime loads at start.
+pub fn has_fsr_files(game: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(game) else {
+        return false;
+    };
+    entries.flatten().any(|entry| {
+        let name = entry.file_name().to_string_lossy().to_lowercase();
+        name.starts_with("amd_fidelityfx") && name.ends_with(".dll")
+    })
+}
+
 /// The arguments `make_game.py` is run with, as `shb` decides them.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BuildPlan {
@@ -413,7 +451,11 @@ pub fn plan(
     }
     let mut fetch_ngx = false;
     if opt.dlss {
-        if let Some(ngx) = &opt.ngx {
+        // The SDK can be beside the launcher, inside the game or inside the builder: any of them keeps DLSS. Only
+        // when none is there does the build go ahead without it, and say so — stopping there left people with a build
+        // they could not use.
+        let ngx = opt.ngx.clone().or_else(|| find_ngx(game, builder));
+        if let Some(ngx) = ngx {
             let name = ngx
                 .file_name()
                 .map(|n| n.to_string_lossy().to_string())
@@ -424,16 +466,21 @@ pub fn plan(
             args.push("--accept-nvidia-license".to_string());
             fetch_ngx = true;
         } else {
-            let what = opt
-                .launcher
-                .as_ref()
-                .map(|path| path.display().to_string())
-                .unwrap_or_else(|| env_prefix(flavor).to_string());
-            return Err(("recomp_no_dlss".to_string(), what));
+            notes.push(BuildEvent::Note(
+                "DLSS was on when this game was built and its SDK is not on this machine: the rebuild goes ahead without it"
+                    .to_string(),
+            ));
         }
     }
     if flavor != Flavor::ReLink && opt.fsr {
-        args.push("--fsr".to_string());
+        if has_fsr_files(game) || builder.join("tools").join("fsr").is_dir() {
+            args.push("--fsr".to_string());
+        } else {
+            notes.push(BuildEvent::Note(
+                "FSR was on when this game was built and its files are not on this machine: the rebuild goes ahead without it"
+                    .to_string(),
+            ));
+        }
     }
     let plan = BuildPlan {
         program: builder_python(builder),
@@ -471,7 +518,7 @@ pub fn build_env(
     let ngx_key = format!("{prefix}_NGX_SDK");
     if opt.dlss
         && !env.iter().any(|(key, _)| *key == ngx_key)
-        && let Some(ngx) = &opt.ngx
+        && let Some(ngx) = opt.ngx.clone().or_else(|| find_ngx(game, builder))
     {
         env.push((ngx_key, ngx.display().to_string()));
     }

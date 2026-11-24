@@ -152,6 +152,7 @@ struct Options {
     dry_run: bool,
     app: Option<PathBuf>,
     builder: Option<PathBuf>,
+    mode: Option<String>,
     no_rebuild: bool,
     current: Option<String>,
     download: bool,
@@ -173,7 +174,11 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
             "--emu" => o.emu = Some(PathBuf::from(value_of(&mut it, "--emu")?)),
             "--game" => o.game = Some(PathBuf::from(value_of(&mut it, "--game")?)),
             "--app" => o.app = Some(PathBuf::from(value_of(&mut it, "--app")?)),
-            "--no-rebuild" => o.no_rebuild = true,
+            "--no-rebuild" => {
+                o.no_rebuild = true;
+                o.mode = Some("settings".to_string());
+            }
+            "--mode" => o.mode = Some(value_of(&mut it, "--mode")?),
             "--builder" => o.builder = Some(PathBuf::from(value_of(&mut it, "--builder")?)),
             "--nso" => o.nso = Some(PathBuf::from(value_of(&mut it, "--nso")?)),
             "--out" => o.out = Some(PathBuf::from(value_of(&mut it, "--out")?)),
@@ -621,14 +626,28 @@ fn run(args: &[String]) -> Result<()> {
                 .profile
                 .clone()
                 .unwrap_or_else(|| "recommended".to_string());
+            let mode = match &o.mode {
+                None => rebuild::Mode::Install,
+                Some(name) => rebuild::Mode::parse(name).ok_or_else(|| unknown("mode", name))?,
+            };
             let request = rebuild::RebuildRequest {
                 game: path.clone(),
                 profile: profile.clone(),
+                mode,
                 rebuild: !o.no_rebuild,
                 app: app.clone(),
                 builder: o.builder.clone(),
             };
-            println!("rebuilding {} with profile {profile}", path.display());
+            println!(
+                "{} {} with profile {profile} ({})",
+                mode.name(),
+                path.display(),
+                if mode.compiles() {
+                    "the builder runs"
+                } else {
+                    "no compiler"
+                }
+            );
             let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             rebuild::run(&request, stop, |event| match event {
                 shb_core::recomp_build::BuildEvent::Progress {
