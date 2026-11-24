@@ -39,7 +39,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: app-windows-legacy
-          path: release/legacy/SHB-OcarinaTweaks.exe
+          path: release/SHB-OcarinaTweaks-legacy.exe
           if-no-files-found: error
 
   linux:
@@ -57,7 +57,7 @@ jobs:
       - name: Build (the legacy app: the Rust one has only been run on Windows)
         run: python3 tools/build_app.py --legacy
       - name: Name the binary
-        run: mv release/legacy/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-linux
+        run: mv release/SHB-OcarinaTweaks-legacy release/SHB-OcarinaTweaks-linux
       - name: Check the binary
         run: test -x release/SHB-OcarinaTweaks-linux
       - uses: actions/upload-artifact@v4
@@ -83,14 +83,14 @@ jobs:
       - name: Package the app (dmg, or zip if the bundle is missing)
         run: |
           set -e
-          if [ -d release/legacy/SHB-OcarinaTweaks.app ]; then
+          if [ -d release/SHB-OcarinaTweaks-legacy.app ]; then
             mkdir -p build/dmg
-            cp -R release/legacy/SHB-OcarinaTweaks.app build/dmg/
+            cp -R release/SHB-OcarinaTweaks-legacy.app build/dmg/
             ln -s /Applications build/dmg/Applications
             hdiutil create -volname "SHB-OcarinaTweaks" -srcfolder build/dmg -ov \
               -format UDZO release/SHB-OcarinaTweaks-macos.dmg
           else
-            ditto -c -k release/legacy/SHB-OcarinaTweaks release/SHB-OcarinaTweaks-macos.zip
+            ditto -c -k release/SHB-OcarinaTweaks-legacy release/SHB-OcarinaTweaks-macos.zip
           fi
       - uses: actions/upload-artifact@v4
         with:

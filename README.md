@@ -542,7 +542,7 @@ development dependencies listed in [docs/GUIA-DESARROLLO.md](docs/GUIA-DESARROLL
 python tools/build_core.py --features stamina,songbook,button_mapping --slots --compat --base 0x4F80000
 python tools/make_release.py       # module + button textures + optional romfs files -> app/payload
 python tools/build_app.py          # the current app (Rust): release/SHB-OcarinaTweaks[.exe]
-python tools/build_app.py --legacy # the legacy app (Python): release/legacy/ + SuperHeroBoost-<version>-presets.zip
+python tools/build_app.py --legacy # the legacy app (Python): release/SHB-OcarinaTweaks-legacy.exe + the presets zip
 python tools/build_app.py --all    # both
 ```
 

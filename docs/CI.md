@@ -40,9 +40,9 @@ clear message if the release or the file is missing.
 | Job | File | Release asset |
 |---|---|---|
 | Windows | `release/SHB-OcarinaTweaks.exe` (the current app, Rust) | `SHB-OcarinaTweaks.exe` |
-| Windows | `release/legacy/SHB-OcarinaTweaks.exe` (the legacy app) | artifact `app-windows-legacy`, not published |
-| Linux | `release/legacy/SHB-OcarinaTweaks` -> `release/SHB-OcarinaTweaks-linux` (legacy) | `SHB-OcarinaTweaks-linux` |
-| macOS | `release/legacy/SHB-OcarinaTweaks.app` (legacy) | `SHB-OcarinaTweaks-macos.dmg` |
+| Windows | `release/SHB-OcarinaTweaks-legacy.exe` (the legacy app) | artifact `app-windows-legacy`, not published |
+| Linux | `release/SHB-OcarinaTweaks-legacy` -> `release/SHB-OcarinaTweaks-linux` (legacy) | `SHB-OcarinaTweaks-linux` |
+| macOS | `release/SHB-OcarinaTweaks-legacy.app` (legacy) | `SHB-OcarinaTweaks-macos.dmg` |
 | Presets | `release/SuperHeroBoost-<version>-presets.zip` (+ `.sha256`) | same name |
 
 The Windows job builds **both** apps with `python tools/build_app.py --all`. Linux and macOS build the legacy one
