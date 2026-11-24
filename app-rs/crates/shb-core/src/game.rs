@@ -207,7 +207,14 @@ pub fn stage(game: &Game, s: &Settings, payload: &Path) -> Result<bool> {
     let module = read(&source)?;
     let module = patch_config(&module, s)?;
 
+    // The hooks: the module's entry points are branches written into `main` (the IPS is relative to the text with the
+    // 0x100 header). Without them the module is loaded but never called, and what runs is a game with a stray module.
+    let ips_path = payload.join(variant).join("ours.ips");
+    let ips = crate::ips::read(&read(&ips_path)?)?;
+
     backup_once(game)?;
+
+    patch_main(&game.exefs.join("main"), &ips)?;
 
     // exefs/subsdk9: the payload's module of this flavor, with the settings written into it.
     write(&game.exefs.join("subsdk9"), &module)?;
@@ -225,6 +232,36 @@ pub fn stage(game: &Game, s: &Settings, payload: &Path) -> Result<bool> {
 
     install_romfs(game, s, payload)?;
     Ok(image_patched)
+}
+
+/// Write the IPS records into the NSO `main` (an uncompressed image: the text starts at the offset its header gives, and
+/// the records are relative to a text that begins at 0x100). Returns how many records changed something.
+fn patch_main(main: &Path, records: &[(u32, Vec<u8>)]) -> Result<usize> {
+    if records.is_empty() {
+        return Ok(0);
+    }
+    let mut data = read(main)?;
+    if data.len() < 0x14 || &data[..4] != b"NSO0" {
+        return Err(Error::IpsFormat("main is not an NSO image"));
+    }
+    let text_off = u32::from_le_bytes([data[0x10], data[0x11], data[0x12], data[0x13]]) as usize;
+    let delta = text_off.wrapping_sub(0x100);
+    let mut changed = 0;
+    for (offset, patch) in records {
+        let at = *offset as usize + delta;
+
+        let Some(window) = data.get_mut(at..at + patch.len()) else {
+            return Err(Error::IpsFormat("a hook lies outside main"));
+        };
+        if window != patch.as_slice() {
+            window.copy_from_slice(patch);
+            changed += 1;
+        }
+    }
+    if changed > 0 {
+        write(main, &data)?;
+    }
+    Ok(changed)
 }
 
 /// The recompilers read their mods from `<game>/mods/<name>/romfs`: wipe our folder and write it again.
@@ -430,6 +467,24 @@ mod tests {
         let art = root.join("button_romfs/switch/Layouts");
         std::fs::create_dir_all(&art).unwrap();
         std::fs::write(art.join("a.bntx"), b"x").unwrap();
+    }
+
+    #[test]
+    fn the_hooks_are_written_into_main_and_only_once() {
+        let root = temp_dir("hooks");
+        let main = root.join("main");
+        let mut data = vec![0u8; 0x200];
+        data[..4].copy_from_slice(b"NSO0");
+        data[0x10..0x14].copy_from_slice(&0x104u32.to_le_bytes());
+        std::fs::write(&main, &data).unwrap();
+        // Record offsets count from a text that starts at 0x100; this file's text starts at 0x104.
+        let records = vec![(0x20u32, vec![1u8, 2, 3, 4])];
+        assert_eq!(patch_main(&main, &records).unwrap(), 1);
+        let patched = std::fs::read(&main).unwrap();
+        assert_eq!(&patched[0x24..0x28], &[1, 2, 3, 4]);
+        assert_eq!(patch_main(&main, &records).unwrap(), 0);
+        assert!(patch_main(&main, &[(0x1000u32, vec![0u8; 4])]).is_err());
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
