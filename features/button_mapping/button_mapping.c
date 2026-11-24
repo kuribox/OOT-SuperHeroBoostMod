@@ -65,7 +65,10 @@ enum { PH_IDLE = 0, PH_EQUIP, PH_HOLD, PH_GAP, PH_RESTORE, PH_ZRBACK };
 #define GAP_TICKS 20           /* input frames Link must be free after a use before the ZR item goes back */
 #define GAP_BOOMERANG 90       /* the boomerang flies back while Link is free: wait for it */
 /* items that stay in Link's hand after a use (not given back on their own, see PH_GAP) */
-static int held_item(int item) { return item == 0; }   /* 0: Deku stick */
+/* Every item stays in the box until the player presses ZR or uses another slot: giving the box back puts the
+ * item away, and the game keeps whatever the button selects (the stick in hand, the slingshot and the bow
+ * aimed, the bomb ready) - restoring it GAP_TICKS after the use is seen as the item putting itself away. */
+static int held_item(int item) { (void)item; return 1; }
 /* A while standing still with an item on B: B's own "put away" (sword, item in hand) is on A then. A reaches the
  * game first (talk, open, check ...); when Link is still standing A_PUTAWAY_WAIT reads later, A did nothing and the
  * B button's own press is sent for A_PUTAWAY_PRESS reads. */
@@ -269,6 +272,9 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
         g_remap_dbg[1]++;
         g_remap_live = 0;
         hold_reset();
+        /* Leaving the world (pause menu, menu overlay, dialogue, cutscene): the item box gets its own item back
+         * first. A borrowed slot item must never be what the game saves, and the pause menu is where saves happen. */
+        if (g_borrowed && g_saved >= 0) { box_put(g_saved); unborrow(); g_phase = PH_IDLE; }
         return;
     }
     g_remap_live = 1;

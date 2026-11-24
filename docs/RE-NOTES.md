@@ -674,18 +674,17 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   the 26 hook sites are baked into `image.bin`/`bin/longshot.exe` by the rebuild. "It does not crash without the
   mod" only clears the mod as a whole if that test rebuilt the game from a clean exefs.
 
-## The guide bar's keys follow the remap (Nov 23)
+## Prompts: the context prompt keeps the game's keys, the interaction bar is left alone
 
-- The game's control guide is `DoCommand_00.buil` (Common blarc): per-button blocks `N_A_00`/`N_B_00`/`N_X_00`/
-  `N_Y_00`/`N_L_00`, each with a picture (`P_BaseA_00`…), the action text (`T_GuideA_00`…, captured by the mod) and
-  the key (`T_KeyA_00`…). The key is a text pane holding the button font's private-use glyph (U+E040 + n), so the
-  PlayStation / Xbox prompt styles follow by themselves.
-- With the remap the guide still draws the game's own A/B/X/Y: `guide_keys_update()` (core/hud.c) finds the pane of
-  the physical button that carries ROLE_ACTION / ROLE_BACK / ROLE_JUMP / ROLE_SWORD and rewrites that key.
-- Written once per prompt (`g_aguide_text` changes) and per pane, plus when the prompt comes up again: the game
-  rewrites the keys on those events, and writing every frame makes the key blink (two writers on one pane).
-- The pane list comes from the blarc (`DoCommand_00.buil`, 53 panes) and the glyph mapping from the button font:
-  A0 B1 X2 Y3 L4 R5 ZL6 ZR7.
+- The context prompt next to Link is layout `DoCommand_00`: one block per face button (`N_A_00`..`N_Y_00`) with the
+  diamond backing `P_Base?_00`, the action `T_Guide?_00` and the key `T_Key?_00`. `dc_update()` hides the backing and
+  the three greyed letters and writes the key of the button that holds the block's role (action / item 1 or jump
+  with the Jump/B swap / sword), gated on `g_remap_live`; `dc_key_override()` catches the game writing those panes.
+  A second writer for the same panes (`guide_keys_update`, commit c173c15) fought it - it ignored `g_remap_live`,
+  so a dialogue showed a world glyph - and was removed.
+- The interaction guide (the "Blandir ZR" / "Guardar B" bar) still draws the game's own buttons. Rewriting those
+  keys and hiding the bar were both tried and reverted: the game re-sets the panes (two writers blink), a shared
+  glyph buffer made every entry show the same letter, and the plate is not always in the same layout as the text.
 
 ## HUD counts: the ZR button followed the borrowed item (Nov 23)
 
