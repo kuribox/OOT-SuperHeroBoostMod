@@ -1314,6 +1314,18 @@ static int picked_has(u64 h) {
     for (u32 i = 0; i < g_picked_n; i++) if (g_picked[i] == h) return 1;
     return 0;
 }
+/* A slot of the manager's save-image array (mgr+0xE00, 8 of them) can hold a value that still looks
+ * like an address, and vptr alone lets it through: on Longshot with HylianSurvivors installed slot 5
+ * read 0x114a7366a43 (1.1 TB, past the heap end) and the magic read below faulted (0xc0000005, thread
+ * BaseProcExecutor, LR hud_on_code+0x358 -> kset_refresh). A save image is a heap object the game's
+ * allocator hands out whole-word aligned, in the heap the manager itself lives in, so both gates are
+ * safe to demand: an odd or far-away value is noise in the array, never an image. */
+#define KSET_SLOT_SPAN 0x400000000ull          /* 16 GB: the manager's heap, generously */
+static int kset_slot(u64 mgr, u64 p) {
+    if (!vptr(p) || (p & 7ull)) return 0;
+    u64 d = p > mgr ? p - mgr : mgr - p;
+    return d <= KSET_SLOT_SPAN;
+}
 static void kset_refresh(void) {
     u64 mgr = *(volatile u64 *)GAMEDATA_MGR;
     if (!vptr(mgr)) return;
@@ -1321,7 +1333,7 @@ static void kset_refresh(void) {
     u32 seen = 0;
     for (u32 i = 0; i < 8; i++) {                    /* save descriptor array at +0xE00 */
         u64 p = *(volatile u64 *)(mgr + 0xe00ull + (u64)i * 0x80ull);
-        if (!vptr(p)) continue;                      /* stale/freed slot: the manager array can hold garbage */
+        if (!kset_slot(mgr, p)) continue;            /* stale/freed slot: the manager array can hold garbage */
         u32 magic = *(volatile u32 *)p, d = *(volatile u32 *)(p + 8);
         if (magic == 0x01020304u && d > 0x20u && d < 0x100000u) { seen++; if (!buf) buf = p; }
     }
