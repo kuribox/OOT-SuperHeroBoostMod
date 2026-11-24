@@ -91,12 +91,13 @@ request at a time: while an input sequence runs, reads wait — measure through 
 
 A port of the app in Rust, byte-identical to the Python one (`tools/parity_check.py`: 56/56 patch images, 16/16
 install trees, 2/2 Rekarina installs). Build: `export PATH="/c/Users/Kuri/.cargo/bin:$PATH"` then
-`cargo build --release -p shb-gui` in `app-rs/`; the window is eframe/egui 0.37 with the **wgpu** backend (glow
+`cargo build --release -p shb-cli` in `app-rs/` (one executable, `SHB-OcarinaTweaks.exe`: the window when
+started with no arguments, the CLI with one); the window is eframe/egui 0.37 with the **wgpu** backend (glow
 segfaults here).
 
 - **The install is native, and the payload travels in the binary.** `shb-core` writes the module, the config block,
   the IPS, the romfs and the enemy packs itself; nothing of the app runs in Python. `build.rs` embeds `app/payload`
-  (1 169 files, 27 MB) so `shb.exe` / `shb-gui.exe` work alone, unpacking it once into
+  (1 169 files, 27 MB) so `SHB-OcarinaTweaks.exe` works alone, unpacking it once into
   `%LOCALAPPDATA%\SHB-OcarinaTweaks\payload\<content stamp>\`; a `payload/` folder beside the exe still wins.
 - **The rebuild is native for recompiled games** (`shb-core/src/recomp_build.rs` + `rebuild.rs`): it finds the builder
   (Longshot's launcher keeps its toolchains under `%LOCALAPPDATA%\LongshotLauncher	oolchains\<version>\`), works out
@@ -120,7 +121,7 @@ ekarina` reports
   beside the shared `setup/` (the romfs of a real install is 23 GB and the lift does not need it).
 - Dev aids: `SHB_PAGE=<install|presets|gameplay|difficulty|controls|hud|misc|help|about>` opens a page directly,
   `SHB_WINDOW=WxH` sizes the window and `SHB_HELP=<key>` opens one help text — how the screenshots in
-  `docs/capturas/` are taken. `tests` before a release build, and `Stop-Process -Name shb-gui -Force` before
+  `docs/capturas/` are taken. `tests` before a release build, and `Stop-Process -Name SHB-OcarinaTweaks -Force` before
   rebuilding (else `os error 5` on the copy).
 - `tools/check_gui_keys.py` must pass after touching the window: a missing text key is shown raw on screen.
 
@@ -149,7 +150,7 @@ Branch `feat/rust-app`: a second implementation of the app, to learn Rust agains
 **not** what the installer ships; the Python app in `app/` is.
 
 - Layout: `crates/shb-core` (settings, `ShbConfig` offsets, remap, presets, install, IPS, path/language
-  detection), `crates/shb-cli` (`shb`), `crates/shb-gui` (egui window, English/Spanish only).
+  detection), `crates/shb-cli` (the binary, `SHB-OcarinaTweaks`), `crates/shb-gui` (the egui window as a library, English/Spanish only).
 - **Parity is the contract**: `py -3.12 app-rs/tools/parity_check.py --app app --payload app/payload --mode all`
   patches and installs with both implementations and compares bytes. On 2026-11-23: 56/56 images identical
   (16 profiles + 40 random settings), 16/16 install trees identical and 5/5 recompiled games identical (module,

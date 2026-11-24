@@ -27,12 +27,27 @@ app-rs/
 │   │   ├── src/find.rs           mods folder, emulator program, game language
 │   │   └── src/paths.rs          where the settings file lives
 │   ├── shb-cli/                `shb`: profiles, install, uninstall, show, patch, lang
-│   └── shb-gui/                `shb-gui`: the window (egui / eframe)
+│   └── shb-gui/                the window (egui / eframe), a library the executable links
 └── tools/
     ├── parity_check.py          the Rust app against the Python app, byte for byte
     ├── gen_i18n.py              the window's texts, from app/i18n.py
     └── gen_gamecube.py          the GameCube artwork, from app/gamecube_textures.py
 ```
+
+## One executable, two faces
+
+`cargo build --release -p shb-cli` writes `target/release/SHB-OcarinaTweaks.exe` — the whole app in one file, with the
+payload inside it, the icon and the version in its properties:
+
+```bash
+SHB-OcarinaTweaks.exe                       # the window (a double click, a shortcut)
+SHB-OcarinaTweaks.exe install --emu <dir>    # the CLI (see `--help`)
+SHB-OcarinaTweaks.exe --gui                  # the window, said out loud, for a script
+```
+
+The window is `shb-gui`, a library: `shb-cli` links it, so there is no second binary and no way for the two to
+disagree. The icon is `crates/shb-cli/assets/icon.ico` (the Python app's own picture), compiled into the file by
+`crates/shb-cli/build.rs` with `llvm-rc`.
 
 ## Build and run
 
@@ -64,7 +79,7 @@ Two shims are needed for the GNU target here, both already in the repo or the ma
   `glutin`) crashed **before `main`**: access violation, no output, no marker file written by the first line of
   `main`. `rust-lld` builds the same crates correctly. This only applies to the `x86_64-pc-windows-gnu` target.
 
-`shb-gui --version` runs without touching the graphics stack, which is the quickest way to tell a broken link
+`SHB-OcarinaTweaks.exe --version` runs without touching the graphics stack, which is the quickest way to tell a broken link
 from a broken window.
 
 ## The two things worth reading first
@@ -159,17 +174,17 @@ returns its exit code; the window's Install page has the same action as "Recompi
 Rekarina targets, with the log in the card below. `SHB_PYTHON` picks the interpreter (`py -3.12` on Windows by
 default) and `--app` the Python folder when it is not the payload's parent.
 
-## One executable
+## The payload travels inside it
 
-The release binaries carry the payload: `crates/shb-core/build.rs` turns `app/payload` into one `include_bytes!` per
+The release binary carries the payload: `crates/shb-core/build.rs` turns `app/payload` into one `include_bytes!` per
 file when the folder is there at build time (the CI stages it with `tools/ci_payload.py`), and the app unpacks it on
 first use into `<data>/SHB-OcarinaTweaks/payload/<stamp>/` — `%LOCALAPPDATA%` on Windows, `~/Library/Caches` on macOS,
 `$XDG_CACHE_HOME` on Linux. The stamp hashes the payload's content, so a rebuilt payload unpacks into a new folder
-instead of mixing with the old one. `shb.exe` (34 MB) and `shb-gui.exe` (44 MB) install the mod with nothing beside
+instead of mixing with the old one. `SHB-OcarinaTweaks.exe` (44 MB) installs the mod with nothing beside
 them; a `payload/` folder next to the binary (or `SHB_PAYLOAD`) still wins, which is how the app is developed.
 
-`SHB_NO_EMBED_PAYLOAD=1` builds without it, `SHB_PAYLOAD_DIR` embeds another folder. The same two binaries then need
-`payload/` beside them, and the parity checker exercises that path.
+`SHB_NO_EMBED_PAYLOAD=1` builds without it, `SHB_PAYLOAD_DIR` embeds another folder. The executable then needs
+`payload/` beside it, and the parity checker exercises that path.
 
 ## The rebuild, in this app
 

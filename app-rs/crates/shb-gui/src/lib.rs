@@ -186,17 +186,28 @@ impl App {
         // The folders, the builder and the target are remembered in the same settings file the Python app uses, so a
         // user keeps them when switching between the two (and `SHB_EMU` still overrides for a test run).
         let state = paths::load_ui_state();
-        let emu = match std::env::var("SHB_EMU") {
-            Ok(from_env) if !from_env.is_empty() => from_env,
-            _ => state.emu.clone(),
-        };
-        // The window speaks the system language when it is one of ours, like the Python app.
-        let ui_lang = shb_core::settings::Lang::parse(&state.lang).unwrap_or_else(system_lang);
+        // The target decides which of the three folders the page shows; `SHB_EMU` overrides for a test run.
         let target = match state.target.as_str() {
             "recomp" => Target::Recomp,
             "rekarina" => Target::Rekarina,
             _ => Target::Emulator,
         };
+        let remembered = match target {
+            Target::Emulator => state.emu.clone(),
+            Target::Recomp => state.recomp.clone(),
+            Target::Rekarina => state.rekarina.clone(),
+        };
+        let emu = match std::env::var("SHB_EMU") {
+            Ok(from_env) if !from_env.is_empty() => from_env,
+            _ => remembered,
+        };
+        let paths = match target {
+            Target::Emulator => [emu.clone(), state.recomp.clone(), state.rekarina.clone()],
+            Target::Recomp => [state.emu.clone(), emu.clone(), state.rekarina.clone()],
+            Target::Rekarina => [state.emu.clone(), state.recomp.clone(), emu.clone()],
+        };
+        // The window speaks the system language when it is one of ours, like the Python app.
+        let ui_lang = shb_core::settings::Lang::parse(&state.lang).unwrap_or_else(system_lang);
         let profile = if state.profile.is_empty() {
             presets::DEFAULT_PROFILE.to_string()
         } else {
@@ -206,12 +217,8 @@ impl App {
             // `SHB_PAGE=difficulty` opens straight on that page: how the screenshots of this window are taken.
             page: Page::from_env(),
             target,
-            emu: emu.clone(),
-            paths: match target {
-                Target::Emulator => [emu, state.recomp.clone(), state.rekarina.clone()],
-                Target::Recomp => [state.emu.clone(), emu, state.rekarina.clone()],
-                Target::Rekarina => [state.emu.clone(), state.recomp.clone(), emu],
-            },
+            emu,
+            paths,
             settings,
             profile,
             ui_lang,
@@ -258,8 +265,42 @@ impl App {
         if self.emu.trim().is_empty() {
             return;
         }
-        let emu = PathBuf::from(self.emu.trim());
-        let info = install::inspect(&emu);
+        let path = PathBuf::from(self.emu.trim());
+
+        // Rekarina is its own kind of install: the game is `Rekarina.exe` beside the ExeFS and the mod is the module
+        // the lift compiled in. There is no mods folder to look for, and no builder of ours — its `setup/` is the
+        // toolchain, found next to the game.
+        if self.target == Target::Rekarina {
+            match shb_core::rekarina::find(&path) {
+                Some(rk) => {
+                    let built = shb_core::rekarina::is_built(&rk);
+                    let settings = if shb_core::rekarina_build::find_setup(&rk.root).is_some() {
+                        ""
+                    } else {
+                        tr(self.ui_lang, "rekarina_setup_missing")
+                    };
+                    let state = if built {
+                        tr(self.ui_lang, "rekarina_built")
+                    } else {
+                        tr(self.ui_lang, "e_rekarina_needs_build")
+                    };
+                    self.status = Some(state.to_string());
+                    self.say(format!("rekarina: {}", rk.root.display()));
+                    self.say(state.to_string());
+                    if !settings.is_empty() {
+                        self.say(settings.to_string());
+                    }
+                }
+                None => {
+                    let missing = tr(self.ui_lang, "rekarina_missing");
+                    self.status = Some(missing.to_string());
+                    self.say(format!("{} {}", missing, path.display()));
+                }
+            }
+            return;
+        }
+
+        let info = install::inspect(&path);
         let installed = info.installed.as_ref().map(|p| {
             format!(
                 "{} {}",
@@ -287,12 +328,12 @@ impl App {
         self.status = Some(status);
         self.say(line);
         if let Some(exe) = info.exe {
-            self.say(format!("emulator: {}", exe.display()));
+            self.say(format!("{}: {}", tr(self.ui_lang, "launch"), exe.display()));
         }
         // A recompiled game: the builder this port would run, so the player sees it and can change it.
-        if self.target != Target::Emulator
+        if self.target == Target::Recomp
             && self.builder.trim().is_empty()
-            && let Some(found) = rebuild::detected_builder(&emu)
+            && let Some(found) = rebuild::detected_builder(&path)
         {
             self.builder = found.root.display().to_string();
             self.say(format!("builder: {}", self.builder));
@@ -1058,14 +1099,10 @@ impl eframe::App for App {
             )
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    if primary_button(ui, tr(lang, "install")).clicked() {
-                        self.install();
-                    }
-                    if ghost_button(ui, tr(lang, "launch")).clicked() {
+                    // Installing and uninstalling live in the install section, next to the folder they act on; the
+                    // footer keeps what is not about a target.
+                    if primary_button(ui, tr(lang, "launch")).clicked() {
                         self.play();
-                    }
-                    if ghost_button(ui, tr(lang, "uninstall")).clicked() {
-                        self.uninstall();
                     }
                     if ghost_button(ui, tr(lang, "save_settings")).clicked() {
                         self.save();
@@ -1208,8 +1245,9 @@ impl App {
                 });
 
                 // A recompiled game: which builder will run, and the way to change it. It is detected when the folder
-                // is chosen, and the player can point at another one (a second install, a newer version).
-                if self.target != Target::Emulator {
+                // is chosen, and the player can point at another one (a second install, a newer version). Rekarina is
+                // not here: its lift and its compiler come with its own `setup/`, it has no builder of ours.
+                if self.target == Target::Recomp {
                     ui.add_space(4.0);
                     ui.horizontal(|ui| {
                         ui.label(
@@ -1256,6 +1294,15 @@ impl App {
                         if theme::primary_button_enabled(ui, tr(lang, "install"), !busy).clicked() {
                             self.install();
                         }
+                        if theme::ghost_button_enabled(
+                            ui,
+                            tr(lang, "uninstall"),
+                            !busy && installed,
+                        )
+                        .clicked()
+                        {
+                            self.uninstall();
+                        }
                     } else {
                         let modes: [(shb_core::rebuild::Mode, bool); 4] = [
                             (shb_core::rebuild::Mode::Install, true),
@@ -1273,6 +1320,15 @@ impl App {
                             if clicked {
                                 self.start_mode(mode);
                             }
+                        }
+                        if theme::ghost_button_enabled(
+                            ui,
+                            tr(lang, "uninstall"),
+                            !busy && installed,
+                        )
+                        .clicked()
+                        {
+                            self.uninstall();
                         }
                     }
                 });
@@ -2688,7 +2744,9 @@ fn closes_help(frame: u64, opened_on: u64, clicked_outside: bool) -> bool {
     clicked_outside && frame > opened_on + 1
 }
 
-fn main() -> eframe::Result {
+/// Open the window. This is the whole application when it is started without arguments; the CLI calls it for `--gui`
+/// and when nothing else was asked for, so one executable does both.
+pub fn run() -> eframe::Result {
     // `--version` runs before any window work, which is also how a broken graphics stack is told apart from a
     // broken binary.
     if std::env::args()

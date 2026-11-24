@@ -88,6 +88,26 @@ fn print_config(cfg: shb_core::config::InstalledConfig) -> Result<()> {
 }
 
 fn main() -> ExitCode {
+    // One file, two faces: started with nothing (a double click, a shortcut) it opens the window; with a command it
+    // is the CLI. `--gui` says it out loud, for a script that wants the window.
+    let argv: Vec<String> = std::env::args().skip(1).collect();
+    if matches!(
+        argv.first().map(String::as_str),
+        Some("--version" | "-V" | "-v")
+    ) {
+        println!("SHB-OcarinaTweaks {}", env!("CARGO_PKG_VERSION"));
+        return ExitCode::SUCCESS;
+    }
+    if argv.is_empty() || argv[0] == "--gui" {
+        return match shb_gui::run() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(err) => {
+                eprintln!("error: the window could not start: {err}");
+                ExitCode::FAILURE
+            }
+        };
+    }
+
     let args: Vec<String> = std::env::args().skip(1).collect();
     match run(&args) {
         Ok(()) => ExitCode::SUCCESS,

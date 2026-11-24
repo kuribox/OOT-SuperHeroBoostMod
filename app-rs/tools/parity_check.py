@@ -483,7 +483,7 @@ def main() -> int:
 
     app = args.app.resolve()
     payload = (args.payload or app / "payload").resolve()
-    shb = (args.shb or Path(__file__).resolve().parents[1] / "target" / "debug" / "shb.exe").resolve()
+    shb = (args.shb or Path(__file__).resolve().parents[1] / "target" / "debug" / "SHB-OcarinaTweaks.exe").resolve()
     if not shb.exists():
         raise SystemExit(f"build it first: cargo build (looked for {shb})")
     if not (payload / "standalone" / "subsdk9").is_file():

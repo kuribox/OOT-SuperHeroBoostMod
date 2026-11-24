@@ -6,9 +6,11 @@ license.workspace = true
 description = "Command line of the Super Hero Boost companion app"
 
 [[bin]]
-name = "shb"
+name = "SHB-OcarinaTweaks"
 path = "src/main.rs"
 
 [dependencies]
 shb-core.workspace = true
+# The window is part of this executable: without arguments it opens it.
+shb-gui = { path = "../shb-gui" }
 serde_json.workspace = true

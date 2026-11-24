@@ -11,6 +11,17 @@ include!("i18n_table.rs");
 /// Keys this port has that the Python app does not (its own extra labels).
 static EXTRA: &[(&str, [&str; 6])] = &[
     (
+        "rekarina_setup_missing",
+        [
+            "Rekarina's setup folder (with its own compiler) was not found beside the game.",
+            "No se encontró la carpeta setup de Rekarina (con su compilador) al lado del juego.",
+            "A pasta setup do Rekarina não foi encontrada ao lado do jogo.",
+            "Le dossier setup de Rekarina (avec son compilateur) est introuvable à côté du jeu.",
+            "Rekarinas setup-Ordner (mit seinem Compiler) wurde neben dem Spiel nicht gefunden.",
+            "La cartella setup di Rekarina (con il suo compilatore) non è stata trovata accanto al gioco.",
+        ],
+    ),
+    (
         "recomp_settings",
         [
             "Update settings",

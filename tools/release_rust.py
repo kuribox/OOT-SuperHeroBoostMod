@@ -1,9 +1,9 @@
-"""Copy the built Rust binaries into the project's `release/` folder (gitignored, beside the Python release files).
+"""Copy the built Rust executable into the project's `release/` folder (gitignored, beside the Python release files).
 
     py -3.12 tools/release_rust.py
 
-It builds nothing: run `cargo build --release -p shb-gui -p shb-cli` in `app-rs/` first (or let CI do it). The two
-files land in `release/rust/`, which is where the user looks for them and what `.gitignore` keeps out of the
+It builds nothing: run `cargo build --release -p shb-cli` in `app-rs/` first (or let CI do it). The window is
+part of that executable, so there is one file, and it lands in `release/rust/`, which is where the user looks for them and what `.gitignore` keeps out of the
 repository. `--out` sends them to another checkout's `release/` (a worktree does not share that folder with the main
 checkout, and the one the user opens is the main one).
 """
@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TARGET = ROOT / "app-rs" / "target" / "release"
 OUT = ROOT / "release" / "rust"
-BINS = ("shb.exe", "shb-gui.exe")
+BINS = ("SHB-OcarinaTweaks.exe",)
 
 
 def main() -> int:
@@ -28,7 +28,7 @@ def main() -> int:
     out = args.out
     missing = [name for name in BINS if not (TARGET / name).is_file()]
     if missing:
-        print(f"not built: {', '.join(missing)} (cargo build --release -p shb-gui -p shb-cli)")
+        print(f"not built: {', '.join(missing)} (cargo build --release -p shb-cli)")
         return 1
     out.mkdir(parents=True, exist_ok=True)
     for name in BINS:

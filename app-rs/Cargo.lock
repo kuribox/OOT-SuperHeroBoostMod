@@ -2139,6 +2139,7 @@ version = "0.10.0"
 dependencies = [
  "serde_json",
  "shb-core",
+ "shb-gui",
 ]
 
 [[package]]

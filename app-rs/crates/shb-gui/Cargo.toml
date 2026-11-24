@@ -5,9 +5,9 @@ edition.workspace = true
 license.workspace = true
 description = "Window of the Super Hero Boost companion app"
 
-[[bin]]
-name = "shb-gui"
-path = "src/main.rs"
+[lib]
+name = "shb_gui"
+path = "src/lib.rs"
 
 [dependencies]
 shb-core.workspace = true
