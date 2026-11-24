@@ -24,6 +24,7 @@ pub mod layouts;
 pub mod paths;
 pub mod presets;
 pub mod rebuild;
+pub mod recomp_build;
 pub mod rekarina;
 pub mod roles;
 pub mod romfs;

@@ -106,16 +106,23 @@ and its two fonts (Segoe UI and Palatino Linotype), its logo in the header, and 
 and `tools/check_gui_keys.py` fails when the window asks for a key that is not in it — a missing key shows the key
 itself on screen, which a screenshot does not make obvious. CI runs both.
 
-The **?** windows open in one place (`CENTER_TOP`, with the window's own margins), close on a click outside, and a
-click on a card's name or text selects it — an interaction drawn over the whole card used to swallow the "?". The "?"
-itself is a bare gold mark, without a frame. Every interactive widget shows the hand cursor. The chosen option of a
+The **?** windows open in one place (`CENTER_TOP`, with the window's own margins) and close on a click outside — but
+not on the click that opened them, which is outside the window that did not exist yet when it landed
+(`closes_help`; without that every "?" looked dead). A
+click anywhere on a card selects it: the interaction is registered from the *previous* frame's rectangle, before the
+contents are drawn, so the whole card responds (with the hand cursor) and the "?" inside it still gets its own click.
+An interaction drawn over the card *after* the contents used to swallow the "?". The "?" itself is a bare gold mark
+close to its sentence, without a frame. Every interactive widget shows the hand cursor. The chosen option of a
 set is a gold pill with dark text (`widgets::pill`), and the theme's `selection` colours are dark gold/light gold for
 the lists that still use them: cream text on gold was unreadable. The star of "Recomendado ★" is drawn
 (`widgets::star`), and so are the flag of each language (`widgets::flag`), because the installed fonts carry neither
 glyph.
 
 The buttons of the remap list are drawn, not written: the same chip the preview paints, with a "+" for the long press
-of the face button above it.
+of the face button above it (its hover text says so).
+
+The stamina display and the stamina styles are **options** (`ui.radio_value`) with their sentence under them, not
+pills: a row of gold buttons for two exclusive choices read as two commands.
 
 Every option carries the Python app's one-sentence explanation under it, and the gold **?** beside a control opens the
 full text in a window. The three previews are drawn with egui's painter: the stamina ring or bar (Gameplay), the
@@ -152,11 +159,24 @@ returns its exit code; the window's Install page has the same action as "Recompi
 Rekarina targets, with the log in the card below. `SHB_PYTHON` picks the interpreter (`py -3.12` on Windows by
 default) and `--app` the Python folder when it is not the payload's parent.
 
+## The rebuild, in this app
+
+`shb rebuild --game <folder> --profile <name>` (and the window's rebuild button) drives the build from here:
+
+* a static recompilation (Longshot, Hookshot, ReLink): `shb-core/src/recomp_build.rs` finds the builder the launcher
+  installed (`%LOCALAPPDATA%\<Launcher>	oolchains\<version>\LongshotBuilder`, or one beside the game, or `--builder`),
+  works out how the game was built (DLSS/FSR/XeSS from the launcher's `settings.json` + `builds.json`, or ReLink's
+  `launcher.ini`, or the game's own `*_options.ini`), passes the builder its arguments and environment, and reads the
+  `@@stage` / `@@progress` protocol it prints. The recompiler's `make_game.py` and its toolchain are external
+  programs, the way a C project's compiler is: **no part of this app runs in Python** for a recompiled game.
+* a Rekarina install: Rekarina ships its own three-stage pipeline (a private interpreter, `gen.py`,
+  `build_game.py`, its patches) in its `setup/` folder. `app/rebuild.py` hands the work to it — porting a lifter is
+  not what a configurator should do — and `shb-core/src/rebuild.rs` drives that.
+
 ## Not ported yet
 
-Nothing of the install is reimplemented: the two flows that need a compiler are run from the Python app through
-`shb rebuild` (above), so there is no second copy of the builder logic to drift. The window and the CLI both say when
-a game needs that build instead of writing a module the game would not load.
+The GameCube UI artwork (`app/gamecube.py`): it cuts the prompts out of the game's own UI archive, which needs the
+dump. `tools/gen_gamecube.py` generates the texture table it uses; the cut itself is not in this port.
 
 Known gap of the environment, not of this port: the builder the Python app drives (`tools/nx2/make_game.py`) is not
 on this PC any more (the installed Longshot is the .NET `LongshotBuilder`), so a Longshot rebuild fails for the

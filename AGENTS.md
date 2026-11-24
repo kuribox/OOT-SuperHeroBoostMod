@@ -87,6 +87,27 @@ request at a time: while an input sequence runs, reads wait — measure through 
   branches reach it without relocations.
 - Rekarina builds for `main + 0x5200000` with `--rekarina` (synthetic `eh_frame_hdr` seed table).
 
+## The Rust configurator (`app-rs/`, branch `feat/rust-app`)
+
+A port of the app in Rust, byte-identical to the Python one (`tools/parity_check.py`: 56/56 patch images, 16/16
+install trees, 2/2 Rekarina installs). Build: `export PATH="/c/Users/Kuri/.cargo/bin:$PATH"` then
+`cargo build --release -p shb-gui` in `app-rs/`; the window is eframe/egui 0.37 with the **wgpu** backend (glow
+segfaults here).
+
+- **The install is native.** `shb-core` writes the module, the config block, the IPS, the romfs and the enemy packs
+  itself; nothing of the app runs in Python.
+- **The rebuild is native for recompiled games** (`shb-core/src/recomp_build.rs` + `rebuild.rs`): it finds the builder
+  (Longshot's launcher keeps its toolchains under `%LOCALAPPDATA%\LongshotLauncher	oolchains\<version>\`), works out
+  DLSS/FSR/XeSS from the launcher's files, and drives `tools/nx2/make_game.py`, reading its `@@stage`/`@@progress`
+  lines. The recompiler itself stays an external program — that is its compiler, not ours.
+- **Rekarina's rebuild still goes through Rekarina's own pipeline** (`app/rebuild.py` drives `setup/`'s `gen.py`,
+  `build_game.py` and its interpreter): re-implementing a lifter is not the app's job.
+- Dev aids: `SHB_PAGE=<install|presets|gameplay|difficulty|controls|hud|misc|help|about>` opens a page directly,
+  `SHB_WINDOW=WxH` sizes the window and `SHB_HELP=<key>` opens one help text — how the screenshots in
+  `docs/capturas/` are taken. `tests` before a release build, and `Stop-Process -Name shb-gui -Force` before
+  rebuilding (else `os error 5` on the copy).
+- `tools/check_gui_keys.py` must pass after touching the window: a missing text key is shown raw on screen.
+
 ## Reference material (external)
 
 - **https://github.com/Kabosune/oot-remake-modding** — modding docs for this game: symbol/command lists for build

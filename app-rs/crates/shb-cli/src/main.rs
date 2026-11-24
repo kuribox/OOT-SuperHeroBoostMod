@@ -151,6 +151,7 @@ struct Options {
     save_settings: bool,
     dry_run: bool,
     app: Option<PathBuf>,
+    builder: Option<PathBuf>,
     no_rebuild: bool,
     current: Option<String>,
     download: bool,
@@ -173,6 +174,7 @@ fn parse_args(args: &[String]) -> Result<(String, Options)> {
             "--game" => o.game = Some(PathBuf::from(value_of(&mut it, "--game")?)),
             "--app" => o.app = Some(PathBuf::from(value_of(&mut it, "--app")?)),
             "--no-rebuild" => o.no_rebuild = true,
+            "--builder" => o.builder = Some(PathBuf::from(value_of(&mut it, "--builder")?)),
             "--nso" => o.nso = Some(PathBuf::from(value_of(&mut it, "--nso")?)),
             "--out" => o.out = Some(PathBuf::from(value_of(&mut it, "--out")?)),
             "--settings" => o.settings = Some(PathBuf::from(value_of(&mut it, "--settings")?)),
@@ -620,13 +622,23 @@ fn run(args: &[String]) -> Result<()> {
                 profile: profile.clone(),
                 rebuild: !o.no_rebuild,
                 app: app.clone(),
+                builder: o.builder.clone(),
             };
-            println!(
-                "rebuilding {} with profile {profile} (the Python app at {})",
-                path.display(),
-                app.display()
-            );
-            rebuild::run(&request, |line| println!("{line}"))?;
+            println!("rebuilding {} with profile {profile}", path.display());
+            let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+            rebuild::run(&request, stop, |event| match event {
+                shb_core::recomp_build::BuildEvent::Progress {
+                    fraction,
+                    text,
+                    stage,
+                } => {
+                    if !text.is_empty() {
+                        println!("[{stage}] {:3.0}% {text}", fraction * 100.0);
+                    }
+                }
+                shb_core::recomp_build::BuildEvent::Line(text) => println!("{text}"),
+                shb_core::recomp_build::BuildEvent::Note(text) => println!("· {text}"),
+            })?;
             println!("done");
             Ok(())
         }

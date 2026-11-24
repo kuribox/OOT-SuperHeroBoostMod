@@ -140,7 +140,7 @@ fn exefs_of(root: &Path) -> Option<PathBuf> {
         .find(|dir| dir.join("main").is_file())
 }
 
-fn flavor_of(root: &Path) -> Option<Flavor> {
+pub fn flavor_of(root: &Path) -> Option<Flavor> {
     EXEFS_NAMES.iter().find_map(|name| {
         root.join(name)
             .join("main")
@@ -177,6 +177,12 @@ pub fn apply_settings(game: &Game, s: &Settings, payload: &Path) -> Result<bool>
     if !is_installed(game) {
         return Err(Error::NeedsBuild(game.root.clone()));
     }
+    stage(game, s, payload)
+}
+
+/// Write the module, its settings block, `image.bin` and the romfs — without requiring that the module is already
+/// there. A rebuild needs this: the module has to be in `exefs/` *before* the recompiler lifts the game.
+pub fn stage(game: &Game, s: &Settings, payload: &Path) -> Result<bool> {
     let bid = main_build_id(&game.exefs.join("main"));
     if !bid.is_empty() && !bid.starts_with(MODULE_BUILD) {
         return Err(Error::WrongBuild(bid));

@@ -161,8 +161,13 @@ struct App {
     update: UpdateState,
     /// The key of the text a "?" opened, painted as a window over the page.
     help: Option<&'static str>,
+    /// The frame it opened on: the click that opens it is outside the window it just created, and closing on that
+    /// click made every "?" look dead.
+    help_frame: u64,
     /// The lines of a rebuild in progress: the Python app's own build, run in a thread.
     rebuild_rx: Option<channel::Receiver<String>>,
+    /// Set to stop a running build.
+    rebuild_stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
     update_rx: Option<Receiver<UpdateMsg>>,
 }
 
@@ -189,11 +194,13 @@ impl App {
             logo: theme::logo(&cc.egui_ctx),
             status: None,
             update: UpdateState::Idle,
+            help_frame: 0,
             // `SHB_HELP=variant_d` opens that text at start: how the docs' screenshots are taken.
             help: std::env::var("SHB_HELP")
                 .ok()
                 .and_then(|key| HELP_KEYS.iter().copied().find(|known| *known == key)),
             rebuild_rx: None,
+            rebuild_stop: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
             update_rx: None,
         };
         match app.payload.clone() {
@@ -283,7 +290,8 @@ impl App {
         self.refresh_emulator();
     }
 
-    /// Rebuild the game with the Python app's own builder (`app/rebuild.py`): the lift and the compile stay there.
+    /// Rebuild the game: the driver is this app (`shb_core::rebuild`); the lift and the link are the recompiler's own
+    /// program, which it runs the way a compiler is run.
     fn start_rebuild(&mut self) {
         let Some(payload) = self.payload.clone() else {
             self.failed = true;
@@ -303,13 +311,31 @@ impl App {
             profile: self.profile.clone(),
             rebuild: true,
             app,
+            builder: None,
         };
         let (tx, rx) = channel();
         let started = request.game.display().to_string();
+        let stop = self.rebuild_stop.clone();
+        stop.store(false, std::sync::atomic::Ordering::Relaxed);
         std::thread::spawn(move || {
             let sender = tx.clone();
-            let result = rebuild::run(&request, |line| {
-                let _ = sender.send(line.to_string());
+            let result = rebuild::run(&request, stop, |event| {
+                let text = match event {
+                    shb_core::recomp_build::BuildEvent::Progress {
+                        fraction,
+                        text,
+                        stage,
+                    } => {
+                        if text.is_empty() {
+                            format!("[{stage}] {:3.0}%", fraction * 100.0)
+                        } else {
+                            format!("[{stage}] {:3.0}% {text}", fraction * 100.0)
+                        }
+                    }
+                    shb_core::recomp_build::BuildEvent::Line(text) => text,
+                    shb_core::recomp_build::BuildEvent::Note(text) => format!("· {text}"),
+                };
+                let _ = sender.send(text);
             });
             match result {
                 Ok(()) => {
@@ -940,7 +966,11 @@ impl eframe::App for App {
                 ui.add_space(2.0);
                 ui.label(egui::RichText::new(text).size(13.0).color(theme::TEXT));
             });
-            // A click anywhere else closes it, the way a dialog does.
+            // A click anywhere else closes it, the way a dialog does — but not the click that opened it.
+            let frame = ui.ctx().cumulative_frame_nr();
+            if self.help_frame == 0 {
+                self.help_frame = frame;
+            }
             if let Some(shown) = &shown {
                 let clicked_outside = ui.input(|i| {
                     i.pointer.any_click()
@@ -949,12 +979,15 @@ impl eframe::App for App {
                             .map(|pos| !shown.response.rect.contains(pos))
                             .unwrap_or(false)
                 });
-                if clicked_outside {
+                if closes_help(frame, self.help_frame, clicked_outside) {
                     self.help = None;
                 }
             }
             if !open {
                 self.help = None;
+            }
+            if self.help.is_none() {
+                self.help_frame = 0;
             }
         }
 
@@ -1119,8 +1152,9 @@ impl App {
 
     /// A profile: its name, the first sentence of what it changes and the rest behind the "?".
     ///
-    /// The name and the sentence take the click, not a rectangle drawn over the card: an interaction on top of the
-    /// card was swallowing the "?" (a click there did nothing).
+    /// The whole card takes the click. The interaction is registered *before* the card is drawn, from the rectangle of
+    /// the previous frame: `ui.interact` after the contents would sit on top of the "?" and eat its clicks. That is
+    /// also what gives the card the hand cursor.
     fn profile_card(
         &mut self,
         ui: &mut egui::Ui,
@@ -1129,6 +1163,17 @@ impl App {
     ) {
         let lang = self.ui_lang;
         let selected = self.profile == key;
+        let id = ui.make_persistent_id(("profile-card", key));
+        let known = ui.data(|d| d.get_temp::<egui::Rect>(id));
+        let mut pick = false;
+        if let Some(rect) = known {
+            // The hand cursor is not automatic for a bare interaction: a button asks for it, and so does this.
+            let hit = ui.interact(rect, id.with("hit"), egui::Sense::click());
+            let _ = hit.clone().on_hover_cursor(egui::CursorIcon::PointingHand);
+            if hit.clicked() {
+                pick = true;
+            }
+        }
         let key_desc = profile_desc_key(key);
         let full = tr(lang, key_desc);
         let shown = widgets::short(full);
@@ -1149,28 +1194,23 @@ impl App {
             ))
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::symmetric(10, 6));
-        let mut pick = false;
-        frame.show(ui, |ui| {
+        let drawn = frame.show(ui, |ui| {
             ui.set_width(width - 22.0);
             ui.horizontal(|ui| {
                 // The name, and the star drawn instead of trusting a font that may not carry "★".
                 let name = profile_name(lang, key);
                 let starred = name.contains('★');
                 let text = name.replace('★', "").trim_end().to_string();
-                let label = egui::RichText::new(&text)
-                    .size(12.5)
-                    .strong()
-                    .color(if selected {
-                        theme::ON_ACCENT
-                    } else {
-                        theme::TEXT
-                    });
-                if ui
-                    .add(egui::Label::new(label).sense(egui::Sense::click()))
-                    .clicked()
-                {
-                    pick = true;
-                }
+                ui.label(
+                    egui::RichText::new(&text)
+                        .size(12.5)
+                        .strong()
+                        .color(if selected {
+                            theme::ON_ACCENT
+                        } else {
+                            theme::TEXT
+                        }),
+                );
                 if starred {
                     let color = if selected {
                         theme::ON_ACCENT
@@ -1184,19 +1224,14 @@ impl App {
                 }
             });
             ui.horizontal_wrapped(|ui| {
-                let text = egui::RichText::new(&shown).size(11.0).color(if selected {
+                ui.label(egui::RichText::new(&shown).size(11.0).color(if selected {
                     theme::ON_ACCENT
                 } else {
                     theme::DIM
-                });
-                if ui
-                    .add(egui::Label::new(text).sense(egui::Sense::click()))
-                    .clicked()
-                {
-                    pick = true;
-                }
+                }));
             });
         });
+        ui.data_mut(|d| d.insert_temp(id, drawn.response.rect));
         if pick {
             self.profile = key.to_string();
         }
@@ -1228,30 +1263,27 @@ impl App {
                                 .size(13.0)
                                 .strong(),
                         );
-                        ui.horizontal(|ui| {
-                            if widgets::pill(
-                                ui,
-                                !self.settings.stamina_bar,
-                                tr(lang, "stamina_ring"),
-                            )
-                            .clicked()
-                            {
-                                self.settings.stamina_bar = false;
-                                changed = true;
-                            }
-                            widgets::help_icon(ui, "stamina_ring_d", lang, &mut help);
-                            if widgets::pill(ui, self.settings.stamina_bar, tr(lang, "stamina_bar"))
-                                .clicked()
-                            {
-                                self.settings.stamina_bar = true;
-                                changed = true;
-                            }
-                            widgets::help_icon(ui, "stamina_bar_d", lang, &mut help);
-                        });
-                        let ring = widgets::short(tr(lang, "stamina_ring_d"));
-                        widgets::desc_under(ui, &ring);
-                        let bar = widgets::short(tr(lang, "stamina_bar_d"));
-                        widgets::desc_under(ui, &bar);
+                        // Options, the way the Python app draws them: a radio, its name, its sentence and its "?".
+                        for (bar, name_key, desc_key) in [
+                            (false, "stamina_ring", "stamina_ring_d"),
+                            (true, "stamina_bar", "stamina_bar_d"),
+                        ] {
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .radio_value(
+                                        &mut self.settings.stamina_bar,
+                                        bar,
+                                        tr(lang, name_key),
+                                    )
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                                widgets::help_icon(ui, desc_key, lang, &mut help);
+                            });
+                            let sentence = widgets::short(tr(lang, desc_key));
+                            widgets::desc_under(ui, &sentence);
+                        }
                         ui.add_space(8.0);
                         ui.label(
                             egui::RichText::new(tr(lang, "stamina_mode"))
@@ -1260,14 +1292,14 @@ impl App {
                         );
                         for (value, key) in PRESET_KEYS.iter().enumerate() {
                             ui.horizontal(|ui| {
-                                if widgets::pill(
-                                    ui,
-                                    self.settings.preset == value as u8,
-                                    tr(lang, key),
-                                )
-                                .clicked()
+                                if ui
+                                    .radio_value(
+                                        &mut self.settings.preset,
+                                        value as u8,
+                                        tr(lang, key),
+                                    )
+                                    .changed()
                                 {
-                                    self.settings.preset = value as u8;
                                     changed = true;
                                 }
                                 widgets::help_icon(ui, preset_desc_key(value), lang, &mut help);
@@ -1701,7 +1733,8 @@ impl App {
 
     /// One card of the presets: its name, the first sentence of its description, and the rest behind the "?".
     ///
-    /// The name and the sentence take the click; a rectangle over the whole card used to eat the "?".
+    /// Same trick as the profile cards: the interaction is registered before the contents, from the previous frame's
+    /// rectangle, so the whole card clicks, the "?" keeps working, and the card shows the hand cursor.
     fn preset_card(&mut self, ui: &mut egui::Ui, key: &'static str, changed: &mut bool) -> bool {
         let lang = self.ui_lang;
         let selected = shb_core::roles::remap_preset(key)
@@ -1710,6 +1743,17 @@ impl App {
                     == self.settings.bm_roles
             })
             .unwrap_or(false);
+        let id = ui.make_persistent_id(("preset-card", key));
+        let known = ui.data(|d| d.get_temp::<egui::Rect>(id));
+        let mut pick = false;
+        if let Some(rect) = known {
+            // The hand cursor is not automatic for a bare interaction: a button asks for it, and so does this.
+            let hit = ui.interact(rect, id.with("hit"), egui::Sense::click());
+            let _ = hit.clone().on_hover_cursor(egui::CursorIcon::PointingHand);
+            if hit.clicked() {
+                pick = true;
+            }
+        }
         let width = ui.available_width();
         let frame = egui::Frame::NONE
             .fill(if selected {
@@ -1727,39 +1771,31 @@ impl App {
             ))
             .corner_radius(egui::CornerRadius::same(8))
             .inner_margin(egui::Margin::symmetric(10, 6));
-        let mut pick = false;
-        frame.show(ui, |ui| {
+        let drawn = frame.show(ui, |ui| {
             ui.set_width(width - 22.0);
-            let label = egui::RichText::new(tr(lang, preset_name_key(key)))
-                .size(12.5)
-                .strong()
-                .color(if selected {
-                    theme::ON_ACCENT
-                } else {
-                    theme::TEXT
-                });
-            if ui
-                .add(egui::Label::new(label).sense(egui::Sense::click()))
-                .clicked()
-            {
-                pick = true;
-            }
-            ui.horizontal_wrapped(|ui| {
-                let text = egui::RichText::new(tr(lang, preset_desc_key_for(key)))
-                    .size(11.0)
+            ui.label(
+                egui::RichText::new(tr(lang, preset_name_key(key)))
+                    .size(12.5)
+                    .strong()
                     .color(if selected {
                         theme::ON_ACCENT
                     } else {
-                        theme::DIM
-                    });
-                if ui
-                    .add(egui::Label::new(text).sense(egui::Sense::click()))
-                    .clicked()
-                {
-                    pick = true;
-                }
+                        theme::TEXT
+                    }),
+            );
+            ui.horizontal_wrapped(|ui| {
+                ui.label(
+                    egui::RichText::new(tr(lang, preset_desc_key_for(key)))
+                        .size(11.0)
+                        .color(if selected {
+                            theme::ON_ACCENT
+                        } else {
+                            theme::DIM
+                        }),
+                );
             });
         });
+        ui.data_mut(|d| d.insert_temp(id, drawn.response.rect));
         if pick {
             self.apply_preset(key, changed);
         }
@@ -2359,6 +2395,14 @@ impl App {
     }
 }
 
+/// Whether a click outside the help window closes it.
+///
+/// The click that opens the window is, by definition, outside the window that did not exist yet when it landed, so the
+/// first frame after opening is ignored: without that, every "?" looked dead.
+fn closes_help(frame: u64, opened_on: u64, clicked_outside: bool) -> bool {
+    clicked_outside && frame > opened_on + 1
+}
+
 fn main() -> eframe::Result {
     // `--version` runs before any window work, which is also how a broken graphics stack is told apart from a
     // broken binary.
@@ -2393,4 +2437,19 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| Ok(Box::new(App::new(cc)))),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::closes_help;
+
+    #[test]
+    fn the_click_that_opens_a_help_window_does_not_close_it() {
+        // The click lands on the "?" before the window exists: that frame and the next are ignored.
+        assert!(!closes_help(10, 10, true));
+        assert!(!closes_help(11, 10, true));
+        // Any later click outside does close it, and one inside never does.
+        assert!(closes_help(12, 10, true));
+        assert!(!closes_help(12, 10, false));
+    }
 }
