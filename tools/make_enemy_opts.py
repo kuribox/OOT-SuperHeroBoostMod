@@ -396,7 +396,14 @@ def duplicate_banc(path, rng, size_changes):
         dict_data=zstandard.ZstdCompressionDict(DICTS["bcett.byml.zsdic"])).compress(out)
 
 
+# Left as the game has it: 30 crows at once (instead of 15) in Hyrule Field crashed the game on leaving Lon Lon Ranch
+# (null entry in the actor-handle pool, Longshot); a cap of 20 crashed as well.
+AUTOPLACE_SKIP = ("Enemy_Guey_HyruleField_Adult.",)
+
+
 def edit_autoplace(path, size_changes):
+    if path.name.startswith(AUTOPLACE_SKIP):
+        return None
     raw = path.read_bytes()
     try:
         b, tree = byml_bytes_tree(raw)

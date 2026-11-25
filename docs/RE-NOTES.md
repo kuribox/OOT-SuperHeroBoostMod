@@ -339,6 +339,11 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   `System/Resource/ResourceSizeTable...rsizetable.zs` is patched by CRC32 (`binascii.crc32` of the
   path without `.zs`) to the new uncompressed size. When the buttonMapping payload exists, the enemy table starts
   from that one so it keeps the bigger UI budget (the installed enemy table overwrites it).
+- **Hyrule Field crows (Nov 25)**: doubling `Enemy_Guey_HyruleField_Adult`'s `AutoPlacementMgrParam` (15 -> 30 at once)
+  crashed Longshot when leaving Lon Lon Ranch with Epona: null entry in the engine's actor-handle pool (`main+0x3294394`
+  calling `0x399ca0` with x0 = 0). Found by bisecting the SHB romfs with override mods; a cap of 20 crashed too. The
+  generator now leaves that file alone (`AUTOPLACE_SKIP`). The other crow files (DesertColossus, LakeHylia) are still doubled
+  and untested.
 - **Speed levels**: `Pack/Actor/Enemy_*.pack.zs` scales `BSA/MovementParam` (`Walk/Run/Dash/Escape/Special/Strafe/
   LiftWalk/WalkBackwards`) by the chosen factor, and divides `GameBalance/AttackInterval/*` plus the explicit
   `ActionSeqContainer` cooldown fields. `AttackIntervalRatio` is **not** touched: it multiplies the
