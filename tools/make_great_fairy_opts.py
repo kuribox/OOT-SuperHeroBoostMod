@@ -13,6 +13,14 @@ The flows are rewritten with the `evfl` library (the writer is byte-identical wh
 nothing changes) and recompressed with the game's own zstd dictionary. The resource
 size table is grown for the three files because they may end up larger.
 
+Two more reward changes ride with this option:
+  Ghost Shop (poe buyer)   500-point reward  -> Ice Arrows  (was an empty bottle)
+  Gerudo Training Ground   last big chest    -> empty bottle (was the Ice Arrows)
+The poe buyer's flow keeps its dialogue; only the actor name its reward event grants changes. The chest is the
+`Obj_TBox_A_02` with `Drop__DropActor: Item_Arrow_Ice` in `Banc/GerudoTrainingGround/GerudoTrainingGround_Static`.
+That Banc file is rebuilt from the game's own; `great_fairy_double/` holds the same chest change on top of the duplicated-enemies
+file, and the installers copy it last when both options are on (so the dungeon keeps its clones too).
+
 Output: app/payload/romfs_opts/great_fairy/...
 """
 import io
@@ -31,6 +39,7 @@ OUT = ROOT / "app" / "payload" / "romfs_opts"
 RESTBL_REL = "System/Resource/ResourceSizeTable.Product.111.Nin_Ounce_NVN2.rsizetable.zs"
 
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(DEVTOOL))
 from lib import sarc  # noqa: E402
 
 import evfl  # noqa: E402
@@ -124,6 +133,53 @@ def patch_flow(name, info, dictionary, zs_dict):
     return zstandard.ZstdCompressor(dict_data=dictionary).compress(out), out
 
 
+SHOP_FLOW = "Npc_Hylia_048_BottleShop"
+SHOP_REWARD_EVENT = "Event329"          # GetInEvent_Poeshop after the 500-point talk (Talk_65)
+
+
+def patch_shop(dictionary, zs_dict):
+    src = ROMFS / "Event" / "EventFlow" / (SHOP_FLOW + ".bfevfl.zs")
+    data = zs_dict.decompress(src.read_bytes(), max_output_size=20_000_000)
+    flow = evfl.EventFlow()
+    flow.read(data)
+    hit = [ev for ev in flow.flowchart.events if ev.name == SHOP_REWARD_EVENT]
+    if len(hit) != 1:
+        raise RuntimeError(f"{SHOP_FLOW}: {SHOP_REWARD_EVENT} not found")
+    params = hit[0].data.params.data
+    if params.get("ActorName") != "Item_Bottle":
+        raise RuntimeError(f"{SHOP_FLOW}: {SHOP_REWARD_EVENT} does not grant Item_Bottle: {params.get('ActorName')!r}")
+    params["ActorName"] = "Item_Arrow_Ice"
+    buf = io.BytesIO()
+    if not flow.write(buf):
+        raise RuntimeError(f"{SHOP_FLOW}: evfl write failed")
+    out = buf.getvalue()
+    check = evfl.EventFlow()
+    check.read(out)
+    print(f"{SHOP_FLOW}: {len(data)} -> {len(out)} bytes, reward Item_Bottle -> Item_Arrow_Ice")
+    return zstandard.ZstdCompressor(dict_data=dictionary).compress(out), out
+
+
+GTG_BANC = "Banc/GerudoTrainingGround/GerudoTrainingGround_Static.bcett.byml"
+
+
+def patch_gtg_chest(src=None):
+    import byml
+    src = src or ROMFS / (GTG_BANC + ".zs")
+    bcett = zstandard.ZstdCompressionDict(load_dict("bcett.byml.zsdic"))
+    raw = zstandard.ZstdDecompressor(dict_data=bcett).decompress(src.read_bytes(), max_output_size=100_000_000)
+    b = byml.Byml(raw)
+    tree = b.tree()
+    hits = [a for a in tree["Actors"]
+            if (a.get("Dynamic") or {}).get("Drop__DropActor") is not None
+            and a["Dynamic"]["Drop__DropActor"].v == "Item_Arrow_Ice"]
+    if len(hits) != 1:
+        raise RuntimeError(f"Gerudo Training Ground: expected one Ice Arrows chest, found {len(hits)}")
+    hits[0]["Dynamic"]["Drop__DropActor"] = byml.Val(hits[0]["Dynamic"]["Drop__DropActor"].t, "Item_Bottle")
+    out = byml.write(tree, version=b.version, e=b.e)
+    print(f"Gerudo Training Ground chest: {len(raw)} -> {len(out)} bytes, Item_Arrow_Ice -> Item_Bottle")
+    return zstandard.ZstdCompressor(dict_data=bcett).compress(out), out
+
+
 def load_restbl():
     """Use the enemy mod's table as the base when it exists so both options keep their budgets."""
     enemy = OUT / "enemy_double" / RESTBL_REL
@@ -166,6 +222,27 @@ def main():
         dst.write_bytes(packed)
         rel = f"Event/EventFlow/{name}.bfevfl"
         changes.append((rel, len(plain)))
+    packed, plain = patch_shop(dictionary, zs)
+    dst = outdir / "Event" / "EventFlow" / (SHOP_FLOW + ".bfevfl.zs")
+    dst.write_bytes(packed)
+    changes.append((f"Event/EventFlow/{SHOP_FLOW}.bfevfl", len(plain)))
+    packed, plain = patch_gtg_chest()
+    dst = outdir / (GTG_BANC + ".zs")
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    dst.write_bytes(packed)
+    changes.append((GTG_BANC, len(plain)))
+    # The same chest on top of the duplicated-enemies version of the file (installed last when both options are on).
+    double_src = OUT / "enemy_double" / (GTG_BANC + ".zs")
+    double_dst = OUT / "great_fairy_double" / (GTG_BANC + ".zs")
+    if double_dst.parent.exists():
+        import shutil
+        shutil.rmtree(double_dst.parent.parent.parent)
+    if double_src.exists():
+        packed, plain = patch_gtg_chest(double_src)
+        double_dst.parent.mkdir(parents=True, exist_ok=True)
+        double_dst.write_bytes(packed)
+    else:
+        print("great_fairy_double: no duplicated-enemies file to build on, skipped")
     table, source = load_restbl()
     print("restbl base:", source)
     out = grow_restbl(table, changes)
