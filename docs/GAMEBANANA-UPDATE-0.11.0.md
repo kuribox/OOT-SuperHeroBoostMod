@@ -60,7 +60,8 @@ Rust app keeps the folders target and language when it saves
 `release/SuperHeroBoost-0.11.0-presets.zip` (15 named profiles, no executables). Upload the copy published on the
 GitHub release so the two hashes match; the previous file (0.10.0 / 0.9.3) is archived.
 
-SHA-256: `<filled after the CI release: see the release asset>`
+SHA-256: `4054339d1fd4fde0edbdd31db8f95a40451d8b196e25b367ee702cb5e9e7c53f` (the asset of the v0.11.0 release;
+GameBanana stored it as `superheroboost-0110-presets.zip`, MD5 `e5bf561c2ff44e407d3ef0819f447119`)
 
 ## 3. Submission
 
