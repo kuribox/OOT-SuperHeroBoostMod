@@ -93,6 +93,8 @@ def cli(argv) -> int:
     ap.add_argument("--switch-target", action="store_true",
                     help="the other shoulder button switches to the next target while targeting")
     ap.add_argument("--enemy-double", action="store_true", help="beta: duplicate generic enemies (romfs)")
+    ap.add_argument("--enemy-bars", action="store_true", help="beta: a health bar over every normal enemy")
+    ap.add_argument("--boss-bar", action="store_true", help="beta: a big on-screen bar with the boss name")
     ap.add_argument("--enemy-speed", action="store_true", help="deprecated: enemy movement/animation/attack at x2")
     ap.add_argument("--enemy-move", type=int, choices=I.ENEMY_LEVELS, default=None,
                     help="enemy movement: 0 off, 1 x1.5, 2 x2, 3 x3, 4 x1.25, 5 x1.75 (see the app for the rest)")
@@ -198,6 +200,10 @@ def cli(argv) -> int:
                                     sprint_l3=s.sprint_l3, l_selector=True if s.bm_l_mode == "selector" else None)   # (None: keep the table's own selector)
     if a.enemy_double:
         s.enemy_double = True
+    if a.enemy_bars:
+        s.enemy_bars = True
+    if a.boss_bar:
+        s.boss_bar = True
     if a.enemy_speed:
         s.enemy_speed = True
     if a.enemy_move is not None:
@@ -379,6 +385,8 @@ def gui() -> None:
     _hm = cfg.get("hud_mode")
     hud_mode = tk.StringVar(value=_hm if _hm in I.HUD_MODES else "wide")
     enemy_double = tk.BooleanVar(value=bool(cfg.get("enemy_double", False)))
+    enemy_bars = tk.BooleanVar(value=bool(cfg.get("enemy_bars", False)))
+    boss_bar = tk.BooleanVar(value=bool(cfg.get("boss_bar", False)))
     _legacy_speed = 2 if cfg.get("enemy_speed") else 0
     enemy_move = tk.IntVar(value=cfg.get("enemy_move", _legacy_speed)
                            if cfg.get("enemy_move", _legacy_speed) in I.ENEMY_LEVELS else 0)
@@ -541,6 +549,8 @@ def gui() -> None:
         rupees.set(v["hud_rupees"])
         clock_mode.set("24" if v["clock_24h"] else "12" if v["hud_clock"] else "off")
         enemy_double.set(v["enemy_double"])
+        enemy_bars.set(bool(v.get("enemy_bars", False)))
+        boss_bar.set(bool(v.get("boss_bar", False)))
         enemy_move.set(v["enemy_move"])
         enemy_anim.set(v["enemy_anim"])
         enemy_attack.set(v["enemy_attack"])
@@ -591,7 +601,8 @@ def gui() -> None:
     for var in (bmap, hud_items, stamina, songbook, quick_boots, quick_mask, manual_shield, target_r3, sprint_l3, sprint_l3_toggle,
                 auto_target, switch_target,
                 hud_collectibles, hud_mode,
-                enemy_double, enemy_move, enemy_anim, enemy_attack, enemy_proj, boss_move, boss_anim, enemy_alert, enemy_aggro,
+                enemy_double, enemy_bars, boss_bar, enemy_move, enemy_anim, enemy_attack, enemy_proj, boss_move, boss_anim,
+                enemy_alert, enemy_aggro,
                 great_fairy, farore_outdoor, mode,
                 combat, hp, dmg, speed, nodrop, nmagic, hide_min,
                 rupees, clock_mode, *costs.values()):
@@ -667,6 +678,7 @@ def gui() -> None:
                           enemy_attack=enemy_attack.get(), enemy_proj=enemy_proj.get(),
                           enemy_alert=enemy_alert.get(), enemy_aggro=enemy_aggro.get(),
                           boss_move=boss_move.get(), boss_anim=boss_anim.get(),
+                          enemy_bars=enemy_bars.get(), boss_bar=boss_bar.get(),
                           great_fairy=great_fairy.get(), farore_outdoor=farore_outdoor.get(),
                           preset=STAMINA_MODES.index(mode.get()),
                           combat_only=combat.get(),
@@ -703,6 +715,7 @@ def gui() -> None:
             "enemy_attack": enemy_attack.get(), "enemy_proj": enemy_proj.get(),
             "enemy_alert": enemy_alert.get(), "enemy_aggro": enemy_aggro.get(),
             "boss_move": boss_move.get(), "boss_anim": boss_anim.get(),
+            "enemy_bars": enemy_bars.get(), "boss_bar": boss_bar.get(),
             "great_fairy": great_fairy.get(), "farore_outdoor": farore_outdoor.get(),
             "stamina_mode": mode.get(),
             "costs": {**{k: costs[k].get() for k in KEYS}, "combat_only": combat.get()},
@@ -1693,6 +1706,12 @@ def gui() -> None:
         desc_label(body, L("hud_collectibles_desc"))
         check(body, L("hide_minimap"), hide_min).pack(anchor="w", pady=(8, 0))
         desc_label(body, L("hide_minimap_desc"))
+        label(body, L("hpbars_title"), size=10, color=ACCENT, bold=True, bg=PANEL).pack(anchor="w", pady=(10, 0))
+        check(body, L("enemy_bars_on"), enemy_bars).pack(anchor="w")
+        desc_label(body, L("enemy_bars_desc"))
+        check(body, L("boss_bar_on"), boss_bar).pack(anchor="w", pady=(4, 0))
+        desc_label(body, L("boss_bar_desc"))
+        label(body, L("hpbars_note"), size=9, color=AMBER, bg=PANEL).pack(anchor="w", pady=(6, 0))
         scale_row(body, "hud_count_scale", hud_count_scale, pady=(10, 0))
         label(body, L("hud_note"), size=9, color=DIM, bg=PANEL).pack(anchor="w", pady=(8, 0))
         build_game_prompts(parent)
@@ -2231,7 +2250,8 @@ def gui() -> None:
 
     for v in (emu, bmap, bstyle, bplace, glayout, bsimple, blmode, stamina, songbook, quick_boots, quick_mask, hud_collectibles,
               target_r3, sprint_l3, sprint_l3_toggle,
-              enemy_double, enemy_move, enemy_anim, enemy_attack, enemy_proj, boss_move, boss_anim, enemy_alert, enemy_aggro, stamina_bar,
+              enemy_double, enemy_bars, boss_bar, enemy_move, enemy_anim, enemy_attack, enemy_proj, boss_move, boss_anim,
+              enemy_alert, enemy_aggro, stamina_bar,
               great_fairy, farore_outdoor, mode, combat, hp, dmg, speed,
               nodrop, rupees, clock_mode, hud_ctrl_scale, hud_count_scale, *costs.values()):
         v.trace_add("write", autosave)

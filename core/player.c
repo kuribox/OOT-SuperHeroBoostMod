@@ -1,6 +1,7 @@
 #include "dispatch.h"
 #include "config.h"
 #include "clock.h"
+#include "enemybar.h"
 
 /* Finds the player from the per-frame movement update of physics actors (hook at main+0x2C215E0,
  * x0 = actor) and turns his action-state name into events.
@@ -194,6 +195,7 @@ static void enemy_check(u64 actor, u64 comp, u64 life, const char *n) {
     g_enemy_dbg[0]++;
     g_scaling_name = n;
     enemy_scale(actor, life);
+    shb_enemybar_note(actor, life, n);                       /* health bars (core/enemybar.c) */
     if (g_player_actor == 1) return;
     u64 rec = rd(life, 0x1C10);
     if (rec && *(volatile int *)(rec + 8) <= 0) return;      /* dead (ragdoll still updating) */

@@ -87,6 +87,11 @@ typedef struct {
      * its own role, but a hold never also fires it); 0 = the short role fires at once and the hold role comes on
      * top. Bit per button: 0 D-pad right, 1 A, 2 B, 3 X, 4 Y, 5 L, 6 R. */
     unsigned char bm_hold_wait;
+    /* Health bars (feat/enemy-hp-bars), appended after bm_hold_wait so an older app leaves them 0 (off):
+     * enemy_bars = a bar over every normal enemy's head; boss_bar = the big on-screen bar of a dungeon boss
+     * (Twinrova's witches keep their own head bars until they merge). */
+    unsigned char enemy_bars;
+    unsigned char boss_bar;
 } ShbConfig;
 
 extern volatile ShbConfig g_shbcfg;

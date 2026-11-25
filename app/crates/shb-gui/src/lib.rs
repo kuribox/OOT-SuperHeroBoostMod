@@ -2068,7 +2068,6 @@ impl App {
                         .size(12.0)
                         .color(theme::DIM),
                 );
-                ui.add_space(8.0);
                 ui.label(
                     egui::RichText::new(tr(lang, "enemy_speed"))
                         .size(13.0)
@@ -2840,6 +2839,34 @@ impl App {
                 ) {
                     changed = true;
                 }
+                ui.add_space(10.0);
+                ui.label(egui::RichText::new(tr(lang, "hpbars_title")).size(13.0).strong());
+                if widgets::check(
+                    ui,
+                    &mut self.settings.enemy_bars,
+                    tr(lang, "enemy_bars_on"),
+                    tr(lang, "enemy_bars_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                if widgets::check(
+                    ui,
+                    &mut self.settings.boss_bar,
+                    tr(lang, "boss_bar_on"),
+                    tr(lang, "boss_bar_desc"),
+                    None,
+                    &mut help,
+                ) {
+                    changed = true;
+                }
+                ui.label(
+                    egui::RichText::new(tr(lang, "hpbars_note"))
+                        .size(12.0)
+                        .color(theme::DIM),
+                );
+                ui.add_space(8.0);
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     if widgets::percent_slider(

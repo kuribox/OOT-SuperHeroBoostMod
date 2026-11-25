@@ -23,6 +23,7 @@
 #include "dispatch.h"
 #include "hud_names.h"
 #include "config.h"
+#include "enemybar.h"
 #include "remap.h"
 #include "gd_index.h"
 #include "clock.h"
@@ -235,14 +236,19 @@ static void extend_pools(u8 *root, u32 add) {
  * Each field has two panes (field f uses panes f and f + FLD_N): the text is written to the hidden one. */
 #define FLD_N 7
 #define TXT_N (FLD_N * 2)
+/* One text pane beyond the field pairs: the boss name of the global bar. It never takes part in the
+ * hidden-twin pairing (put_text only uses f + FLD_N * front, f < FLD_N), so it is written directly. */
+#define TXT_BOSS TXT_N
+#define TXT_TOT (TXT_N + 1)
 static const char g_font_normal[] = "Normal";
 static const char g_font_ext[] = "External_00";   /* the button-glyph font */
-static char g_tnames[TXT_N][16] = {"T_ShbTxt_00", "T_ShbTxt_01", "T_ShbTxt_02", "T_ShbTxt_03",
+static char g_tnames[TXT_TOT][16] = {"T_ShbTxt_00", "T_ShbTxt_01", "T_ShbTxt_02", "T_ShbTxt_03",
                                    "T_ShbTxt_04", "T_ShbTxt_05", "T_ShbTxt_06", "T_ShbTxt_07",
                                    "T_ShbTxt_08", "T_ShbTxt_09", "T_ShbTxt_10", "T_ShbTxt_11",
-                                   "T_ShbTxt_12", "T_ShbTxt_13"};
-static const u64 g_thash[TXT_N] = {HASH_TXT0, HASH_TXT1, HASH_TXT2, HASH_TXT3, HASH_TXT4, HASH_TXT5, HASH_TXT6,
-                                   HASH_TXT7, HASH_TXT8, HASH_TXT9, HASH_TXT10, HASH_TXT11, HASH_TXT12, HASH_TXT13};
+                                   "T_ShbTxt_12", "T_ShbTxt_13", "T_ShbTxt_14"};
+static const u64 g_thash[TXT_TOT] = {HASH_TXT0, HASH_TXT1, HASH_TXT2, HASH_TXT3, HASH_TXT4, HASH_TXT5, HASH_TXT6,
+                                   HASH_TXT7, HASH_TXT8, HASH_TXT9, HASH_TXT10, HASH_TXT11, HASH_TXT12, HASH_TXT13,
+                                   HASH_TXT14};
 /* Picture panes. Each gets its own copy of the textured material of P_SubItemBg_00 with the game's
  * texture named below (all in the Common texture archive):
  *  0..3  clock plate:  fill, fill mirrored, edge, edge mirrored   (NumBaseSide_00 / _01, the plate of
@@ -267,7 +273,15 @@ static const u64 g_thash[TXT_N] = {HASH_TXT0, HASH_TXT1, HASH_TXT2, HASH_TXT3, H
 #define BAR_SEG 16
 #define BAR_N (BAR_SEG0 + BAR_SEG)
 #define PIC_BG (PIC_BAR + BAR_N)            /* simple layout: the translucent bar behind the four blocks */
-#define PIC_N (PIC_BG + 1)
+/* Enemy / boss health bars (core/enemybar.c). Appended after the plates so every existing index keeps its
+ * meaning. Flat white panes like the stamina bar, placed and tinted every frame; they ride in the stamina
+ * ring's pane group, whose origin is the screen centre - the same space the world projection produces. */
+#define EB_SLOTS 8                          /* bars drawn at once (the nearest on-screen enemies) */
+#define PIC_EB (PIC_BG + 1)                 /* 2 * EB_SLOTS: track + fill, per slot */
+#define PIC_BOSS (PIC_EB + EB_SLOTS * 2)    /* the global boss bar: track + fill */
+#define PIC_BOSS_TRACK PIC_BOSS
+#define PIC_BOSS_FILL (PIC_BOSS + 1)
+#define PIC_N (PIC_BOSS + 2)
 static char g_pinames[PIC_N][16];           /* "P_ShbPic_000".. filled by pic_names() */
 static const u64 g_pihash[400] = {HASH_PIC_LIST};   /* CityHash64 of "P_ShbPic_000".. (tools/build_core.py) */
 _Static_assert(PIC_N <= 400, "more picture panes than generated hashes");
@@ -603,7 +617,7 @@ static void hud_group_scale(u64 frame) {
 static int counter_picture(u32 k) { return k < RT1 || (k >= PIC_COLL && k < PIC_BAR); }
 
 static int group_hud_panes(u8 *root, u8 *first, u32 nc, u32 parts, u8 **part_desc) {
-    const u32 pics = nc + parts, texts = pics + PIC_N, groups = texts + TXT_N;
+    const u32 pics = nc + parts, texts = pics + PIC_N, groups = texts + TXT_TOT;
     const float origins[] = {ACTIONS_X, counters_x(), 0.0f};
     static const char names[3][20] = {"N_ShbActions_00", "N_ShbCounters_00", "N_ShbStaminaRing_00"};   /* arrays, not pointers */
     const u64 hashes[] = {0xe209072c44f5dda5ULL, 0xf44ec55ca35671a1ULL, 0xac10de115037b4caULL};
@@ -621,7 +635,7 @@ static int group_hud_panes(u8 *root, u8 *first, u32 nc, u32 parts, u8 **part_des
      * Picture, text and part table indices stay independent of this order. */
     /* slack: the group entries are counted twice below, and a count that lands exactly on the size used to make
      * an off-by-one write into the next array. */
-    u32 order[PART_N + PIC_N + TXT_N + 8], next = 0;
+    u32 order[PART_N + PIC_N + TXT_TOT + 8], next = 0;
     order[next++] = groups;
     for (u32 k = 0; k < parts; k++) order[next++] = nc + k;
     for (u32 k = 0; k < TXT_N; k++) if (action_field(k % FLD_N)) order[next++] = texts + k;
@@ -634,13 +648,17 @@ static int group_hud_panes(u8 *root, u8 *first, u32 nc, u32 parts, u8 **part_des
     /* Keep the ring's hundreds of dots from filling the root's edge-planner slots. */
     order[next++] = groups + 2;
     for (u32 k = RT1; k < PIC_COLL; k++) order[next++] = pics + k;
+    /* enemy and boss bars + the boss name: same group (origin 0,0 = screen centre, the space the world
+     * projection produces), so their coordinates are absolute screen offsets. */
+    for (u32 k = PIC_EB; k < PIC_N; k++) order[next++] = pics + k;
+    order[next++] = texts + TXT_BOSS;
     const u32 ring_end = next;
     for (u32 k = PIC_BAR; k < PIC_BG; k++) order[next++] = pics + k;   /* the stamina bar keeps its own coordinates */
 
     for (u32 j = 0; j < 3; j++) {
         u64 *table = (u64 *)q(root, 0x20 + j * 8);
-        u64 reordered[PART_N + PIC_N + TXT_N + 8];
-        if (next > PART_N + PIC_N + TXT_N + 8) next = PART_N + PIC_N + TXT_N + 8;   /* never past the array */
+        u64 reordered[PART_N + PIC_N + TXT_TOT + 8];
+        if (next > PART_N + PIC_N + TXT_TOT + 8) next = PART_N + PIC_N + TXT_TOT + 8;   /* never past the array */
         for (u32 k = 0; k < next; k++) reordered[k] = table[order[k]];
         memcpy(table + nc, reordered, next * sizeof(*table));
     }
@@ -697,7 +715,7 @@ static u8 *build_root(const u8 *r) {
         *(float *)(cdk[k] + 32) = 0.0f;
         *(u32 *)(pdk[k] + 64) = nc + k;               /* part -> index of its pane */
     }
-    *(u32 *)(first + 52) = nc + PART_TOT + PIC_N + TXT_N;
+    *(u32 *)(first + 52) = nc + PART_TOT + PIC_N + TXT_TOT;
     for (u32 t = 0; t < 2; t++) {
         u32 off = t ? 0xC0 : 0x20, n = t ? np : nc;
         for (u32 j = 0; j < 3; j++) {
@@ -751,7 +769,7 @@ static u8 *build_root(const u8 *r) {
                 !tbl_add(root, 0x60, g_pinames[k], pd, g_pihash[k])) { g_hud_dbg[9] = MARK | 5; return 0; }
         }
         npane += PIC_N; nb += PIC_N;
-        for (u32 t = 0; t < TXT_N; t++) {
+        for (u32 t = 0; t < TXT_TOT; t++) {
             u8 *cd = pool_clone((const void *)((const u64 *)q(r, 0x28))[ci], 68);
             u8 *bd = pool_clone((const void *)((const u64 *)q(r, 0x48))[bi], 0x88);
             u8 *td = pool_clone((const void *)((const u64 *)q(r, 0x88))[ti], 0xA8);
@@ -778,12 +796,12 @@ static u8 *build_root(const u8 *r) {
         u32 oc = w(r, 0x210);
         const u8 *op = (const u8 *)q(r, 0x208);
         if (op && oc == w(r, 0x58)) {
-            int *na = pool_alloc((oc + PIC_N + TXT_N) * 4);
+            int *na = pool_alloc((oc + PIC_N + TXT_TOT) * 4);
             if (!na) { g_hud_dbg[9] = MARK | 5; return 0; }
             memcpy(na, op, oc * 4);
-            for (u32 k = 0; k < PIC_N + TXT_N; k++) na[oc + k] = -1;
+            for (u32 k = 0; k < PIC_N + TXT_TOT; k++) na[oc + k] = -1;
             *(u64 *)(root + 0x208) = (u64)na;
-            *(u32 *)(root + 0x210) = oc + PIC_N + TXT_N;
+            *(u32 *)(root + 0x210) = oc + PIC_N + TXT_TOT;
         } else g_hud_dbg[9] = MARK | 7;
     }
     if (!group_hud_panes(root, first, nc, PART_TOT, pdk)) {
@@ -1223,10 +1241,12 @@ float g_bg_tune[4] = {-165.0f, 10.0f, 0.42f, 1.05f};
 float g_hud_bg_dbg[4];   /* diagnostic: the simple bar's x0 / x1 and the first / last visible block x */
 static u32 g_plates_shown;
 static void bar_reset(void);
+static void ebar_reset(void);
 /* the layout was rebuilt: drop cached pane records and force the texts to be set again */
 static void plates_reset(void) {
     for (u32 k = 0; k < PIC_N; k++) g_pic_rec[k] = 0;
     bar_reset();
+    ebar_reset();
     for (u32 f = 0; f < FLD_N; f++) { g_tlast[f][0] = (char)0xFF; g_tpend[f] = 0; g_tfront[f] = 0; }
     g_plates_shown = 0;
 }
@@ -1235,7 +1255,7 @@ static void plates_hide(u64 frame) {
         u64 rec = g_pic_rec[k];
         if (rec) place(rec, *(float *)(rec + 0x6C), g_hudp[2], 0.0f, 0.0f, 0.0f);
     }
-    for (u32 t = 0; t < TXT_N; t++) {
+    for (u32 t = 0; t < TXT_TOT; t++) {
         u64 rec = pane_record(frame, g_tnames[t]);
         if (rec) place(rec, *(float *)(rec + 0x6C), g_hudp[2], 0.0f, 0.0f, 0.0f);
     }
@@ -3037,6 +3057,223 @@ static void gi_update(void) {
 static void slots_reset(void) {
     g_ps_frame = 0; for (u32 k = 0; k < PART_N; k++) g_sb[k].part = 0; g_stock_box_rec = 0; g_stock_dots_rec = 0; }
 
+/* ---- enemy / boss health bars (core/enemybar.c keeps the per-frame enemy table) ---------------
+ * Every live hostile actor the physics update hands us is projected with the same camera view matrix the
+ * stamina ring's world anchor uses (CAMMGR slot -> camera -> view at +0x78, validated against main's vtable)
+ * and gets a small track + fill bar over its head. The bars ride in the stamina ring's pane group, whose
+ * origin is the screen centre, so the projection's layout units (3596 x 2022 for 16:9) are used as they come.
+ *
+ * A dungeon boss gets no head bar: it gets the wide on-screen bar at the bottom with its name above it.
+ * Twinrova's witches (Kotake / Koume) are ordinary enemies with head bars; the merged actor carries the
+ * global bar. Live tuning (read every frame):
+ *   g_eb_tune[0] head height scale, [1] bar scale, [2] boss bar y, [3] name scale. */
+float g_eb_tune[4] = {1.0f, 1.0f, -700.0f, 0.9f};
+u32 g_eb_dbg[8];   /* 0 bars drawn, 1 rows this frame, 2 boss index, 3 boss ratio %, 4 camera reads, 5 projects */
+#define EB_W 150.0f            /* bar width at EB_REF_DIST (layout units) */
+#define EB_H 13.0f
+#define EB_REF_DIST 4.0f
+#define EB_RANGE 30.0f         /* enemies further away than this get no bar */
+#define EB_MARGIN 0.25f        /* metres above the model's own height, so the bar clears the head */
+#define EB_TAN_HALF_FOV 0.4663f
+#define EB_ASPECT 1.7778f
+#define BOSS_W 1500.0f
+#define BOSS_H 26.0f
+static u64 g_eb_trec;      /* the boss-name text pane record */
+static u64 g_eb_slot[EB_SLOTS];   /* actor drawn in each bar slot (sticky assignment, so a bar cannot hop) */
+static u32 g_eb_last_on;          /* last frame the bars were allowed to draw (grace window) */
+/* diagnostic ring, one entry per frame: the tick, bars drawn, rows in the table and the two first slots'
+ * actors (low bits) - the flicker hunt reads it back over the debug server. */
+u32 g_eb_hist[128];
+u32 g_eb_hist_n = 0x10000000u;
+/* diagnostic switch (probes only): 1 = draw the global boss bar for the nearest enemy, so its geometry and
+ * name can be checked in a scene with no boss (a boss fight itself is the only proof of a boss's Life values) */
+u32 g_eb_test;
+static u32 g_eb_shown;     /* our panes are on screen this frame (so they can be hidden once) */
+static int g_eb_name_i = -2;
+static char g_eb_nmbuf[32];
+
+/* the camera's view matrix (f32[3][4] row-major at view+0x08), or 0 when there is none or it is not the one we
+ * verified. Same read and same vtable guard as anchor_update(); kept apart because that path is a shipped
+ * feature and this one is new. */
+static const volatile float *cam_mtx(void) {
+    u64 base = (u64)MAIN_SCHED_VT - 0x4B05318ull;
+    u64 slot = *(volatile u64 *)(base + 0x4C86BC0ull);
+    if (!slot) return 0;
+    u64 mgr = *(volatile u64 *)slot;
+    if (!mgr) return 0;
+    if (*(volatile u32 *)(mgr + 0x20) == 0) return 0;
+    u64 cams = *(volatile u64 *)(mgr + 0x28);
+    if (!cams) return 0;
+    u64 cam0 = *(volatile u64 *)cams;
+    if (!cam0) return 0;
+    u64 view = *(volatile u64 *)(cam0 + 0x78);
+    if (!view) return 0;
+    if (*(volatile u64 *)view != base + 0x4BF8A88ull) return 0;
+    g_eb_dbg[4]++;
+    return (const volatile float *)(view + 0x08);
+}
+/* world -> layout units; 0 when the point is behind the camera, out of range or past the screen edge */
+static int eb_project(const volatile float *m, float wx, float wy, float wz, float *ox, float *oy, float *dist) {
+    float xc = m[0] * wx + m[1] * wy + m[2] * wz + m[3];
+    float yc = m[4] * wx + m[5] * wy + m[6] * wz + m[7];
+    float zc = m[8] * wx + m[9] * wy + m[10] * wz + m[11];
+    float d = -zc;
+    *dist = d;
+    if (d < 0.4f || d > EB_RANGE) return 0;
+    float nx = xc / (d * EB_TAN_HALF_FOV * EB_ASPECT);
+    float ny = yc / (d * EB_TAN_HALF_FOV);
+    if (nx < -1.2f || nx > 1.2f || ny < -1.2f || ny > 1.2f) return 0;
+    *ox = nx * 1798.0f;
+    *oy = ny * 1011.0f;
+    g_eb_dbg[5]++;
+    return 1;
+}
+static void eb_hide(u64 frame) {
+    for (u32 k = PIC_EB; k < PIC_N; k++) {
+        u64 rec = g_pic_rec[k];
+        if (rec) place(rec, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    }
+    if (!g_eb_trec) g_eb_trec = pane_record(frame, g_tnames[TXT_BOSS]);
+    if (g_eb_trec) place(g_eb_trec, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+    g_eb_name_i = -2;    /* the next boss writes its name again: the pane may have been rebuilt */
+    g_eb_shown = 0;
+}
+/* the bar is red at every value (the player asked for a red bar over the model); the empty part behind it
+ * is the dark track, so the fill's length is what carries the value */
+static void eb_hp_rgb(float r, float *rgb) { (void)r; rgb[0] = 0.86f; rgb[1] = 0.13f; rgb[2] = 0.11f; }
+static void enemybars_update(u64 frame) {
+    g_eb_dbg[0] = 0;
+    g_eb_dbg[1] = 0;
+    g_eb_dbg[2] = 0xFFFFFFFFu;
+    /* player_active() drops for a few frames in hit stops and while an area loads: with the bars gated on it
+     * alone they blinked. Draw through a short grace window instead (a menu or a load simply outlasts it). */
+    u32 now = g_tick | 1u;
+    u32 act = (u32)player_active();
+    if (act) g_eb_last_on = now;
+    u32 on = (g_shbcfg.enemy_bars || g_shbcfg.boss_bar) && (act || (now - g_eb_last_on) <= 12u);
+    const volatile float *m = on ? cam_mtx() : 0;
+    if (!m) {
+        g_eb_dbg[7]++;                    /* frames without a camera */
+        if (g_eb_shown) eb_hide(frame);
+        return;
+    }
+    g_eb_dbg[6]++;                        /* frames drawn */
+    float sx[SHB_EB_MAX], sy[SHB_EB_MAX], sc[SHB_EB_MAX], di[SHB_EB_MAX];
+    u32 ri[SHB_EB_MAX], ok = 0, boss_row = 0xFFFFFFFFu, i;
+    for (i = 0; i < g_eb_n && i < SHB_EB_MAX; i++) {
+        ShbEnemyRow *e = &g_eb[i];
+        float px, py, d;
+        /* the engine skips actors in the per-frame physics update, so a row can be a few frames old: that is
+         * what keeps the bar steady (a table rebuilt every frame made it blink while the enemy moved) */
+        if (!e->seen || (now - e->seen) > SHB_EB_GRACE) continue;
+        g_eb_dbg[1]++;
+        if (e->cur <= 0 || e->max <= 0) continue;
+        if (shb_bar_skip(e->name)) continue;      /* a boss's sub-actor: the fight carries one bar */
+        if (!eb_project(m, e->x, e->y + e->h * g_eb_tune[0] + EB_MARGIN, e->z, &px, &py, &d)) continue;
+        if (e->boss >= 0) {                       /* a boss: the global bar instead of a head bar */
+            if (g_shbcfg.boss_bar && (boss_row == 0xFFFFFFFFu || e->max > g_eb[boss_row].max)) boss_row = i;
+            continue;
+        }
+        float s = EB_REF_DIST / d;
+        if (s < 0.35f) s = 0.35f;
+        if (s > 1.25f) s = 1.25f;
+        sx[ok] = px; sy[ok] = py; sc[ok] = s; di[ok] = d; ri[ok] = i;
+        ok++;
+    }
+    /* Slots are sticky by actor: the rows arrive in the actor table's order, which changes frame to frame, and
+     * a bar that hops between two enemies reads as flicker. An enemy keeps its slot while it is on screen; the
+     * free slots take the nearest remaining candidates. */
+    u32 take[EB_SLOTS];
+    for (u32 s = 0; s < EB_SLOTS; s++) take[s] = 0xFFFFFFFFu;
+    for (u32 k = 0; k < ok; k++)
+        for (u32 s = 0; s < EB_SLOTS; s++)
+            if (g_eb_slot[s] && g_eb_slot[s] == g_eb[ri[k]].actor) { take[s] = k; di[k] = -1.0f; break; }
+    for (u32 s = 0; s < EB_SLOTS; s++) {
+        if (take[s] != 0xFFFFFFFFu) continue;
+        u32 pick = 0xFFFFFFFFu;
+        for (u32 k = 0; k < ok; k++) if (di[k] >= 0.0f && (pick == 0xFFFFFFFFu || di[k] < di[pick])) pick = k;
+        if (pick == 0xFFFFFFFFu) break;
+        take[s] = pick;
+        di[pick] = -1.0f;
+    }
+    if (g_eb_test && boss_row == 0xFFFFFFFFu && ok) boss_row = ri[0];   /* probe: nearest as a boss */
+    u32 drawn = 0;
+    for (u32 s = 0; s < EB_SLOTS; s++) {
+        u64 tr = g_pic_rec[PIC_EB + s * 2], fl = g_pic_rec[PIC_EB + s * 2 + 1];
+        u32 k = take[s];
+        if (k == 0xFFFFFFFFu) {                   /* no enemy for this slot: keep it hidden */
+            g_eb_slot[s] = 0;
+            if (tr) place(tr, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            if (fl) place(fl, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+            continue;
+        }
+        ShbEnemyRow *e = &g_eb[ri[k]];
+        float ratio = (float)e->cur / (float)e->max;
+        if (ratio > 1.0f) ratio = 1.0f;
+        if (ratio < 0.0f) ratio = 0.0f;
+        if (!tr || !fl) continue;
+        g_eb_slot[s] = e->actor;
+        float w = EB_W * sc[k] * g_eb_tune[1], h = EB_H * sc[k] * g_eb_tune[1];
+        float x0 = sx[k] - w * 0.5f, y = sy[k], fw = w * ratio;
+        float rgb[3];
+        place(tr, x0 + w * 0.5f, y, w / 100.0f, h / 100.0f, 0.0f);
+        tint_rec(tr, 0.03f, 0.03f, 0.03f, 0.62f);
+        eb_hp_rgb(ratio, rgb);
+        place(fl, x0 + fw * 0.5f, y, fw / 100.0f, h / 100.0f, 0.0f);
+        tint_rec(fl, rgb[0], rgb[1], rgb[2], 1.0f);
+        drawn++;
+    }
+    g_eb_dbg[0] = drawn;
+    /* ---- the global boss bar ---- */
+    u64 btr = g_pic_rec[PIC_BOSS_TRACK], bfl = g_pic_rec[PIC_BOSS_FILL];
+    if (!g_eb_trec) g_eb_trec = pane_record(frame, g_tnames[TXT_BOSS]);
+    if (boss_row != 0xFFFFFFFFu && btr && bfl) {
+        ShbEnemyRow *b = &g_eb[boss_row];
+        float ratio = (float)b->cur / (float)b->max;
+        if (ratio > 1.0f) ratio = 1.0f;
+        if (ratio < 0.0f) ratio = 0.0f;
+        float y = g_eb_tune[2], fw = BOSS_W * ratio;
+        place(btr, 0.0f, y, BOSS_W / 100.0f, BOSS_H / 100.0f, 0.0f);
+        tint_rec(btr, 0.03f, 0.02f, 0.02f, 0.70f);
+        place(bfl, -BOSS_W * 0.5f + fw * 0.5f, y, fw / 100.0f, BOSS_H / 100.0f, 0.0f);
+        tint_rec(bfl, 0.62f, 0.08f, 0.08f, 1.0f);
+        g_eb_dbg[2] = (u32)b->boss;
+        g_eb_dbg[3] = (u32)(int)(ratio * 100.0f);
+        if (g_eb_trec) {
+            int bi = b->boss;
+            if (bi < 0 && g_eb_test) bi = 0;                   /* probe: name of the first boss */
+            if (bi != g_eb_name_i) {                       /* one writer: only when the boss changes */
+                const char *nm = shb_boss_name(bi, g_shbcfg.lang);
+                u32 n = 0;
+                for (; nm[n] && n < 31; n++) g_eb_nmbuf[n] = nm[n];
+                g_eb_nmbuf[n] = 0;
+                g_text_ref.s = g_eb_nmbuf; g_text_ref.len = n; g_text_ref.z = 0; g_text_ref.m1 = -1;
+                set_text((void *)g_eb_trec, &g_text_ref, 0);
+                g_eb_name_i = bi;
+            }
+            float ts = g_eb_tune[3];
+            place(g_eb_trec, 0.0f, y + 52.0f, ts, ts, 0.0f);
+        }
+    } else {
+        if (btr) place(btr, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        if (bfl) place(bfl, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        if (g_eb_trec) place(g_eb_trec, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
+        g_eb_name_i = -2;
+    }
+    {
+        u32 *h = &g_eb_hist[(g_eb_hist_n & 31u) * 4u];
+        g_eb_hist_n++;
+        h[0] = g_tick; h[1] = drawn; h[2] = g_eb_n;
+        h[3] = (u32)(g_eb_slot[0] & 0xFFFFFFu) | ((u32)(g_eb_slot[1] & 0xFFu) << 24);
+    }
+    g_eb_shown = 1;
+}
+/* the layout was rebuilt: drop the record we cached */
+static void ebar_reset(void) {
+    g_eb_trec = 0; g_eb_name_i = -2; g_eb_shown = 0;
+    for (u32 s = 0; s < EB_SLOTS; s++) g_eb_slot[s] = 0;
+}
+
 u32 hud_frame_count(void) { return g_tick; }
 static void hud_frame(void) {
     shb_clock_tick();                                /* real frame duration: the features count frames, not time */
@@ -3066,6 +3303,7 @@ static void hud_frame(void) {
     }
     ring_update();
     bar_update(g_frame_node);
+    enemybars_update(g_frame_node);
     slots_update(g_frame_node);
     slots_labels(g_frame_node);
     dc_update();
