@@ -802,6 +802,15 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
 - The item logic of `features/button_mapping/` (slot presses, the ZR borrow, the menu assignment) is gated on
   `remap_items()`, not on the master switch; the guide bar hiding and the context-prompt keys follow the remap
   (`core/hud.c` `BMREMAP`).
+- **The item selector role is not part of the item side on the app's side**: `installer.ITEM_ROLES` has never held it
+  (only `item1`, `item2`, `item3`, `item_main`), so the Python editor offers it with the custom item HUD off. The Rust
+  window did not: it grouped `Role::Selector` with the item roles and dropped it from the list (reported as "apago el
+  HUD de objetos y desaparece el selector de las opciones de mapeo"). It now uses `shb_core::roles::ITEM_ROLES` in
+  `role_choices()`, the one list both apps share.
+  **The module still does count it** (`core/remap.c` `item_role()` returns 1 for `ROLE_SELECTOR`): with
+  `hud_custom_items = 0` a button that holds the selector keeps the game's own press, so the option is listed and
+  inert. Honouring it is a module change — `item_role()`, `remap_selector_on()` and the `VBTN_SELECTOR -> BTN_R` path
+  of `features/button_mapping/` (the block that used to be gated on `remap_items()`) — and needs an in-game check.
 - **`sizeof(ShbConfig)` is 0x64 both before and after the new byte** (97 bytes rounded to the struct's 4-byte
   alignment), so an installer size check cannot tell them apart: `f + 81` is tail padding on an older module and
   writing 0/1 there is harmless, and an older module reads it as 0 (no item side).
