@@ -2120,6 +2120,27 @@ static int g_zr_index = -1;
 int hud_zr_item(void) { return g_zr_index; }
 static int g_zr_hold;
 void hud_zr_hold(int hold) { g_zr_hold = hold; }   /* features/button_mapping: a slot item borrows the item box */
+/* The ZR item the game's box is about to get back (features/button_mapping gave it back on leaving the world, with a
+ * slot item still borrowed in it). The box takes a few frames to show it: until it does, the HUD frames that still run
+ * as the pause menu opens would read the borrowed item from it and keep it on this button into the menu. -2: none. */
+static int g_zr_expect = -2;
+static u32 g_zr_expect_n;
+static void zr_show(int item) {   /* the ZR button shows `item`: icon and index (the count follows the index) */
+    const char *nm = item_name(item);
+    const char *bn = bottle_icon(item);
+    if (bn) nm = bn;
+    if (!nm) return;
+    u32 i;
+    for (i = 0; i < 30 && nm[i]; i++) { g_zr_name[i] = nm[i]; g_sb_force[10][i] = nm[i]; }
+    g_zr_name[i] = 0; g_sb_force[10][i] = 0;
+    g_sb_force[10][31] = 0;   /* apply again */
+    g_zr_index = item;
+}
+void hud_zr_expect(int item) {
+    g_zr_expect = item;
+    g_zr_expect_n = 0;
+    if (item >= 0) zr_show(item);
+}
 static int box_item(void);
 static u32 box_value(void);
 static void zr_mirror(void) {
@@ -2141,6 +2162,12 @@ static void zr_mirror(void) {
      * only the icon was frozen, so the number followed the borrowed item (a slingshot in the box showed the
      * deku stick's count while a stick was being used, and went back when the use ended). */
     if (g_zr_hold) return;
+    /* The box was just given its ZR item back and still holds the borrowed one: keep the ZR item on the button until
+     * the box shows it (or for a few seconds at most: a pick made in the menu clears this, see hud_menu_zr). */
+    if (g_zr_expect >= 0) {
+        if (bi == g_zr_expect || ++g_zr_expect_n > 240u) g_zr_expect = -2;
+        else { zr_show(g_zr_expect); return; }
+    }
     /* a bottle in the box: its own Enum value names the bottle (BottleA..E), the content is in the bottle record */
     int bp = bottle_box_pos(box_value());
     const char *disp = bp >= 0 ? bottle_icon_rec(60u + (u32)bp) : 0;
@@ -2493,6 +2520,7 @@ int hud_menu_decided(void) {
 }
 /* the game put an item in its box from the menu (A): show it on ZR now (the HUD box catches up on close) */
 void hud_menu_zr(int item) {   /* -1: empty */
+    g_zr_expect = -2;   /* a pick in the menu replaces what was expected back */
     if (g_zr_hold) return;
     char *dst = g_sb_force[10];
     const char *nm = item >= 0 ? item_name(item) : 0;
