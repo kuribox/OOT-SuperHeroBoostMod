@@ -872,7 +872,13 @@ enemy; the feature is visual only and writes nothing to the save.
 **Bosses.** `core/enemybar.c` holds the key table (exact Life resource names): `Enemy_DungeonBoss_Gohma`, `_Dodongo`,
 `_Barinade`, `_PhantomGanon`, `_Volvagia`, `_Morpha`, `_BongoBongo`, `_Twinrova`, `_Ganondorf`, `_Ganon` and
 `_Ganon_SecondHalfBattle`. A boss gets no head bar; the widest `max` among the boss rows is shown in the global bar
-(1500 x 26 units at y -700, name above it). `shb_bar_skip()` keeps a boss's sub-actors out (Gohma_Egg,
+(1500 x 26 units at y -700, name above it). **The boss bar never goes through the projection.** A boss that is off camera, at the far end of the arena or
+inside a cutscene still has its bar: the row is selected from the table alone (fresh, alive, widest `max`) and
+the bar holds for `EB_BOSS_HOLD` (90 frames) when the actor stops updating, so an update gap or a phase change
+does not blank it. Gating it on `eb_project()` (30 m, inside the screen) made it blink out as if the range to
+the boss were tiny — the bars over normal enemies keep that projection, the global one does not.
+
+`shb_bar_skip()` keeps a boss's sub-actors out (Gohma_Egg,
 BongoBongo_LeftHand/_RightHand, Morpha_Tentacle, Barinade_Jellyfish, Dodongo_SpawnBabyDodongo). Twinrova's witches
 (`_Kotake`, `_Koume`) are *not* skipped: each carries a head bar until the two merge, and the merged actor carries the
 global one. Names are drawn in the mod's own language table (accent-free: the game's `Normal` font is used).
