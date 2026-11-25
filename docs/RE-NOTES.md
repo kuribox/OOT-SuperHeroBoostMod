@@ -829,3 +829,68 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   item, and when the hold role itself is one of those (the arrow is exempt). The app enforces the same in
   `normalize_roles()`, so the table, the editor and the module agree; the module check is the backstop for a config
   written by hand.
+
+## Enemy and boss health bars (Nov 25)
+
+`feat/enemy-hp-bars`: a red bar over every normal enemy's head and, for a dungeon boss, a wide bar at the bottom of the
+screen with the boss's name (Dark Souls style). Two independent config bytes, appended after `bm_hold_wait`:
+`enemy_bars` (struct 101 = magic+0x65) and `boss_bar` (struct 102 = magic+0x66). The module reports `sizeof` 0x68, so
+the app's gates are `size >= 0x66` / `size >= 0x67`; an older block (0x64) is left alone.
+
+**Where the data comes from (all of it already in the module).**
+- Enemy list: `player_track()` (`core/player.c`, hook `main+0x2C215E0`) already visits every physics actor; the hostile
+  ones hand `(actor, Life component, resource name)` to `shb_enemybar_note()` (`core/enemybar.c`).
+- Life: current at `Life+0x1C10`, max at `Life+0x1C18`, value `s32` at `+8` — the same records the enemy-health
+  multiplier uses. `cur <= 0` = dead (the ragdoll keeps updating), and such a row is dropped.
+- Position: `actor+0x31C`, the `f32[3]` the stamina anchor projects (the model's origin, i.e. the feet).
+- **Height: `actor+0x3C8`, a float with the body's height in metres.** Measured live: Link 1.578, `Enemy_Guay` 0.268
+  (four different Guays, identical), `Enemy_Stalchild` 1.233, `Enemy_Stalchild_Big` 2.183. It follows scaled variants,
+  so the bar sits over the model without a per-type table; the table in `core/enemybar.c` stays as the fallback for an
+  actor whose field reads implausible. The bar is drawn at `y + height + 0.25 m`.
+
+**The engine does not hand every actor to the physics update on every frame.** Measured over 16 consecutive frames:
+6..10 rows for ~12 live enemies, with a *different subset* each frame. A table reset every frame therefore made an
+enemy's bar disappear on the frames its actor did not update — the player reported it as "it blinks all the time while
+the enemy moves, but not when it stands still". The table now persists and a row stays usable for `SHB_EB_GRACE` (10)
+frames after its last update; the position is at most ~0.15 s old, which is invisible. Slots are also sticky by actor
+(`g_eb_slot[]`), because the row order follows the actor table and a bar that hops between two enemies reads as flicker.
+
+**Drawing.** Two picture panes per slot (`track` + `fill`, flat white `White8_00_BC4L`, tinted) for `EB_SLOTS` (8)
+enemies plus two for the global bar, appended after the plates: `PIC_EB = PIC_BG + 1`, `PIC_BOSS = PIC_EB + 16`,
+`PIC_N = PIC_BOSS + 2` (293 of the 400 generated picture hashes). The boss name is one extra text pane, `T_ShbTxt_14`
+(`TXT_BOSS = TXT_N`, `TXT_TOT = TXT_N + 1`), cloned like the counter fields but written directly — it never takes part
+in the hidden-twin pairing. All of them ride in the stamina ring's pane group (`N_ShbStaminaRing_00`), whose origin is
+the screen centre, so the projection's layout units (3596 x 2022 for 16:9) are used as they come. The pane capacity
+matters: `order[]`/`reordered[]` in `group_hud_panes` grow with `PIC_N`/`TXT_TOT`, and `next` stays below the size.
+
+**Projection.** `cam_mtx()` in `core/hud.c` reads the same camera view matrix `anchor_update()` uses (CAMMGR slot ->
+camera -> view `+0x78`, guarded by the vtable at `main+0x4BF8A88`), then `eb_project()` divides by the distance and by
+`tan(25 deg)` (assumed 50 deg vertical FOV) and the 16:9 aspect. A point behind the camera, past 30 m or past the screen
+edge gets no bar. There is **no depth test**: this is a 2D overlay, so a bar can show over geometry that hides the
+enemy; the feature is visual only and writes nothing to the save.
+
+**Bosses.** `core/enemybar.c` holds the key table (exact Life resource names): `Enemy_DungeonBoss_Gohma`, `_Dodongo`,
+`_Barinade`, `_PhantomGanon`, `_Volvagia`, `_Morpha`, `_BongoBongo`, `_Twinrova`, `_Ganondorf`, `_Ganon` and
+`_Ganon_SecondHalfBattle`. A boss gets no head bar; the widest `max` among the boss rows is shown in the global bar
+(1500 x 26 units at y -700, name above it). `shb_bar_skip()` keeps a boss's sub-actors out (Gohma_Egg,
+BongoBongo_LeftHand/_RightHand, Morpha_Tentacle, Barinade_Jellyfish, Dodongo_SpawnBabyDodongo). Twinrova's witches
+(`_Kotake`, `_Koume`) are *not* skipped: each carries a head bar until the two merge, and the merged actor carries the
+global one. Names are drawn in the mod's own language table (accent-free: the game's `Normal` font is used).
+
+**Unverified / open.** The boss HP *semantics* is the risk: the bar reads the boss actor's own Life record, and bosses
+with several bodies or phases (Bongo Bongo's hands, Barinade's jellyfish, Twinrova, Ganon's second half) may not expose
+the fight's real pool there. That needs a fight per boss; the geometry and the name are proven with `g_eb_test`.
+`g_eb_test` (probe only) forces the global bar onto the nearest enemy so its size, position and name can be checked in a
+scene with no boss. Diagnostics: `g_eb_dbg` = {bars drawn, rows fresh, boss index, boss ratio %, camera reads,
+projections, frames drawn, frames without a camera}, `g_eb_hist` = a 32-frame ring {tick, drawn, rows, slots}, `g_eb_log`
+= the last 16 distinct Life names seen with their boss index, `g_eb_tune` = {head-height scale, bar scale, boss bar y,
+name scale}.
+
+**Pitfalls met on the way.**
+- `ShbConfig` grows from 0x64 to 0x68 (`sizeof` pads to the 4-byte alignment): the new fields are struct 101 and 102, so
+  the app writes them at `f + 85` / `f + 86` (struct offset = f offset + 16). Writing "struct 102" at `f + 0x66` lands
+  14 bytes past the block, in the module's neighbouring data.
+- A per-frame table of actors is wrong in this engine (see above) — the same trap applies to any feature that wants
+  "all enemies this frame".
+- The perception that the bars blink also came from gating on `player_active()` alone, which drops for a few frames in
+  hit stops and area loads: the draw path keeps a 12-frame grace window.

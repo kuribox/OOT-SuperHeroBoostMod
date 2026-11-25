@@ -77,8 +77,12 @@ pub mod off {
     /// Long press of L and R (`bm_hold_lr[2]`), then `bm_hold_wait` (a bit per held button).
     pub const BM_HOLD_LR: usize = 98;
     pub const BM_HOLD_WAIT: usize = 100;
-    /// `sizeof(ShbConfig)` without its tail padding: the last byte we write is `BM_HOLD_WAIT`.
-    pub const SIZE: usize = 101;
+    /// Beta health bars, appended after `bm_hold_wait` in the module's struct.
+    pub const ENEMY_BARS: usize = 101;
+    pub const BOSS_BAR: usize = 102;
+    /// The last byte this app knows about (`BOSS_BAR`); older modules report a smaller block and the
+    /// `size` gates below leave their bytes alone.
+    pub const SIZE: usize = 103;
 }
 
 /// The simple / plain row is drawn at full size with its own spacing: the x of the first block and how much room each
@@ -306,6 +310,14 @@ pub fn patch_config(nso: &[u8], s: &Settings) -> Result<Vec<u8>> {
         if size >= 0x62 {
             // The custom item HUD only exists with the mapping: no mapping, no item side.
             f.bool(off::HUD_CUSTOM_ITEMS, s.hud_items && s.button_mapping);
+        }
+        if size >= 0x66 {
+            // Beta: a health bar over every normal enemy (the field ends at 0x66).
+            f.bool(off::ENEMY_BARS, s.enemy_bars);
+            if size >= 0x67 {
+                // Beta: the global boss bar with its name (ends at 0x67).
+                f.bool(off::BOSS_BAR, s.boss_bar);
+            }
         }
     }
     Ok(image)

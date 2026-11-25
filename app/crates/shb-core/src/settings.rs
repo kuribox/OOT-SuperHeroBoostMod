@@ -160,6 +160,10 @@ pub struct Settings {
     pub hud_collectibles: bool,
     pub hud_mode: HudMode,
     pub enemy_double: bool,
+    /// beta: a red health bar over every normal enemy's head
+    pub enemy_bars: bool,
+    /// beta: the wide on-screen bar with the boss's name
+    pub boss_bar: bool,
     /// deprecated: maps to movement/animation/attack at x2
     pub enemy_speed: bool,
     pub enemy_move: u8,
@@ -230,6 +234,8 @@ impl Default for Settings {
             hud_collectibles: false,
             hud_mode: HudMode::Wide,
             enemy_double: false,
+            enemy_bars: false,
+            boss_bar: false,
             enemy_speed: false,
             enemy_move: 0,
             enemy_anim: 0,
