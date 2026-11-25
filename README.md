@@ -8,16 +8,25 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.10.0**. **A new app**: SHB-OcarinaTweaks is a Rust program now, one executable with the
-window and the command line, that carries the mod inside it and no longer needs Python (the Python one stays in the
-repository as `app-legacy/`). The **controls** grew: a long press on **L and R** too, a **wait / no wait** choice per
-held button (the **D-pad right** is not one of them: a tap always calls Navi and the hold is the role, so its row says
-so instead of offering a switch), **shortcut roles** that can sit on two buttons, and the game's actions that no
-button has are listed. The **enemy health and damage taken multipliers go up to ×6** (×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5,
-×6), in both apps. The **HUD** hides the corner minimap and the interaction guide bar properly, and the **item HUD** is
-its own option. Under the hood, durations are **real seconds** (they no longer assume 60 frames a second) and the
-module **writes nothing into the save folder**. The module changed, so install 0.10.0 and **rebuild the game once** on
+Current release: **0.11.0**. The **health bars** are here as a beta: a **red bar over every enemy** at its real height
+and a **wide bar with the boss's name** at the bottom of the screen, two separate switches, off by default. The enemy
+duplication no longer touches **the crow flocks**, and that is a fix: doubling them (15 -> 30 at once, even 20) crashed
+Longshot with a null entry in the engine's actor-handle pool. **Item location changes** now also moves the
+**poe buyer's 500-point prize** (Ice Arrows instead of the bottle) and the **bottle** into the last big chest of the
+Gerudo Training Ground, and the **menu's main-item button keeps its item** while the item box catches up. A
+**Longshot crash with HylianSurvivors' romfs** is gone (the save-image guard was too loose), and the Rust app **keeps
+your folders when it saves its settings**. The module changed, so install 0.11.0 and **rebuild the game once** on
 Longshot, Hookshot, ReLink or Rekarina.
+
+0.10.0 brought the **new app**: SHB-OcarinaTweaks is a Rust program now, one executable with the window and the
+command line, that carries the mod inside it and no longer needs Python (the Python one stays in the repository as
+`app-legacy/`). The **controls** grew: a long press on **L and R** too, a **wait / no wait** choice per held button
+(the **D-pad right** is not one of them: a tap always calls Navi and the hold is the role, so its row says so instead
+of offering a switch), **shortcut roles** that can sit on two buttons, and the game's actions that no button has are
+listed. The **enemy health and damage taken multipliers go up to ×6** (×1, ×1.5, ×2, ×2.5, ×3, ×4, ×5, ×6), in both
+apps. The **HUD** hides the corner minimap and the interaction guide bar properly, and the **item HUD** is its own
+option. Under the hood, durations are **real seconds** (they no longer assume 60 frames a second) and the module
+**writes nothing into the save folder**.
 
 0.9.3 gave **A, B, X and Y a second action when you hold them**, with no delay on the short
 press, added a **Back** role (the game's own B, on the held B in the Triggers table), made the toggled sprint let go
@@ -46,6 +55,59 @@ L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD 
 The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.11.0
+
+Everything since 0.10.0. Install 0.11.0 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina: the
+module changed. The configuration block is still 0x68 bytes, so an older app keeps working and the new options stay off.
+
+**Health bars (beta)**
+
+- **A red bar over every enemy**, above its head, at the height the engine carries per actor (so a scaled or big enemy
+  gets its own) and filling down as the enemy loses life.
+- **A wide bar with the boss's name** at the bottom of the screen for the ten dungeon bosses and the final fights
+  (Gohma, King Dodongo, Barinade, Phantom Ganon, Volvagia, Morpha, Bongo Bongo, Twinrova, Ganondorf, Ganon), instead
+  of a head bar. Their sub-actors get none; Twinrova's two witches keep their own head bars until they merge.
+  The boss bar does **not** depend on the camera: it keeps showing when the boss is off screen, at the far end of the
+  arena or inside a cutscene, and it holds through a phase change.
+- **Two separate switches** in the **HUD** page, in the six languages, off by default. Visual only: nothing is written
+  to the save.
+- **It does not blink.** The engine only hands a subset of the actors to the physics update each frame, and a
+  different subset every frame, so a table rebuilt per frame made a moving enemy's bar flicker. Rows now live a few
+  frames past their last update and stay on the same actor, with a grace window for hit stops and area loads.
+- **No depth test:** the bars are a flat overlay, so a bar can show over geometry that hides the enemy. Open: the boss
+  bar reads the boss actor's own Life record, and a multi-phase boss (Bongo Bongo, Barinade, Twinrova, Ganon's second
+  half) may keep the fight's real pool somewhere else; that needs one fight per boss.
+
+**The crow flocks are left alone — they crashed the game**
+
+The enemy duplication doubles the field spawners, and **15 -> 30 crows at once crashed Longshot** (a null entry in the
+engine's actor-handle pool, leaving Lon Lon Ranch with Epona, plus random crashes in Hyrule Field). **A cap of 20
+crashed too**, so it is the crow spawner itself that does not survive being doubled. It was found by bisecting the
+mod's romfs files with override mods; the Stalchildren and the Banc clones were ruled out, and restoring only the crow
+files made the crashes stop. The generator now leaves **every crow flock's spawner** (`Enemy_Guay_*`, `Enemy_Guey_*`)
+at the game's own numbers; the crows keep the rest of the mod, and every other enemy is still doubled.
+
+**Item location changes** (the former *Great Fairy rewards*)
+
+- The **poe buyer's 500-point prize** is the **Ice Arrows** instead of the bottle.
+- The **last big chest of the Gerudo Training Ground** holds the **bottle** instead of the Ice Arrows.
+- The three magic rewards move as before. **Not played through:** no other chest in the game hands out a bottle, so
+  whether a chest can give one is unproven until someone opens it.
+
+**Fixes**
+
+- **The menu's main-item button keeps its item** while the item box catches up, instead of showing the item you just
+  used.
+- **A Longshot crash with HylianSurvivors' romfs** (read fault inside `hud_on_code`) is gone: the save-image slot the
+  collectibles counter reads must now be word-aligned and within 16 GB of its manager, so a stray value that merely
+  looks like an address fails the first check.
+- **The Rust app keeps your folders when it saves its settings** (it merges into the file instead of writing over the
+  folders, target and language), remembers the folder on screen, and keeps a folder or builder you typed when the
+  field loses focus.
+- **Builders:** after building a module, write its new `ours.ips` into `main` before rebuilding the game, or the
+  rebuilt game jumps into the middle of a function (the hooks hard-code each symbol's address).
+  `rebuild --mode install` does it, `--mode recompile` does not.
 
 ## What's new in 0.10.0
 
@@ -575,6 +637,7 @@ executables), for the GameBanana Mods upload. See the development guide for deta
 - [docs/GUIA-DESARROLLO.md](docs/GUIA-DESARROLLO.md): architecture, hooks, HUD, configuration and compilation.
 - [docs/APP.md](docs/APP.md): app, profiles and options.
 - [app/README.md](app/README.md): the current app (Rust): crates, build, tests, how it matches the legacy one.
+- [docs/RELEASE-0.11.0.md](docs/RELEASE-0.11.0.md): the 0.11.0 release notes.
 - [docs/RELEASE-0.10.0.md](docs/RELEASE-0.10.0.md): the 0.10.0 release notes.
 - [docs/BUTTON-MAPPING.md](docs/BUTTON-MAPPING.md): button mapping design.
 - [docs/RE-NOTES.md](docs/RE-NOTES.md): reverse-engineering notes.
