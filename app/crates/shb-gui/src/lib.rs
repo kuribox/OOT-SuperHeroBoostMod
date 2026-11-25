@@ -122,6 +122,15 @@ enum Target {
 impl Target {
     const ALL: [Target; 3] = [Target::Emulator, Target::Recomp, Target::Rekarina];
 
+    /// Where this target's folder sits in `App::paths`.
+    fn slot(self) -> usize {
+        match self {
+            Target::Emulator => 0,
+            Target::Recomp => 1,
+            Target::Rekarina => 2,
+        }
+    }
+
     fn key(self) -> &'static str {
         match self {
             Target::Emulator => "target_emu",
@@ -648,6 +657,8 @@ impl App {
     /// Keep what the window knows about where things are: the three folders, the builder, the target, the profile and
     /// the language. It is the Python app's own set of keys, in its own file.
     fn remember(&mut self) {
+        // The folder of the target on screen is the one in the text field: `paths` only gets it when the target is left.
+        self.paths[self.target.slot()] = self.emu.clone();
         let state = paths::UiState {
             emu: self.paths[0].clone(),
             recomp: self.paths[1].clone(),
@@ -725,14 +736,9 @@ impl App {
         if target == self.target {
             return;
         }
-        let index = |t: Target| match t {
-            Target::Emulator => 0,
-            Target::Recomp => 1,
-            Target::Rekarina => 2,
-        };
-        self.paths[index(self.target)] = self.emu.clone();
+        self.paths[self.target.slot()] = self.emu.clone();
         self.target = target;
-        self.emu = self.paths[index(target)].clone();
+        self.emu = self.paths[target.slot()].clone();
         self.refresh_emulator();
         self.remember();
     }
@@ -1539,11 +1545,15 @@ impl App {
                 );
                 ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.add(
+                    let field = ui.add(
                         egui::TextEdit::singleline(&mut self.emu)
                             .desired_width(ui.available_width() - 110.0)
                             .hint_text("E:/Switch2/Emu/…"),
                     );
+                    // A typed or pasted folder is kept as soon as the field is left, not only the one from "Browse".
+                    if field.lost_focus() {
+                        self.remember();
+                    }
                     if ghost_button(ui, tr(lang, "browse")).clicked() {
                         self.request_folder(Browse::Target);
                     }
@@ -1560,11 +1570,14 @@ impl App {
                                 .size(12.0)
                                 .color(theme::DIM),
                         );
-                        ui.add(
+                        let field = ui.add(
                             egui::TextEdit::singleline(&mut self.builder)
                                 .desired_width(ui.available_width() - 110.0)
                                 .hint_text(tr(lang, "recomp_builder_btn")),
                         );
+                        if field.lost_focus() {
+                            self.remember();
+                        }
                         if ghost_button(ui, tr(lang, "browse")).clicked() {
                             self.request_folder(Browse::Builder);
                         }
