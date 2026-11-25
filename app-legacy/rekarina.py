@@ -554,6 +554,8 @@ def install_romfs(game: Path, s: I.Settings) -> int:
                          ("great_fairy", s.great_fairy)):
         if enabled:
             copy(pay / "romfs_opts" / opt)
+    if s.enemy_double and s.great_fairy:   # the reward chest of the Gerudo Training Ground on top of its duplicated enemies
+        copy(pay / "romfs_opts" / "great_fairy_double")
     I.install_enemy_mods(target, s, pay)
     # Rekarina ships its own PlayStation / Xbox prompt overlays (romfs-patches-*), so the game-wide prompts are
     # not installed as a mod here: a mod file would shadow Rekarina's live prompt switching.

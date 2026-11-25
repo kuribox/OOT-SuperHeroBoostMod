@@ -982,6 +982,10 @@ def install(emu: Path, s: Settings, name: str = MOD_NAME, progress=None) -> Resu
             shutil.copytree(src, target / "romfs", dirs_exist_ok=True)
         else:
             res.notes.append((opt + "_missing", ""))
+    if s.enemy_double and s.great_fairy:   # the reward chest of the Gerudo Training Ground on top of its duplicated enemies
+        both = pay.parent / "romfs_opts" / "great_fairy_double"
+        if both.exists():
+            shutil.copytree(both, target / "romfs", dirs_exist_ok=True)
     res.notes.extend(install_enemy_mods(target / "romfs", s, pay.parent))
     if style:   # last: the layout table is merged over the final one (font 0x5000 keeps our layout/enemy entries)
         layouts.apply(target / "romfs", style)

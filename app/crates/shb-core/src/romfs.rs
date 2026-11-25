@@ -138,6 +138,15 @@ pub fn populate(
         }
     }
 
+    // The reward chest of the Gerudo Training Ground on top of its duplicated enemies: both options edit that one file, and
+    // this copy (the chest change over the clones) goes last so neither is lost.
+    if s.enemy_double && s.great_fairy {
+        let both = payload.join("romfs_opts").join("great_fairy_double");
+        if both.is_dir() {
+            copy_tree(&both, romfs)?;
+        }
+    }
+
     notes.extend(crate::enemy::install(romfs, s, payload)?);
 
     // The game-wide prompts: a download, and not for Rekarina (it ships its own) nor when our own diagram is on.

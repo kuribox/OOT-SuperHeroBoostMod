@@ -906,6 +906,8 @@ def install_romfs(game: Path, s: I.Settings) -> tuple[int, list]:
                          ("great_fairy", s.great_fairy)):
         if enabled and not copy(pay / "romfs_opts" / opt):
             notes.append((opt + "_missing", ""))
+    if s.enemy_double and s.great_fairy:   # the reward chest of the Gerudo Training Ground on top of its duplicated enemies
+        copy(pay / "romfs_opts" / "great_fairy_double")
     notes.extend(I.install_enemy_mods(target, s, pay))
     if game_layout:            # last: the game's own prompts, font and controller picture (table merged)
         I.layouts.apply(target, game_layout)
