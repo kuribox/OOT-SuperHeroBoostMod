@@ -9,4 +9,7 @@ volatile ShbConfig g_shbcfg = {
     125, 1,
     0, 0, 0, 0,
     {0},
+    /* The beta health bars are off unless the app turns them on (struct 101 / 102). */
+    .enemy_bars = 0,
+    .boss_bar = 0,
 };

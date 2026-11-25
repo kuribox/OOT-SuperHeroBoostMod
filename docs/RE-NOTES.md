@@ -23,6 +23,22 @@ its configured `LoadDir` (see the `load_directory` entry in `qt-config.ini`).
   config block at `0x84FB2010`. `hos_image.c` leaves subsdk9 out of the DT_INIT list (init 0), which is fine: the
   hooks enter its code directly.
 - Installing means rebuilding (`nx2/make_game.py --update`), not copying files. See [LONGSHOT.md](LONGSHOT.md).
+- **A rebuilt module needs its hooks re-applied to `main`, or the game jumps into the middle of a function.** The
+  branches live in `.longshot_exefs/main` and hard-code each hook symbol's address; `rebuild --mode recompile`
+  compiles whatever `main` holds and does not patch it. Any code change can move a function (measured with the kset
+  guard below: 23 of the 49 sites, targets up to 0x100 bytes away), and the rebuilt game then runs something else
+  entirely — in that build a null read in `BaseProcExecutor` (guest 0, LR inside `subsdk9`) that looked like a
+  brand-new bug. After building a module, write the new `ours.ips` into `main` (records at `offset + 4`: the text
+  starts at file `0x104`) before rebuilding, or use `rebuild --mode install`, which stages `main`, the module and the
+  settings first.
+- **`kset_refresh`'s save-slot guard was too loose for Longshot + HylianSurvivors (Nov 24).** With HylianSurvivors'
+  romfs installed, one slot of the GameData manager's save-image array (`mgr+0xE00 + i*0x80`) holds
+  `0x114a7366a43` (1.1 TB: past Longshot's 1 TB heap, inside the module's 6 TB `vptr` window), and the magic read
+  faulted — `exception 0xc0000005 (read 0x1114a7366a43, guest 0x114a7366a43)`, thread `BaseProcExecutor`, guest
+  LR `0x84FA60B0` = `hud_on_code+0x358`, the `bl kset_refresh` at `0x84FA60AC`. The extra `1` in the read address
+  is Longshot's 16 TB host offset. `kset_slot()` now demands word alignment and a slot within 16 GB of the manager
+  (a save image is a heap object next to it), and the odd garbage fails the first gate. Turning the collectibles
+  counter off avoids the walk, but the guard is the fix.
 - HUD crash on a map load (HyruleField_Child): `hud_frame → plates_update → name_index` dereferenced a name pointer
   (`0x6a4cff8b47b`) from a game layout that was being rebuilt (guest LR `0x84FA6D24`). Fixed by range-checking the
   name-table entries in `name_index`/`pane_record`. (An extra HUD-init gate was tried and removed: it could leave the
@@ -323,6 +339,25 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   `System/Resource/ResourceSizeTable...rsizetable.zs` is patched by CRC32 (`binascii.crc32` of the
   path without `.zs`) to the new uncompressed size. When the buttonMapping payload exists, the enemy table starts
   from that one so it keeps the bigger UI budget (the installed enemy table overwrites it).
+- **Hyrule Field crows (Nov 25)**: doubling `Enemy_Guey_HyruleField_Adult`'s `AutoPlacementMgrParam` (15 -> 30 at once)
+  crashed Longshot when leaving Lon Lon Ranch with Epona: null entry in the engine's actor-handle pool (`main+0x3294394`
+  calling `0x399ca0` with x0 = 0). Found by bisecting the SHB romfs with override mods; a cap of 20 crashed too. The
+  generator now leaves that file alone (`AUTOPLACE_SKIP`). The other crow files (DesertColossus, LakeHylia) are still doubled
+  and untested.
+- **Crow flocks and the crashes (Nov 25, fixed)**: the crashes in Hyrule Field (leaving Lon Lon Ranch with Epona, and random
+  ones later) all had the same guest stack (`main+0x3294394` -> `0x399ca0` with x0 = 0: a null entry in the engine's
+  actor-handle pool). Not the Stalchildren (their doubling was removed and then put back: the crash stayed), not the Banc
+  clones (removing all 103 did not help). Restoring only the AutoPlacement files of the crow flocks (`Enemy_Guay_*`,
+  `Enemy_Guey_*`: 15 -> 30 at once) fixed it, so the generator no longer touches any of them (`AUTOPLACE_SKIP`). The
+  Banc clones of `Enemy_Guay_Fixed` and the crow packs are still scaled/duplicated as before.
+- **Reward swap (Nov 25, `make_great_fairy_opts.py`, rides with the Great Fairy option)**: the poe buyer's 500-point
+  reward is `Event329` of `Npc_Hylia_048_BottleShop` (`GetInEvent_Poeshop`, `ActorName: Item_Bottle`; the 1,000-point one is
+  `Event330`, `Obj_Rupee_Gold`) -> `Item_Arrow_Ice`; the Gerudo Training Ground Ice Arrows chest (`Obj_TBox_A_02`,
+  `Drop__DropActor`, `GetEventName SubEvent_GetIceArrow_OpenTBox`) -> `Item_Bottle`. Files read back identical to the game's
+  apart from those two strings. NOT played through in game: no bottle chest exists in any other Banc, so whether a chest
+  hands out `Item_Bottle` is unproven.
+  The duplicated-enemies option edits the same dungeon file, so `romfs_opts/great_fairy_double/` holds the chest change on top of the
+  clones; the installers (Rust `romfs.rs`, Python `installer.py`/`recomp.py`/`rekarina.py`) copy it last when both options are on.
 - **Speed levels**: `Pack/Actor/Enemy_*.pack.zs` scales `BSA/MovementParam` (`Walk/Run/Dash/Escape/Special/Strafe/
   LiftWalk/WalkBackwards`) by the chosen factor, and divides `GameBalance/AttackInterval/*` plus the explicit
   `ActionSeqContainer` cooldown fields. `AttackIntervalRatio` is **not** touched: it multiplies the
@@ -813,3 +848,74 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   item, and when the hold role itself is one of those (the arrow is exempt). The app enforces the same in
   `normalize_roles()`, so the table, the editor and the module agree; the module check is the backstop for a config
   written by hand.
+
+## Enemy and boss health bars (Nov 25)
+
+`feat/enemy-hp-bars`: a red bar over every normal enemy's head and, for a dungeon boss, a wide bar at the bottom of the
+screen with the boss's name (Dark Souls style). Two independent config bytes, appended after `bm_hold_wait`:
+`enemy_bars` (struct 101 = magic+0x65) and `boss_bar` (struct 102 = magic+0x66). The module reports `sizeof` 0x68, so
+the app's gates are `size >= 0x66` / `size >= 0x67`; an older block (0x64) is left alone.
+
+**Where the data comes from (all of it already in the module).**
+- Enemy list: `player_track()` (`core/player.c`, hook `main+0x2C215E0`) already visits every physics actor; the hostile
+  ones hand `(actor, Life component, resource name)` to `shb_enemybar_note()` (`core/enemybar.c`).
+- Life: current at `Life+0x1C10`, max at `Life+0x1C18`, value `s32` at `+8` — the same records the enemy-health
+  multiplier uses. `cur <= 0` = dead (the ragdoll keeps updating), and such a row is dropped.
+- Position: `actor+0x31C`, the `f32[3]` the stamina anchor projects (the model's origin, i.e. the feet).
+- **Height: `actor+0x3C8`, a float with the body's height in metres.** Measured live: Link 1.578, `Enemy_Guay` 0.268
+  (four different Guays, identical), `Enemy_Stalchild` 1.233, `Enemy_Stalchild_Big` 2.183. It follows scaled variants,
+  so the bar sits over the model without a per-type table; the table in `core/enemybar.c` stays as the fallback for an
+  actor whose field reads implausible. The bar is drawn at `y + height + 0.25 m`.
+
+**The engine does not hand every actor to the physics update on every frame.** Measured over 16 consecutive frames:
+6..10 rows for ~12 live enemies, with a *different subset* each frame. A table reset every frame therefore made an
+enemy's bar disappear on the frames its actor did not update — the player reported it as "it blinks all the time while
+the enemy moves, but not when it stands still". The table now persists and a row stays usable for `SHB_EB_GRACE` (10)
+frames after its last update; the position is at most ~0.15 s old, which is invisible. Slots are also sticky by actor
+(`g_eb_slot[]`), because the row order follows the actor table and a bar that hops between two enemies reads as flicker.
+
+**Drawing.** Two picture panes per slot (`track` + `fill`, flat white `White8_00_BC4L`, tinted) for `EB_SLOTS` (8)
+enemies plus two for the global bar, appended after the plates: `PIC_EB = PIC_BG + 1`, `PIC_BOSS = PIC_EB + 16`,
+`PIC_N = PIC_BOSS + 2` (293 of the 400 generated picture hashes). The boss name is one extra text pane, `T_ShbTxt_14`
+(`TXT_BOSS = TXT_N`, `TXT_TOT = TXT_N + 1`), cloned like the counter fields but written directly — it never takes part
+in the hidden-twin pairing. All of them ride in the stamina ring's pane group (`N_ShbStaminaRing_00`), whose origin is
+the screen centre, so the projection's layout units (3596 x 2022 for 16:9) are used as they come. The pane capacity
+matters: `order[]`/`reordered[]` in `group_hud_panes` grow with `PIC_N`/`TXT_TOT`, and `next` stays below the size.
+
+**Projection.** `cam_mtx()` in `core/hud.c` reads the same camera view matrix `anchor_update()` uses (CAMMGR slot ->
+camera -> view `+0x78`, guarded by the vtable at `main+0x4BF8A88`), then `eb_project()` divides by the distance and by
+`tan(25 deg)` (assumed 50 deg vertical FOV) and the 16:9 aspect. A point behind the camera, past 30 m or past the screen
+edge gets no bar. There is **no depth test**: this is a 2D overlay, so a bar can show over geometry that hides the
+enemy; the feature is visual only and writes nothing to the save.
+
+**Bosses.** `core/enemybar.c` holds the key table (exact Life resource names): `Enemy_DungeonBoss_Gohma`, `_Dodongo`,
+`_Barinade`, `_PhantomGanon`, `_Volvagia`, `_Morpha`, `_BongoBongo`, `_Twinrova`, `_Ganondorf`, `_Ganon` and
+`_Ganon_SecondHalfBattle`. A boss gets no head bar; the widest `max` among the boss rows is shown in the global bar
+(1500 x 26 units at y -700, name above it). **The boss bar never goes through the projection.** A boss that is off camera, at the far end of the arena or
+inside a cutscene still has its bar: the row is selected from the table alone (fresh, alive, widest `max`) and
+the bar holds for `EB_BOSS_HOLD` (90 frames) when the actor stops updating, so an update gap or a phase change
+does not blank it. Gating it on `eb_project()` (30 m, inside the screen) made it blink out as if the range to
+the boss were tiny — the bars over normal enemies keep that projection, the global one does not.
+
+`shb_bar_skip()` keeps a boss's sub-actors out (Gohma_Egg,
+BongoBongo_LeftHand/_RightHand, Morpha_Tentacle, Barinade_Jellyfish, Dodongo_SpawnBabyDodongo). Twinrova's witches
+(`_Kotake`, `_Koume`) are *not* skipped: each carries a head bar until the two merge, and the merged actor carries the
+global one. Names are drawn in the mod's own language table (accent-free: the game's `Normal` font is used).
+
+**Unverified / open.** The boss HP *semantics* is the risk: the bar reads the boss actor's own Life record, and bosses
+with several bodies or phases (Bongo Bongo's hands, Barinade's jellyfish, Twinrova, Ganon's second half) may not expose
+the fight's real pool there. That needs a fight per boss; the geometry and the name are proven with `g_eb_test`.
+`g_eb_test` (probe only) forces the global bar onto the nearest enemy so its size, position and name can be checked in a
+scene with no boss. Diagnostics: `g_eb_dbg` = {bars drawn, rows fresh, boss index, boss ratio %, camera reads,
+projections, frames drawn, frames without a camera}, `g_eb_hist` = a 32-frame ring {tick, drawn, rows, slots}, `g_eb_log`
+= the last 16 distinct Life names seen with their boss index, `g_eb_tune` = {head-height scale, bar scale, boss bar y,
+name scale}.
+
+**Pitfalls met on the way.**
+- `ShbConfig` grows from 0x64 to 0x68 (`sizeof` pads to the 4-byte alignment): the new fields are struct 101 and 102, so
+  the app writes them at `f + 85` / `f + 86` (struct offset = f offset + 16). Writing "struct 102" at `f + 0x66` lands
+  14 bytes past the block, in the module's neighbouring data.
+- A per-frame table of actors is wrong in this engine (see above) — the same trap applies to any feature that wants
+  "all enemies this frame".
+- The perception that the bars blink also came from gating on `player_active()` alone, which drops for a few frames in
+  hit stops and area loads: the draw path keeps a 12-frame grace window.

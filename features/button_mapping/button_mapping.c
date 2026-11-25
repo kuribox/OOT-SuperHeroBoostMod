@@ -109,6 +109,7 @@ void hud_refresh_button_swap(void);   /* core/hud.c: re-read the game's Jump/B o
 void hud_menu_decide(void); /* core/hud.c: play the highlighted cell's Decide animation (the game's A feedback) */
 int hud_menu_decided(void); /* core/hud.c: that animation is playing */
 void hud_menu_zr(int item); /* core/hud.c: show an item on ZR now */
+void hud_zr_expect(int item); /* core/hud.c: the box is about to get this ZR item back: show it meanwhile */
 void hud_menu_off(void);    /* core/hud.c: not on the Items tab: hide the assign legend */
 static int g_menu_a_item = -1, g_menu_a_wait;
 static u32 g_menu_assign_t = 1000;   /* menu reads since the last assignment */
@@ -274,7 +275,10 @@ void button_remap_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_res
         hold_reset();
         /* Leaving the world (pause menu, menu overlay, dialogue, cutscene): the item box gets its own item back
          * first. A borrowed slot item must never be what the game saves, and the pause menu is where saves happen. */
-        if (g_borrowed && g_saved >= 0) { box_put(g_saved); unborrow(); g_phase = PH_IDLE; }
+        if (g_borrowed && g_saved >= 0) {
+            box_put(g_saved); unborrow(); g_phase = PH_IDLE;
+            hud_zr_expect(g_saved);   /* the box still holds the borrowed item for a few frames: ZR keeps showing its own */
+        }
         return;
     }
     g_remap_live = 1;

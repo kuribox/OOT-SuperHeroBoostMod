@@ -396,7 +396,15 @@ def duplicate_banc(path, rng, size_changes):
         dict_data=zstandard.ZstdCompressionDict(DICTS["bcett.byml.zsdic"])).compress(out)
 
 
+# Every crow flock (Enemy_Guay_*, Enemy_Guey_*) keeps the game's numbers: 30 crows at once instead of 15 crashed Longshot
+# (null entry in the actor-handle pool; leaving Lon Lon Ranch, and random crashes in Hyrule Field). A cap of 20 crashed as
+# well, and restoring just those files (without touching the rest of the mod) made the crashes stop.
+AUTOPLACE_SKIP = ("Enemy_Guay_", "Enemy_Guey_")
+
+
 def edit_autoplace(path, size_changes):
+    if path.name.startswith(AUTOPLACE_SKIP):
+        return None
     raw = path.read_bytes()
     try:
         b, tree = byml_bytes_tree(raw)

@@ -5,7 +5,7 @@ Working agreement for every agent that touches this repo. It is the first file t
 (architecture, hooks, HUD, build) and `docs/RE-NOTES.md` (addresses, formats, what failed and why).
 
 Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**, `main` Build ID
-`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.10.0** (`app-legacy/version.py`, `app/Cargo.toml`).
+`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.11.0** (`app-legacy/version.py`, `app/Cargo.toml`).
 
 ## Rules (non-negotiable)
 
@@ -111,6 +111,20 @@ on the first hook-site check with the found/expected instruction; that is the in
 Useful tools once it is running: `tools/hud_tune.py` (HUD look and options live), `tools/disasm.py`
 (disassemble `main`), `tools/memory` probes in `tools/` for actor/player state. The debug server serves one
 request at a time: while an input sequence runs, reads wait — measure through `HostMemory` instead.
+
+## Cutting a release
+
+1. **Refresh the payload release first.** The workflow does not build the module: it downloads `payload.zip` from the
+   release tagged `payload` (`tools/ci_payload.py`). If `app/payload` is newer than that asset, the artifacts ship the
+   previous module — that is what happened to 0.10.0 (its exe and its presets carry a pre-0.10.0 module).
+   `python tools/make_release.py` (rebuilds the module and the romfs options; keeps the previous `romfs_opts` when the
+   dump is gone) → `python tools/make_payload_zip.py` → upload `release/payload.zip` over the asset of the `payload`
+   release, then download it again and compare the SHA-256.
+2. Version in `app-legacy/version.py` and `app/Cargo.toml` (`app/Cargo.lock` follows), release notes in
+   `docs/RELEASE-<version>.md` (CI publishes that file), README's "What's new" section.
+3. Branch → `development` (`--no-ff`) → `main` (`--no-ff`) → annotated tag `v<version>` → `git push origin main
+   development v<version>`. The tag is what starts `build.yml`; `gh` is not installed here, so verify the release
+   through the API (`releases/tags/v<version>`) and check that the exe embeds the module in `app/payload`.
 
 ## Recompilations
 

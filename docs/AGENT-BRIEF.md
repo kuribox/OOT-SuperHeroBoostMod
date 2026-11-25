@@ -94,6 +94,11 @@ implausible, every helper returns the old 1/60-per-frame value and the module be
   stick for two frames so the press lands as "hold A then move" and never rolls.
 - **Enemy health / damage taken** — `core/player.c`; enemy = actor whose life resource is `Enemy_*`; life at
   `+0x1C10` (current) / `+0x1C18` (max), s32 at `+8`.
+- **Enemy / boss health bars (beta)** — `core/enemybar.c` (the enemy table, the boss name keys, the fallback heights)
+  and the drawing in `core/hud.c`: a red bar over each normal enemy's head, at its body height `actor+0x3C8`, placed with
+  the camera view matrix; a dungeon boss instead gets the wide on-screen bar with its name. Two config bytes,
+  `enemy_bars` (struct 101) and `boss_bar` (102). The engine does not update every actor every frame, so the table
+  persists (~10 frames per row) — see RE-NOTES "Enemy and boss health bars".
 - **Songbook** — `features/songbook/`. Hooks ocarina enter/leave for the context, reads selected song `+0x22C`
   and learned flags `+0x264+idx`, then **injects native note buttons** (L/R/A/Y/X) through the input hook. The
   game's own matcher recognises the melody, so sound, animation and effect are stock. Learned songs only.

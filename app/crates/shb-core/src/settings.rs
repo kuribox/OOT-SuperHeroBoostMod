@@ -160,6 +160,10 @@ pub struct Settings {
     pub hud_collectibles: bool,
     pub hud_mode: HudMode,
     pub enemy_double: bool,
+    /// beta: a red health bar over every normal enemy's head
+    pub enemy_bars: bool,
+    /// beta: the wide on-screen bar with the boss's name
+    pub boss_bar: bool,
     /// deprecated: maps to movement/animation/attack at x2
     pub enemy_speed: bool,
     pub enemy_move: u8,
@@ -230,6 +234,8 @@ impl Default for Settings {
             hud_collectibles: false,
             hud_mode: HudMode::Wide,
             enemy_double: false,
+            enemy_bars: false,
+            boss_bar: false,
             enemy_speed: false,
             enemy_move: 0,
             enemy_anim: 0,
@@ -283,8 +289,26 @@ impl Settings {
         Self::from_json(&text).map_err(|e| crate::Error::io(path, std::io::Error::other(e)))
     }
 
+    /// Write the settings into the file, keeping every other key that is there (the window keeps the emulator, game and
+    /// Rekarina folders, the target and the language in the same file; a plain overwrite erased them).
     pub fn save(&self, path: &std::path::Path) -> crate::Result<()> {
-        crate::error::write(path, self.to_json().as_bytes())
+        crate::error::write(path, self.merged_into(path).as_bytes())
+    }
+
+    fn merged_into(&self, path: &std::path::Path) -> String {
+        let Ok(serde_json::Value::Object(mine)) = serde_json::to_value(self) else {
+            return self.to_json();
+        };
+        let mut doc = std::fs::read_to_string(path)
+            .ok()
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+            .and_then(|value| match value {
+                serde_json::Value::Object(object) => Some(object),
+                _ => None,
+            })
+            .unwrap_or_default();
+        doc.extend(mine);
+        serde_json::to_string_pretty(&serde_json::Value::Object(doc)).unwrap_or_else(|_| self.to_json())
     }
 }
 
@@ -305,6 +329,24 @@ mod tests {
         assert_eq!(json["bm_roles"]["B"], "item1");
         assert_eq!(json["bm_roles"]["A_hold"], "none");
         assert_eq!(json["hud_ctrl_scale"], 100);
+    }
+
+    #[test]
+    fn saving_keeps_the_folders_the_window_stored_in_the_file() {
+        let dir = std::env::temp_dir().join(format!("shb-save-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        std::fs::write(&path, r#"{"emu": "E:/Emu", "recomp": "F:/Game", "target": "recomp", "enemy_hp": 100}"#).unwrap();
+        let mut s = Settings::default();
+        s.enemy_hp = 300;
+        s.save(&path).unwrap();
+        let back: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(back["emu"], "E:/Emu");
+        assert_eq!(back["recomp"], "F:/Game");
+        assert_eq!(back["target"], "recomp");
+        assert_eq!(back["enemy_hp"], 300, "the settings themselves are written");
+        assert_eq!(Settings::load(&path).unwrap().enemy_hp, 300);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

@@ -282,6 +282,8 @@ class Settings:
     enemy_proj: int = 0              # enemy projectile speed: same levels
     boss_move: int = 0               # bosses and minibosses (left out of the enemy options): movement, same levels
     boss_anim: int = 0               # bosses and minibosses: animation playback, same levels
+    enemy_bars: bool = False         # beta: a red health bar over every normal enemy's head
+    boss_bar: bool = False           # beta: the big on-screen bar with the boss's name
     enemy_alert: int = 0             # how far a spotting enemy alerts the others: same levels (multiplier)
     enemy_aggro: int = 0             # one of AGGRO_LEVELS: 0 off, 1 aggressive, 2 maximum
     great_fairy: bool = False        # reorder the three Great Fairy magic rewards
@@ -716,6 +718,10 @@ def patch_config(nso: bytes, s: Settings) -> bytes:
     if size >= 0x5C:                                    # struct 90 / 91 (the old tail padding): HUD scales
         b[f + 74] = hud_scale(s.hud_ctrl_scale)
         b[f + 75] = hud_scale(s.hud_count_scale)
+    if size >= 0x66:                                    # beta: health bars (fields appended after bm_hold_wait)
+        b[f + 85] = int(s.enemy_bars)                   # struct 101 (f + 85 = 16 + 85)
+        if size >= 0x67:                                # struct 102: the global boss bar
+            b[f + 86] = int(s.boss_bar)                 # (f + 86 = 16 + 86; struct offset = f offset + 16)
     if size >= 0x62:                                    # struct 97: custom item HUD (our B / L / R / ZR buttons)
         b[f + 81] = int(s.hud_items and s.button_mapping)   # (no button mapping, no item side)
     return bytes(b)
@@ -976,6 +982,10 @@ def install(emu: Path, s: Settings, name: str = MOD_NAME, progress=None) -> Resu
             shutil.copytree(src, target / "romfs", dirs_exist_ok=True)
         else:
             res.notes.append((opt + "_missing", ""))
+    if s.enemy_double and s.great_fairy:   # the reward chest of the Gerudo Training Ground on top of its duplicated enemies
+        both = pay.parent / "romfs_opts" / "great_fairy_double"
+        if both.exists():
+            shutil.copytree(both, target / "romfs", dirs_exist_ok=True)
     res.notes.extend(install_enemy_mods(target / "romfs", s, pay.parent))
     if style:   # last: the layout table is merged over the final one (font 0x5000 keeps our layout/enemy entries)
         layouts.apply(target / "romfs", style)
