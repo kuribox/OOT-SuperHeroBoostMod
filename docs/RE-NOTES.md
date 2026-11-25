@@ -344,6 +344,20 @@ Both mods are generated from the user's own dump by `tools/make_enemy_opts.py`; 
   calling `0x399ca0` with x0 = 0). Found by bisecting the SHB romfs with override mods; a cap of 20 crashed too. The
   generator now leaves that file alone (`AUTOPLACE_SKIP`). The other crow files (DesertColossus, LakeHylia) are still doubled
   and untested.
+- **Crow flocks and the crashes (Nov 25, fixed)**: the crashes in Hyrule Field (leaving Lon Lon Ranch with Epona, and random
+  ones later) all had the same guest stack (`main+0x3294394` -> `0x399ca0` with x0 = 0: a null entry in the engine's
+  actor-handle pool). Not the Stalchildren (their doubling was removed and then put back: the crash stayed), not the Banc
+  clones (removing all 103 did not help). Restoring only the AutoPlacement files of the crow flocks (`Enemy_Guay_*`,
+  `Enemy_Guey_*`: 15 -> 30 at once) fixed it, so the generator no longer touches any of them (`AUTOPLACE_SKIP`). The
+  Banc clones of `Enemy_Guay_Fixed` and the crow packs are still scaled/duplicated as before.
+- **Reward swap (Nov 25, `make_great_fairy_opts.py`, rides with the Great Fairy option)**: the poe buyer's 500-point
+  reward is `Event329` of `Npc_Hylia_048_BottleShop` (`GetInEvent_Poeshop`, `ActorName: Item_Bottle`; the 1,000-point one is
+  `Event330`, `Obj_Rupee_Gold`) -> `Item_Arrow_Ice`; the Gerudo Training Ground Ice Arrows chest (`Obj_TBox_A_02`,
+  `Drop__DropActor`, `GetEventName SubEvent_GetIceArrow_OpenTBox`) -> `Item_Bottle`. Files read back identical to the game's
+  apart from those two strings. NOT played through in game: no bottle chest exists in any other Banc, so whether a chest
+  hands out `Item_Bottle` is unproven.
+  The duplicated-enemies option edits the same dungeon file, so `romfs_opts/great_fairy_double/` holds the chest change on top of the
+  clones; the installers (Rust `romfs.rs`, Python `installer.py`/`recomp.py`/`rekarina.py`) copy it last when both options are on.
 - **Speed levels**: `Pack/Actor/Enemy_*.pack.zs` scales `BSA/MovementParam` (`Walk/Run/Dash/Escape/Special/Strafe/
   LiftWalk/WalkBackwards`) by the chosen factor, and divides `GameBalance/AttackInterval/*` plus the explicit
   `ActionSeqContainer` cooldown fields. `AttackIntervalRatio` is **not** touched: it multiplies the
