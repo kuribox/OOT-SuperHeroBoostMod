@@ -3067,20 +3067,22 @@ static void slots_reset(void) {
  * Twinrova's witches (Kotake / Koume) are ordinary enemies with head bars; the merged actor carries the
  * global bar. Live tuning (read every frame):
  *   g_eb_tune[0] head height scale, [1] bar scale, [2] boss bar y, [3] name scale. */
-float g_eb_tune[4] = {1.0f, 1.0f, -700.0f, 0.9f};
+float g_eb_tune[4] = {1.0f, 1.0f, -900.0f, 0.9f};   /* [2]: near the bottom edge, out of the fight */
 u32 g_eb_dbg[8];   /* 0 bars drawn, 1 rows this frame, 2 boss index, 3 boss ratio %, 4 camera reads, 5 projects */
 #define EB_W 150.0f            /* bar width at EB_REF_DIST (layout units) */
 #define EB_H 13.0f
 #define EB_REF_DIST 4.0f
 #define EB_RANGE 30.0f         /* enemies further away than this get no bar */
 #define EB_MARGIN 0.25f        /* metres above the model's own height, so the bar clears the head */
+#define EB_BOSS_HOLD 90u       /* frames the boss bar survives without a fresh row (1.5 s at 60 fps) */
 #define EB_TAN_HALF_FOV 0.4663f
 #define EB_ASPECT 1.7778f
 #define BOSS_W 1500.0f
-#define BOSS_H 26.0f
+#define BOSS_H 24.0f
 static u64 g_eb_trec;      /* the boss-name text pane record */
 static u64 g_eb_slot[EB_SLOTS];   /* actor drawn in each bar slot (sticky assignment, so a bar cannot hop) */
 static u32 g_eb_last_on;          /* last frame the bars were allowed to draw (grace window) */
+static u32 g_eb_boss_row = 0xFFFFFFFFu;   /* row the boss bar used last frame (it holds through update gaps) */
 /* diagnostic ring, one entry per frame: the tick, bars drawn, rows in the table and the two first slots'
  * actors (low bits) - the flicker hunt reads it back over the debug server. */
 u32 g_eb_hist[128];
@@ -3150,8 +3152,25 @@ static void enemybars_update(u64 frame) {
     u32 now = g_tick | 1u;
     u32 act = (u32)player_active();
     if (act) g_eb_last_on = now;
-    u32 on = (g_shbcfg.enemy_bars || g_shbcfg.boss_bar) && (act || (now - g_eb_last_on) <= 12u);
-    const volatile float *m = on ? cam_mtx() : 0;
+    u32 on = g_shbcfg.enemy_bars && (act || (now - g_eb_last_on) <= 12u);
+    /* The global boss bar must NOT depend on the boss being on screen or close: a boss that is off camera, at
+     * the other end of the arena or behind a cutscene has to keep its bar (reported: it blinked out as if the
+     * range to the boss were very short). A fresh row is enough, and the bar holds for EB_BOSS_HOLD frames when
+     * the actor stops updating, so an update gap or a phase change does not blank it. */
+    u32 boss_row = 0xFFFFFFFFu;
+    if (g_shbcfg.boss_bar) {
+        for (u32 i = 0; i < g_eb_n && i < SHB_EB_MAX; i++) {
+            ShbEnemyRow *e = &g_eb[i];
+            if (e->boss < 0 || !e->seen || e->cur <= 0 || e->max <= 0) continue;
+            if (boss_row == 0xFFFFFFFFu || e->max > g_eb[boss_row].max) boss_row = i;
+        }
+        if (boss_row == 0xFFFFFFFFu) boss_row = g_eb_boss_row;      /* keep it through an update gap */
+        if (boss_row != 0xFFFFFFFFu && (!g_eb[boss_row].seen || (now - g_eb[boss_row].seen) > EB_BOSS_HOLD))
+            boss_row = 0xFFFFFFFFu;                                 /* gone for good: hide it */
+        g_eb_boss_row = boss_row;
+    }
+    u32 on_boss = boss_row != 0xFFFFFFFFu;
+    const volatile float *m = (on || on_boss) ? cam_mtx() : 0;
     if (!m) {
         g_eb_dbg[7]++;                    /* frames without a camera */
         if (g_eb_shown) eb_hide(frame);
@@ -3159,8 +3178,8 @@ static void enemybars_update(u64 frame) {
     }
     g_eb_dbg[6]++;                        /* frames drawn */
     float sx[SHB_EB_MAX], sy[SHB_EB_MAX], sc[SHB_EB_MAX], di[SHB_EB_MAX];
-    u32 ri[SHB_EB_MAX], ok = 0, boss_row = 0xFFFFFFFFu, i;
-    for (i = 0; i < g_eb_n && i < SHB_EB_MAX; i++) {
+    u32 ri[SHB_EB_MAX], ok = 0, i;
+    for (i = 0; on && i < g_eb_n && i < SHB_EB_MAX; i++) {
         ShbEnemyRow *e = &g_eb[i];
         float px, py, d;
         /* the engine skips actors in the per-frame physics update, so a row can be a few frames old: that is
@@ -3170,10 +3189,7 @@ static void enemybars_update(u64 frame) {
         if (e->cur <= 0 || e->max <= 0) continue;
         if (shb_bar_skip(e->name)) continue;      /* a boss's sub-actor: the fight carries one bar */
         if (!eb_project(m, e->x, e->y + e->h * g_eb_tune[0] + EB_MARGIN, e->z, &px, &py, &d)) continue;
-        if (e->boss >= 0) {                       /* a boss: the global bar instead of a head bar */
-            if (g_shbcfg.boss_bar && (boss_row == 0xFFFFFFFFu || e->max > g_eb[boss_row].max)) boss_row = i;
-            continue;
-        }
+        if (e->boss >= 0) continue;               /* a boss: the global bar instead of a head bar */
         float s = EB_REF_DIST / d;
         if (s < 0.35f) s = 0.35f;
         if (s > 1.25f) s = 1.25f;
@@ -3252,7 +3268,7 @@ static void enemybars_update(u64 frame) {
                 g_eb_name_i = bi;
             }
             float ts = g_eb_tune[3];
-            place(g_eb_trec, 0.0f, y + 52.0f, ts, ts, 0.0f);
+            place(g_eb_trec, 0.0f, y + 48.0f, ts, ts, 0.0f);
         }
     } else {
         if (btr) place(btr, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
