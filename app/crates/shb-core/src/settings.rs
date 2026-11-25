@@ -308,7 +308,8 @@ impl Settings {
             })
             .unwrap_or_default();
         doc.extend(mine);
-        serde_json::to_string_pretty(&serde_json::Value::Object(doc)).unwrap_or_else(|_| self.to_json())
+        serde_json::to_string_pretty(&serde_json::Value::Object(doc))
+            .unwrap_or_else(|_| self.to_json())
     }
 }
 
@@ -336,11 +337,18 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("shb-save-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("settings.json");
-        std::fs::write(&path, r#"{"emu": "E:/Emu", "recomp": "F:/Game", "target": "recomp", "enemy_hp": 100}"#).unwrap();
-        let mut s = Settings::default();
-        s.enemy_hp = 300;
+        std::fs::write(
+            &path,
+            r#"{"emu": "E:/Emu", "recomp": "F:/Game", "target": "recomp", "enemy_hp": 100}"#,
+        )
+        .unwrap();
+        let s = Settings {
+            enemy_hp: 300,
+            ..Settings::default()
+        };
         s.save(&path).unwrap();
-        let back: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        let back: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(back["emu"], "E:/Emu");
         assert_eq!(back["recomp"], "F:/Game");
         assert_eq!(back["target"], "recomp");
