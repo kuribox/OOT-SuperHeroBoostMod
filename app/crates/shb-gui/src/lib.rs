@@ -1641,8 +1641,10 @@ impl App {
                             self.uninstall();
                         }
                     } else {
+                        // "Install" is the first-time path. On a game that already has the mod it would lay the files
+                        // over the installed ones and break it, so it stays off: the other three buttons are for that.
                         let modes: [(shb_core::rebuild::Mode, bool); 4] = [
-                            (shb_core::rebuild::Mode::Install, true),
+                            (shb_core::rebuild::Mode::Install, !installed),
                             (shb_core::rebuild::Mode::Settings, installed),
                             (shb_core::rebuild::Mode::Recompile, installed),
                             (shb_core::rebuild::Mode::Reinstall, installed),
