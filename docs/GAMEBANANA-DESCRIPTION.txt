@@ -1,10 +1,28 @@
-SHB-OcarinaTweaks 0.10.0 - REBUILD ONCE
-The module changed: reinstall the profile (emulator) or rebuild the game once with 0.10.0 (Longshot / Hookshot / ReLink / Rekarina). If a crash remains, attach logs/longshot_log.txt (or the Rekarina log) and the new file in bug-reports/.
+SHB-OcarinaTweaks 0.11.0 - REBUILD ONCE
+The module changed: reinstall the profile (emulator) or rebuild the game once with 0.11.0 (Longshot / Hookshot / ReLink / Rekarina). The configuration block is the same size, so an older app still works and the new options stay off. If a crash remains, attach logs/longshot_log.txt (or the Rekarina log) and the new file in bug-reports/.
 
 SHB-OcarinaTweaks (Super Hero Boost) is a gameplay and HUD module for the Ocarina of Time remake (update v131072): stamina, difficulty, an extended HUD, a full button remap, item buttons, quick select and more. Everything is a switch in the companion app, SHB-OcarinaTweaks, and the installer patches the module with the profile you pick: no recompiling, no manual file editing.
 
 WHAT YOU ARE DOWNLOADING
-The file in the Files tab is SuperHeroBoost-0.10.0-presets.zip: the mod itself, with all 15 named profiles of the app ready to install in an emulator. It contains no executable. The configuration app is a separate download (see "Emulator - custom settings" below); it is not in the Files tab.
+The file in the Files tab is SuperHeroBoost-0.11.0-presets.zip: the mod itself, with all 15 named profiles of the app ready to install in an emulator. It contains no executable. The configuration app is a separate download (see "Emulator - custom settings" below); it is not in the Files tab.
+
+NEW IN 0.11.0 (everything since 0.10.0)
+HEALTH BARS (BETA)
+- A small red bar over every enemy's head, at the height the model really has, emptying as the enemy loses life.
+- A wide bar with the boss's name at the bottom of the screen for the ten dungeon bosses and the final fights (Gohma, King Dodongo, Barinade, Phantom Ganon, Volvagia, Morpha, Bongo Bongo, Twinrova, Ganondorf, Ganon), instead of a bar over their heads. Their sub-actors get none; Twinrova's two witches keep their head bars until they merge.
+- The boss bar does not depend on the camera: it stays when the boss is off screen, at the far end of the arena or in a cutscene, and it holds through a phase change.
+- Two separate switches in the HUD page, in the six languages, off by default. Visual only: nothing is written to the save.
+- No depth test: the bars are a flat overlay, so a bar can show over geometry that hides the enemy. Open: the boss bar reads the boss's own life, and a multi-phase boss may keep the fight's real pool elsewhere; that needs one fight per boss.
+CROWS - A CRASH FIX, NOT A BALANCE CHANGE
+- The enemy duplication no longer multiplies the crow flocks. Doubling a crow spawner (15 -> 30 at once, and even 20) crashed Longshot with a null entry in the engine's actor-handle pool, leaving Lon Lon Ranch with Epona and randomly in Hyrule Field; bisecting the mod's files showed the crow spawner is what does not survive it. Every crow flock keeps the game's own numbers, the crows keep the rest of the mod, and every other enemy is still doubled. If you played 0.10.0 with the beta enemies on, those crashes are this.
+ITEM LOCATION CHANGES
+- The former "Great Fairy rewards" option moves two more items: the poe buyer's 500-point prize is the Ice Arrows instead of the bottle, and the last big chest of the Gerudo Training Ground holds the bottle instead of the Ice Arrows. The three magic rewards move as before. The chest's bottle is not played through yet: no other chest in the game gives one, so it is unproven until someone opens it.
+FIXES
+- The menu's main-item button keeps its item while the item box catches up, instead of showing the item you just used.
+- A Longshot crash with HylianSurvivors' romfs (a read fault inside hud_on_code) is gone: the save-image slot the collectibles counter reads must now be word-aligned and within 16 GB of its manager.
+APP
+- The Rust app keeps your folders, target and language when it saves its settings, remembers the folder on screen, and keeps a folder or builder you typed when the field loses focus.
+- BUILDERS: after building a module, write its new ours.ips into main before rebuilding the game, or the rebuilt game jumps into the middle of a function. "rebuild --mode install" does it, "--mode recompile" does not.
 
 NEW IN 0.10.0 (everything since 0.9.3)
 REBUILD ONCE
@@ -106,14 +124,14 @@ REQUIREMENTS
 - Back up your saves. On Windows the app closes a running game before installing and during a rebuild; save first.
 
 EMULATOR - QUICK INSTALL (PRESETS ZIP)
-1. Download SuperHeroBoost-0.10.0-presets.zip from the Files tab and extract it.
+1. Download SuperHeroBoost-0.11.0-presets.zip from the Files tab and extract it.
 2. Open the folder of the profile you want (01 Recommended, 02 Recommended (no beta enemies), ...).
 3. Copy its zz-Super-Hero-Boost folder into user/load/0400486024DEC000 (merge it if that folder already exists).
 4. Start the game.
 Only one profile can be installed at a time: they all use the same folder name, so replace the previous one.
 
 EMULATOR - CUSTOM SETTINGS (APP)
-1. Download SHB-OcarinaTweaks.exe from GitHub Releases: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/tag/v0.10.0 (the Rust app is built for Windows, Linux and macOS there; the Python app is published next to it as the -legacy files). The module is bundled inside the app: you do not need Python.
+1. Download SHB-OcarinaTweaks.exe from GitHub Releases: https://github.com/kuribox/OOT-SuperHeroBoostMod/releases/tag/v0.11.0 (the Rust app is built for Windows, Linux and macOS there; the Python app is published next to it as the -legacy files). The module is bundled inside the app: you do not need Python.
 2. Save your progress. On Windows the app closes the game for you before installing.
 3. Pick a profile or adjust each section: Gameplay, Difficulty, Controls, HUD.
 4. Choose your emulator folder (the one that contains "user") and press Install.
