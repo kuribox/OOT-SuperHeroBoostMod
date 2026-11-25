@@ -2853,7 +2853,11 @@ impl App {
                     changed = true;
                 }
                 ui.add_space(10.0);
-                ui.label(egui::RichText::new(tr(lang, "hpbars_title")).size(13.0).strong());
+                ui.label(
+                    egui::RichText::new(tr(lang, "hpbars_title"))
+                        .size(13.0)
+                        .strong(),
+                );
                 if widgets::check(
                     ui,
                     &mut self.settings.enemy_bars,

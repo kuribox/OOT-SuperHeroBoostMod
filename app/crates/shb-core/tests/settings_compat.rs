@@ -3,14 +3,14 @@
 //! `app-legacy/paths.py` writes `SHB-OcarinaTweaks.json` (and the older `SuperHeroBoostConfig.json`) next to the program or
 //! in the user's config folder; both apps read and write that same file, so a person can switch between them without
 //! losing a single option. The fixtures here were produced by the Python app itself (`Settings().to_dict()` from
-//! 0.9.3), and the tests hold this port to them: every key parses, every value survives a round trip, and the file
+//! 0.11.0), and the tests hold this port to them: every key parses, every value survives a round trip, and the file
 //! written here has the same keys as the file that app writes.
 
 use shb_core::paths::APP_NAME;
 use shb_core::settings::Settings;
 
-const DEFAULT_JSON: &str = include_str!("data/settings-0.10-default.json");
-const RECOMMENDED_JSON: &str = include_str!("data/settings-0.10-recommended.json");
+const DEFAULT_JSON: &str = include_str!("data/settings-0.11-default.json");
+const RECOMMENDED_JSON: &str = include_str!("data/settings-0.11-recommended.json");
 
 fn keys(value: &serde_json::Value) -> Vec<String> {
     let mut keys: Vec<String> = value
