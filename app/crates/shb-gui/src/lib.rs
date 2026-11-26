@@ -1195,6 +1195,35 @@ fn role_help_key(role: Role) -> Option<&'static str> {
     }
 }
 
+/// The choices of one row of the table. They follow the switches, as the Python editor's do: the item roles only
+/// with the custom item HUD, the shield only with the manual shield, and nothing of the remap itself with the button
+/// mapping off. The item selector is a role of the remap (it presses the game's own selector key), not an item, so
+/// the item HUD does not take it away. The role a button already has always stays in its list: a table that was made
+/// before is not silently rewritten. `no_hold` is a button whose own role acts held or at once: it has nothing to
+/// hold for, so only "none" is left.
+fn role_choices(
+    button: Button,
+    current: Role,
+    mapping_on: bool,
+    items_on: bool,
+    shield_on: bool,
+    no_hold: bool,
+) -> Vec<Role> {
+    Role::ALL
+        .iter()
+        .copied()
+        .filter(|role| shb_core::roles::role_allowed(*role, button))
+        .filter(|role| !no_hold || *role == Role::None)
+        .filter(|role| {
+            let item = shb_core::roles::ITEM_ROLES.contains(role);
+            let hidden = (item && !items_on)
+                || (*role == Role::Selector && !mapping_on)
+                || (*role == Role::Shield && !shield_on);
+            !hidden || *role == current
+        })
+        .collect()
+}
+
 /// One role on one button: the role that was there moves to the button that had the new one, so every role stays on
 /// a single button (the module's rule, `core/remap.h`).
 fn take_role(current: &Roles, button: Button, picked: Role) -> Roles {
@@ -2570,25 +2599,21 @@ impl App {
                     .unwrap_or(Role::None);
                 let mut picked = current;
                 // The list follows the switches, as the Python editor's does: the item roles are only offered with
-                // the custom item HUD, and the shield only with the manual shield. The role a button already has
-                // stays in the list, so a table that was made before is not silently rewritten.
+                // the custom item HUD, the shield only with the manual shield. The item selector is a role of the
+                // remap itself (it only presses the game's own selector key), so it stays without the item HUD.
                 let items_on = self.settings.hud_items && self.settings.button_mapping;
                 let shield_on = self.settings.manual_shield;
-                let choices: Vec<(Role, String)> = Role::ALL
-                    .iter()
-                    .copied()
-                    .filter(|role| shb_core::roles::role_allowed(*role, button))
-                    .filter(|role| blocked_by.is_none() || *role == Role::None)
-                    .filter(|role| {
-                        let item = matches!(
-                            role,
-                            Role::Item1 | Role::Item2 | Role::Item3 | Role::Selector
-                        );
-                        let hidden = (item && !items_on) || (*role == Role::Shield && !shield_on);
-                        !hidden || *role == current
-                    })
-                    .map(|role| (role, into_role_name(lang, role)))
-                    .collect();
+                let choices: Vec<(Role, String)> = role_choices(
+                    button,
+                    current,
+                    self.settings.button_mapping,
+                    items_on,
+                    shield_on,
+                    blocked_by.is_some(),
+                )
+                .into_iter()
+                .map(|role| (role, into_role_name(lang, role)))
+                .collect();
                 let moved = ui
                     .add_enabled_ui(blocked_by.is_none(), |ui| {
                         widgets::combo_row(
@@ -3293,7 +3318,33 @@ pub fn run() -> eframe::Result {
 
 #[cfg(test)]
 mod tests {
-    use super::{closes_help, preset_matches};
+    use super::{closes_help, preset_matches, role_choices};
+    use shb_core::roles::{Button, ITEM_ROLES, Role};
+
+    #[test]
+    fn the_item_selector_stays_with_the_custom_item_hud_off() {
+        // The custom item HUD takes the item roles away; the selector is a role of the remap that only presses the
+        // game's own selector key, so it is offered either way.
+        let with_items = role_choices(Button::B, Role::None, true, true, false, false);
+        let without_items = role_choices(Button::B, Role::None, true, false, false, false);
+        assert!(
+            without_items.contains(&Role::Selector),
+            "the selector is not an item"
+        );
+        assert!(with_items.contains(&Role::Selector));
+        assert!(
+            without_items.iter().all(|r| !ITEM_ROLES.contains(r)),
+            "the item roles go with the item HUD"
+        );
+        assert!(with_items.iter().filter(|r| ITEM_ROLES.contains(r)).count() == ITEM_ROLES.len());
+        // A table made before keeps the role the button already has, so it is not silently rewritten.
+        assert!(
+            role_choices(Button::B, Role::Item1, true, false, false, false).contains(&Role::Item1)
+        );
+        // The mapping is what the remap itself rides on: off, its own roles go too (the whole card is off).
+        let no_mapping = role_choices(Button::B, Role::None, false, true, false, false);
+        assert!(!no_mapping.contains(&Role::Selector));
+    }
 
     #[test]
     fn the_click_that_opens_a_help_window_does_not_close_it() {

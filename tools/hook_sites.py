@@ -77,6 +77,7 @@ EXTRA_SITES = (
     (0x972E18, "hook_guard_flags", 0x2A090108, "manual_shield"),    # orr w8,w8,w9 (target guard flags)
     (0x97320C, "hook_guard_update", 0x320D0129, "manual_shield"),   # orr w9,w9,#0x80000 (target guard update)
     (0x33C9270, "hook_ad_update", 0xD503237F, "quick_select"),      # armory drawer: per-frame update (pacibsp)
+    (0x129E290, "hook_nvn_load", 0xD503237F, "ingame_menu"),        # NVN entry-point table loader (x0 device, x1 lookup)
 )
 
 # Call-replacement sites owned by an optional feature: the stock `bl <stock>` at `site` becomes `bl <wrapper>`; the

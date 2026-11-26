@@ -8,15 +8,19 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.11.0**. The **health bars** are here as a beta: a **red bar over every enemy** at its real height
+Current release: **0.12.0**. A small one: the Rust window keeps **Item selector** in every button's list when the item
+HUD is off (the Python app always did), and the module's HUD can now put its item buttons and plates away while the game
+runs, which is the groundwork of an **in-game settings menu** that is still emulator-only and **not in this release**.
+The module was rebuilt, so install 0.12.0 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina.
+
+0.11.0 brought the **health bars** as a beta: a **red bar over every enemy** at its real height
 and a **wide bar with the boss's name** at the bottom of the screen, two separate switches, off by default. The enemy
 duplication no longer touches **the crow flocks**, and that is a fix: doubling them (15 -> 30 at once, even 20) crashed
 Longshot with a null entry in the engine's actor-handle pool. **Item location changes** now also moves the
 **poe buyer's 500-point prize** (Ice Arrows instead of the bottle) and the **bottle** into the last big chest of the
 Gerudo Training Ground, and the **menu's main-item button keeps its item** while the item box catches up. A
 **Longshot crash with HylianSurvivors' romfs** is gone (the save-image guard was too loose), and the Rust app **keeps
-your folders when it saves its settings**. The module changed, so install 0.11.0 and **rebuild the game once** on
-Longshot, Hookshot, ReLink or Rekarina.
+your folders when it saves its settings**.
 
 0.10.0 brought the **new app**: SHB-OcarinaTweaks is a Rust program now, one executable with the window and the
 command line, that carries the mod inside it and no longer needs Python (the Python one stays in the repository as
@@ -55,6 +59,36 @@ L3 / R3, a shield button and an **Armory** to change sword and shield), two HUD 
 The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](docs/capturas/app-en-gameplay.png),
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
+
+## What's new in 0.12.0
+
+Everything since 0.11.0. This is a small release: one fix in the Rust window and the groundwork for a live settings
+menu that is **not part of it yet**. The module was rebuilt (a few HUD routines changed), so install 0.12.0 and
+**rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina; an emulator profile needs a reinstall. The
+configuration block is still 0x68 bytes, so an older app keeps working.
+
+**Fixes**
+
+- **The item selector stays in the Rust window's role list when the item HUD is off.** The window grouped the selector
+  with the item roles, so turning the custom item HUD off took *Item selector* out of every button's dropdown. The
+  Python app never did that. The list now matches it: the selector follows the button remap, the item roles follow the
+  item HUD, and a button keeps the role it already has so a saved table is never rewritten.
+- **The HUD's item side can be switched off while the game runs.** The module now remembers how many item-button parts
+  it built, hides them at once when the item side is off and gives the game's own item box back, and puts away the
+  rupee / clock / collectible plates when their switches or positions change. Nothing changes for a normal install
+  (the settings are read when the HUD is built, as before); it is what the in-game menu below stands on.
+
+**Not in this release: the in-game menu (emulator test builds only)**
+
+`-` and `R3` together open a settings menu drawn by the module (the button table with each role's options, the HUD and
+the gameplay), which edits the configuration live and saves itself to the game's save volume. It is proven in the
+emulator only and is **not** in the module this release ships: Longshot, ReLink and Rekarina do not use the driver's GPU
+layer it draws through. It will be offered when it has been proven there.
+
+**Known**
+
+- With the item HUD off, the module still counts the item selector as an item role, so the option is listed but does
+  nothing in game; honouring it there is a separate change.
 
 ## What's new in 0.11.0
 
@@ -637,6 +671,7 @@ executables), for the GameBanana Mods upload. See the development guide for deta
 - [docs/GUIA-DESARROLLO.md](docs/GUIA-DESARROLLO.md): architecture, hooks, HUD, configuration and compilation.
 - [docs/APP.md](docs/APP.md): app, profiles and options.
 - [app/README.md](app/README.md): the current app (Rust): crates, build, tests, how it matches the legacy one.
+- [docs/RELEASE-0.12.0.md](docs/RELEASE-0.12.0.md): the 0.12.0 release notes.
 - [docs/RELEASE-0.11.0.md](docs/RELEASE-0.11.0.md): the 0.11.0 release notes.
 - [docs/RELEASE-0.10.0.md](docs/RELEASE-0.10.0.md): the 0.10.0 release notes.
 - [docs/BUTTON-MAPPING.md](docs/BUTTON-MAPPING.md): button mapping design.

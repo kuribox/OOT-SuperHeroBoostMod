@@ -100,8 +100,12 @@ int hud_shield_parts(void);
 /* The remap (button_mapping) and its item side (hud_custom_items) are two switches: without the item side our item
  * buttons are not built at all and the game's own item HUD is what the player sees. */
 #define BMREMAP (g_shbcfg.button_mapping != 0)
-#define BTNMAP (BMREMAP && g_shbcfg.hud_custom_items != 0)
-#define PART_TOT (BTNMAP ? (hud_shield_parts() ? PART_N : PART_BASE) : 0)   /* parts appended to PlayerStatus_00 */
+/* The parts exist only if they were built: the layout is made once, so what the config said THEN decides how many
+ * there are (g_parts_tot, latched when PlayerStatus_00 is built). The in-game menu may flip the switches afterwards:
+ * switching the item side off hides the parts at once; switching it on shows them at the next build. */
+static u32 g_parts_tot;
+#define BTNMAP (BMREMAP && g_shbcfg.hud_custom_items != 0 && g_parts_tot != 0)
+#define PART_TOT g_parts_tot   /* parts appended to PlayerStatus_00 */
 #else
 #define PART_TOT 0         /* built without features/button_mapping: no button parts at all */
 #define BMREMAP 0
@@ -885,6 +889,8 @@ void *hud_prepare(void *handle, u8 *config) {
     const char *inst = (const char *)q(handle, 0x30);
     if (!asset || !vptr((u64)asset)) return config;
     if (inst && !vptr((u64)inst)) inst = 0;
+    if (str_eq(asset, "PlayerStatus_00"))
+        g_parts_tot = BMREMAP && g_shbcfg.hud_custom_items ? (hud_shield_parts() ? PART_N : PART_BASE) : 0;
     u32 kind = str_eq(asset, "PlayerStatus_00") ? 1 : BTNMAP && str_eq(asset, "PaItemMenu_00") ? 3 :
                BTNMAP && str_eq(asset, "PlusMenu_00") ? 4 :
                g_shbcfg.hud_map_hearts && str_eq(asset, "PaMapCollectNum_00") ? 5 : 0;
@@ -1495,7 +1501,13 @@ static void plates_update(u64 frame) {
     u32 active = player_active() != 0;
     static u32 g_last_hm = 0xFFFFFFFFu;
     u32 hm = g_shbcfg.hud_mode;
-    if (hm != g_last_hm) { if (g_plates_shown) plates_hide(frame); g_last_hm = hm; }
+    /* the in-game menu changes these live: what is no longer drawn must be put away once (every pane keeps the last
+     * place it was given) */
+    static u32 g_last_sig = 0xFFFFFFFFu;
+    u32 sig = (g_shbcfg.hud_rupees ? 1u : 0u) | (g_shbcfg.hud_clock ? 2u : 0u) | (g_shbcfg.hud_collectibles ? 4u : 0u);
+    for (u32 i = 0; i < 4; i++) sig = sig * 31u + (u32)(unsigned short)g_shbcfg.hud_x[i];
+    sig = sig * 31u + g_shbcfg.hud_plates;
+    if (hm != g_last_hm || sig != g_last_sig) { if (g_plates_shown) plates_hide(frame); g_last_hm = hm; g_last_sig = sig; }
     if (!active) {
         g_hud_show[0] = g_hud_show[1] = 0x10000000u;
         if (g_plates_shown) { plates_hide(frame); g_plates_shown = 0; }
@@ -2848,11 +2860,21 @@ static void slots_update(u64 frame) {
     }   /* (the ZR icon is frozen while a slot borrows the box) */
     if (!g_stock_box_rec) g_stock_box_rec = pane_record(frame, "Pa_SelectItem_00");
     if (!g_stock_dots_rec) g_stock_dots_rec = pane_record(frame, "N_Shortcut_00");
-    for (u32 i = 0; i < 2 && g_sb_hide_stock && BTNMAP; i++) {
+    /* the game's own item box and dots: hidden while our item buttons are on; their scale is kept the first time and     * given back when the in-game menu switches the item side off (the game does not set it again by itself) */
+    static float s_orig[2][2];
+    static u64 s_orig_rec[2];
+    for (u32 i = 0; i < 2 && g_sb_hide_stock; i++) {
         u64 r = i ? g_stock_dots_rec : g_stock_box_rec;
         if (!r) continue;
-        *(float *)(r + 0x60) = 0.0f; *(float *)(r + 0x64) = 0.0f;
-        *(u32 *)r |= 0x6F;
+        if (BTNMAP) {
+            if (s_orig_rec[i] != r) { s_orig_rec[i] = r; s_orig[i][0] = *(float *)(r + 0x60); s_orig[i][1] = *(float *)(r + 0x64); }
+            *(float *)(r + 0x60) = 0.0f; *(float *)(r + 0x64) = 0.0f;
+            *(u32 *)r |= 0x6F;
+        } else if (s_orig_rec[i] == r) {
+            *(float *)(r + 0x60) = s_orig[i][0]; *(float *)(r + 0x64) = s_orig[i][1];
+            *(u32 *)r |= 0x6F;
+            s_orig_rec[i] = 0;
+        }
     }
     slots_draw(g_sb, g_sb_ctrl, frame, g_sb_lay, 1);
 }
@@ -2911,8 +2933,17 @@ static void a_label_update(void) {
     g_sb_force[SB_A][31] = 0;
 }
 static void slots_labels(u64 frame) {
-    if (!BTNMAP) return;
     static const float LABEL[3] = {0.92f, 0.92f, 0.92f};
+    static u32 shown;
+    if (!BTNMAP) {   /* switched off by the in-game menu: the two label texts keep their last place until put away */
+        if (shown && hud_ingame()) {
+            put_text(frame, 4, "", 0.0f, 0.0f, 0, LABEL);
+            put_text(frame, 5, "", 0.0f, 0.0f, 0, LABEL);
+            shown = 0;
+        }
+        return;
+    }
+    shown = 1;
     if (!hud_ingame()) return;
     a_label_update();
     float xx, xy, ax, ay;
@@ -3403,6 +3434,14 @@ __attribute__((weak)) void songbook_on_select(void *ctx, u32 sel) { (void)ctx; (
 __attribute__((weak)) void songbook_on_frame(void);                      /* features/songbook */
 __attribute__((weak)) void manual_shield_on_frame(void *scheduler);      /* features/manual_shield */
 __attribute__((weak)) void songbook_on_ui(void *ctx);                    /* features/songbook */
+__attribute__((weak)) void ingame_menu_on_nvn_load(void *regs);           /* features/ingame_menu */
+__attribute__((weak)) void ingame_menu_on_open(const char *path, int mode); /* features/ingame_menu */
+__attribute__((weak)) void button_mapping_unassign(int slot);              /* features/button_mapping */
+/* The in-game menu drops the item of an item slot (0 B, 1 L, 2 R). A weak reference made from the feature itself is
+ * compiled through the GOT, which this module does not have: it reads 0 and the call is skipped. */
+void hud_unassign_item(int slot) { if (button_mapping_unassign) button_mapping_unassign(slot); }
+__attribute__((weak)) void button_mapping_items_off(void);
+void hud_items_off(void) { if (button_mapping_items_off) button_mapping_items_off(); }
 /* The game's control guide (UICtrlGuideScreen) writes the A action ("Hablar", "Abrir", "Rodar"...) into its text
  * pane T_GuideA_00 through the set-text-by-name call (frame in x22, pane name in x21). */
 static void hud_on_settext(u64 pane, const u64 *ref, u64 lr, const u64 *regs) {
@@ -3525,6 +3564,7 @@ u32 g_menu_sel_n;
 extern void button_mapping_on_open(const char *path, int mode) __attribute__((weak));
 void hud_on_code(u32 id, void *a0, void *a1, void *a2, void *regs) {
     (void)a1; (void)a2;
+    if (id == 24) { if (ingame_menu_on_nvn_load) ingame_menu_on_nvn_load(regs); return; }   /* NVN table loader */
     if (id >= 22) return;   /* diagnostic sites (hook_code_frame4/speed4): only counted in g_code_entry */
     if (id == 5) { player_track((u64)a0); return; }
     if (id >= 6 && id <= 9) { player_guard_event(id); return; }
@@ -3539,6 +3579,7 @@ void hud_on_code(u32 id, void *a0, void *a1, void *a2, void *regs) {
     if (id == 12) { hud_slots_init((u64)a0, (u64)a1); g_ready_at = g_tick + 2; return; }  /* PlayerStatus HUD init: build icon controllers */
     if (id == 18) {   /* nn::fs::OpenFile(handle, path, mode) */
         const char *path = (const char *)a1;
+        if (ingame_menu_on_open && path) ingame_menu_on_open(path, (int)(u64)a2);
         if (button_mapping_on_open && path) button_mapping_on_open(path, (int)(u64)a2);
         return;
     }
