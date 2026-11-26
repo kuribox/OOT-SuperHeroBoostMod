@@ -324,6 +324,8 @@ CODE_HOOK hook_code_hudinit, 12, RES_HUDINIT
 CODE_HOOK hook_code_settext, 20, RES_SETTEXT
 /* Pause-menu Items caption update (x0 caption panel, x1 highlighted cell): panel+0x90 = item index, +0x88 name. */
 CODE_HOOK hook_code_menusel, 21, RES_MENUSEL
+/* NVN entry-point table loader (x0 device, x1 driver lookup): features/ingame_menu swaps the lookup for its own. */
+CODE_HOOK hook_nvn_load, 24, RES_NVNLOAD
 /* Inside the Items page build (main+0xF78BA8), after its cells' icon inits: re-runs the stock ldr x21, [x19, #0x20]. */
     .global hook_code_menupage
     .type hook_code_menupage, %function

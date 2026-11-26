@@ -189,6 +189,9 @@ segfaults here).
 - The Longshot builder keeps its work at `%LOCALAPPDATA%\LongshotLauncher\work` (`image/`, `sa/gen/`,
   `objcache/`); the lifted C chunks appear there during a build, not in the game folder.
 - `gh` is missing: open PRs and releases through `git push` + the GitHub web UI, or install the CLI.
+- The in-game menu (`features/ingame_menu`) is built with `--features ingame_menu,...` and is not part of the release
+  variants (`tools/make_release.py`) yet. Proven in the emulator only; not on Longshot / ReLink / Rekarina, whose GPU layer
+  is not the driver's. Test builds use `--debug-dump` (test aids that write into the save volume): never the payload.
 
 ## Notes on the Rust app (`app/`)
 

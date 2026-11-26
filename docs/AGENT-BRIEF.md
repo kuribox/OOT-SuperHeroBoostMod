@@ -117,6 +117,10 @@ implausible, every helper returns the old 1/60-per-frame value and the module be
   Quantities come from `PouchData.<item>.StockNum` (Int table, live value `+0x1C`), allowlisted by stackable item.
 - **Quick select** — `features/quick_select/`: D-pad down = Iron/Hover boots, up = Lens/mask. Writes the
   GameData `Equip*` String64 **value and copy** (`+0x74` and `+0xC4`) — value alone only changes the menu icon.
+- **In-game menu** — `features/ingame_menu/`. + and - together open a settings menu drawn by the module (CPU-painted,
+  copied onto the game's HDR buffer through a wrapped NVN `SetRenderTargets`, hook id 24 at `main+0x129E290`). Pages: the
+  button table with each role's options, the HUD, the gameplay. It edits `g_shbcfg` live and saves itself to
+  `save:/shbmenu.bin`; the configurator's install wins when its block differs. See RE-NOTES "In-game menu".
 - **HUD** — `core/hud.c`: stamina ring (~230 picture panes) or the segmented bar under the magic gauge, clock,
   rupee counter, collectible counter, minimap hiding. See §6.
 - **romfs options** — no heart drops / no magic jars (`DropGlobalParam.HpActor`/`MpActor` → green rupee, both at

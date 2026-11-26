@@ -165,6 +165,7 @@ static void box_put(int item) {
     if (ch >= 0) hud_box_empty(ch);
 }
 /* No slot item in the box any more: the ZR item is the game's own again. */
+static int g_reload_item = -1, g_reload_t;   /* the box is refilled when g_reload_t runs out */
 static void unborrow(void) {
     g_borrowed = 0;
     hud_zr_hold(0);
@@ -358,6 +359,9 @@ static void bm_input(u32 site, void *a0, void *a1, void *a2, u32 stock_result) {
     dbg_tick();
     (void)a2;
     if (site != 3 || !a0) return;
+    /* The item side was switched off from the in-game menu: the game's own item box shows its item again (see
+     * button_mapping_items_off). Emptied, then given back a moment later, so the game plays its own box refresh. */
+    if (g_reload_t > 0 && player_active() && !g_paused && --g_reload_t == 0 && g_reload_item >= 0) box_put(g_reload_item);
     u32 count = hid_sample_count(a1, stock_result);
     if (count == 0 || count > 64) return;
     HidView view = {a0, count, 0};
@@ -741,6 +745,26 @@ void button_mapping_on_call(u32 site, void *a0, void *a1, void *a2, u32 stock_re
     e->a2 = (unsigned long long)a2;
 }
 
+
+/* The in-game menu changed the role of a button that held an item slot (0 B, 1 L, 2 R): the slot's item is dropped from
+ * both ages' sets, and the HUD takes it off at once. Only the player's own change of the table calls this. */
+void button_mapping_items_off(void) {
+    int it = g_borrowed ? g_saved : g_zr_item;   /* the item the game's own box is meant to hold */
+    if (g_borrowed) unborrow();
+    g_phase = PH_IDLE; g_swallow = 0;
+    g_box_pending = -2; g_sync_t = 0; g_a_pick = -1;
+    if (it < 0) return;                          /* empty (-1) or unknown (-3): the box is as the game has it */
+    g_reload_item = it;
+    box_put(-1);
+    g_reload_t = 20;
+}
+
+void button_mapping_unassign(int slot) {
+    if (slot < 0 || slot >= SLOT_ZR) return;
+    g_assign[slot] = -1;
+    for (int a = 0; a < 2; a++) g_set[a][slot] = -1;
+    hud_slot_item((u32)slot, -1);
+}
 
 /* ---- per save file: save:/slot_NN/ootmaster.bin next to the game's slot_NN/progress.sav ----
  * The game opens progress.sav to read (mode 1) when it loads that save, and to write (mode 6) when it saves into
