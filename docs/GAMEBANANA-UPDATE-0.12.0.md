@@ -41,7 +41,8 @@ Module rebuilt: reinstall or rebuild once
 `SuperHeroBoost-0.12.0-presets.zip` (15 named profiles, no executables), the copy published on the GitHub release;
 the previous file (0.11.0) is archived.
 
-SHA-256: _fill in from the v0.12.0 release's `.sha256` asset_
+SHA-256: `1497f3e2ea4b9e5397a6c2a7e4534dc0d76331a43097557ecb2f2a80eb9871b7` (the asset of the v0.12.0 release;
+GameBanana stored it as `superheroboost-0120-presets.zip`, file id 1905606, MD5 `6a6931e14de3ee47c22386bb564bf5a0`)
 
 ## 3. Submission
 
