@@ -5,7 +5,7 @@ Working agreement for every agent that touches this repo. It is the first file t
 (architecture, hooks, HUD, build) and `docs/RE-NOTES.md` (addresses, formats, what failed and why).
 
 Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**, `main` Build ID
-`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.11.0** (`app-legacy/version.py`, `app/Cargo.toml`).
+`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.12.0** (`app-legacy/version.py`, `app/Cargo.toml`).
 
 ## Rules (non-negotiable)
 
