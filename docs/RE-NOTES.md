@@ -928,3 +928,101 @@ name scale}.
   "all enemies this frame".
 - The perception that the bars blink also came from gating on `player_active()` alone, which drops for a few frames in
   hit stops and area loads: the draw path keeps a 12-frame grace window.
+
+## In-game menu (`features/ingame_menu`, branch `feat/ingame-menu`)
+
+A settings menu drawn by the module itself, opened with + and - together. It is a build feature
+(`build_core.py --features ingame_menu,...`); it is not in the release variants yet.
+
+### How it reaches the screen
+- The game fills its table of NVN entry points in ONE function, `main+0x129E290` (0x5080 bytes): x0 = device, x1 = the
+  driver's lookup function, and it calls `lookup(device, "nvnXxx")` once per entry, storing each result through a GOT
+  slot. Hook id 24 (`hook_nvn_load`, an `EXTRA_SITES` entry, so only a build with the feature patches it) replaces x1 with
+  our own lookup, which returns the driver's function for every name except a few it wraps. Name strings live in
+  `.rodata` (`nvnBootstrapLoader` at main+0x3C7764A, the table of names from main+0x3C7522A on).
+- Wrapped: `nvnCommandBufferSetRenderTargets`, `nvnWindowBuilderSetTextures` (the three window images),
+  `nvnQueuePresentTexture` (frame boundary). `nvnTextureGetWidth/Height/Format` are only remembered.
+- One frame is about 120 render-target binds in three command buffers (measured, 2560x1440 window). The LAST command
+  buffer (the one that binds a window image) holds exactly three binds: the HDR buffer twice (R11G11B10F, format code
+  0x3F, display size), then the window image (RGBA8, code 0x25). The menu is copied onto the HDR buffer at the second
+  bind of that command buffer (n == 1; n == 0 gives the same picture). The window image's command buffer and the three
+  image pointers are stable between frames; the image itself alternates.
+- The picture is painted on the CPU in the buffer's own format (R11G11B10F: 11/11/10-bit unsigned floats, no sign) into a
+  linear texture (flag 0x10, stride 5632 = max width x 4) over a memory pool (flags 0x22: CPU uncached | GPU cached) whose
+  storage is a static 4 MiB array of the module. `nvnCommandBufferCopyTextureToTexture` copies it, with
+  `nvnCommandBufferBarrier(0x2|0x10)` before and after. Builder / pool / texture objects get 1024 bytes each.
+- The HDR buffer is lifted by the game's final pass by about x1.4 (linear 0.05 -> 17, 0.30 -> 111, 1.0 -> 254 of 255),
+  so palette colours are authored as the shade wanted and multiplied by 0.72.
+- Font: a 5x7 bitmap, ASCII only (the Spanish texts have no accents). Nothing is drawn while the menu is closed: the
+  wrappers only forward.
+
+### Traps found
+- **An `aligned(65536)` array in `.bss` hangs the game at boot** (no frame is ever presented). It leaves a gap before
+  `.bss` that the NSO's bss size does not cover, so every module variable in `.bss` lands outside the mapped memory.
+  The most a static buffer may ask for is 4096 (the pool's own requirement); check the symbol sits inside
+  `[.bss start, .bss start + bss size)`.
+- **A weak function reference made from a feature's own file is compiled through the GOT, which this module does not
+  have: it reads 0 and `if (fn) fn()` skips the call silently.** `core/hud.c` makes the weak references that work
+  (`hud_unassign_item` there calls `button_mapping_unassign`); features call the core wrapper.
+- A table of `const char *` names compiles to relocations (`build_core.py` lists them): resolve the NVN names with one
+  call each and the literal inline.
+
+### Input
+- The game's sample buffer keeps the last 16 states, index 0 the newest. The OR of all of them (`hid_merge_buttons`)
+  keeps a button "held" for 16 reads after a release, so edges arrive late; the menu uses the newest 3.
+- The game reads input about **twice per rendered frame** (a 4-frame press showed 9 reads). Anything timed in reads is
+  wrong; the menu times in real milliseconds (`shb_clock_ms`).
+- Opening: + or - on its own is held back for 150 ms (stripped from every sample); if the other one comes in that
+  window it is a chord and neither reaches the game, otherwise the press is let through (held longer) or replayed for 4
+  reads (a tap). Measured: a lone + still pauses (one replayed tap), a chord leaves `g_game_paused` at 0. While the menu
+  is open every button and both sticks (s32 x, y at sample+0x10 and +0x18) are cleared.
+
+### What the menu edits
+The pages mirror the configurator: the button table (roles per button, the long presses, and the options that belong to
+a role), the HUD, and the gameplay. A change writes the bytes the configurator would, including the derived ones
+(`hud_relayout()` repeats `installer.patch_config`'s block positions and mode fields; `roles_derive()` the sprint flag,
+the manual shield, the holds a role rules out). The HUD is positioned from `hud_x[]`, where -32768 means "off", so
+turning a counter on without recomputing the positions shows nothing (measured: rupees 0 -> 1 changed 1 pixel).
+- Changing the role of a button that held an item slot drops the slot's item from both ages' sets
+  (`button_mapping_unassign`); an item left assigned stayed drawn over the new role. Item roles are not offered while the
+  item HUD (`hud_custom_items`) is off.
+
+### Saving
+Every change is saved by the mod (nothing in the app). The file is `save:/shbmenu.bin`: "SHBM", version, n, 0, then the
+config block as installed (base) and as left (user), n bytes each. It is read the first time the game opens a slot's
+`progress.sav` to read it (the first moment `save:` is mounted, before the HUD is built) and applied only when its base
+equals the module's own installed block, so the configurator's settings win as soon as it installs something else.
+It is written at most once per 6 s of input after the game's own write-open of a `progress.sav` (the game commits its
+files right after that write, and a write of ours inside that window races it). Proven in the emulator: a restart with
+the same install gives back the saved block; installing another profile ignores the file (`skipped` 1).
+
+### Test aids (`--debug-dump` builds only; they create files in the save volume)
+`g_menu_test` (a role step by key), `g_persist_test` (simulate the game's own opens), `g_menu_ring` (the first 64 input
+changes), `g_open`, `g_menu_dbg`, `g_persist_dbg`, `g_im_dbg` (copies, format, missing NVN names). The probes read the
+module through the config magic, and must be built from the same `module.elf` that runs: an ELF from another build reads
+garbage that looks like a frozen counter.
+
+### Not verified
+Static recompilations and a real console (the NVN calls are the driver's own there); languages other than English and
+Spanish; the game keeps running behind the menu (no pause). Pressing + and - a few ms apart may still pause the game.
+
+### Live HUD switches (what a menu change can and cannot do)
+- Every pane the counter code places keeps its last position: turning a counter off only stopped drawing it and left its
+  icon on screen. `hud_counters` now calls `plates_hide` once whenever the on/off flags, `hud_x[]` or the plate mode change
+  (measured: rupee icon pane scale 0.45 -> 0, moon 0.45 -> 0, skull and heart icons 0.58 -> 0, all back on re-enabling).
+- The item side (`hud_custom_items`) builds its parts into `PlayerStatus_00` once, so `PART_TOT` is the count LATCHED when
+  that layout is built (`g_parts_tot`), not a function of the live config. Switching the item side off hides the parts at
+  once and gives the game's own item box back (its scale is saved before we zero it: the game never sets it again);
+  switching it on only takes effect at the next build of the layout. Turning it off also clears every item role.
+- The button art (`button_style`) is NOT a runtime choice: the pictures are romfs files of the installed style (and the
+  PlayStation font), so the menu does not offer it. Shipping the three sets side by side in the romfs would allow it.
+- The two label texts of the face buttons (text panes 4 and 5, `slots_labels`) are put away once when the item side goes
+  off (measured: y scale 0.68 -> 0, back on re-enabling); before, they stayed floating where they were last drawn.
+- Menu table: a role that cannot repeat and is already held by another button is skipped when stepping, so reaching a
+  role never swaps two buttons under the cursor; the cursor follows the row it was on (by id) when a change adds or
+  removes sub-rows.
+- Item side off: besides un-hiding the stock box pane, `button_mapping_items_off` (via `hud_items_off` in core/hud.c, a
+  weak reference like `hud_unassign_item`) gives the game's box its item back: it drops a borrowed slot item, empties the
+  box and re-equips the ZR item 20 input reads later through the game's own equip call, so the game plays its box refresh.
+  Measured: one direct equip fires. NOT seen on screen: the only save at hand loads into a room (Kaepora's gallery) where the
+  game hides the whole HUD, so the box's picture was never visible in a capture.
