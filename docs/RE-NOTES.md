@@ -932,7 +932,7 @@ name scale}.
 ## In-game menu (`features/ingame_menu`, branch `feat/ingame-menu`)
 
 A settings menu drawn by the module itself, opened with - and R3 together. It is a build feature
-(`build_core.py --features ingame_menu,...`); it is not in the release variants yet.
+(`build_core.py --features ingame_menu,...`); it is in the three release variants since 0.12.1.
 
 ### How it reaches the screen
 - The game fills its table of NVN entry points in ONE function, `main+0x129E290` (0x5080 bytes): x0 = device, x1 = the

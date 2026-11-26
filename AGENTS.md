@@ -5,7 +5,7 @@ Working agreement for every agent that touches this repo. It is the first file t
 (architecture, hooks, HUD, build) and `docs/RE-NOTES.md` (addresses, formats, what failed and why).
 
 Target: the **Ocarina of Time remake** for Nintendo Switch 2, update **v131072**, `main` Build ID
-`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.12.0** (`app-legacy/version.py`, `app/Cargo.toml`).
+`E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348`. Current version: **0.12.1** (`app-legacy/version.py`, `app/Cargo.toml`).
 
 ## Rules (non-negotiable)
 
@@ -189,9 +189,9 @@ segfaults here).
 - The Longshot builder keeps its work at `%LOCALAPPDATA%\LongshotLauncher\work` (`image/`, `sa/gen/`,
   `objcache/`); the lifted C chunks appear there during a build, not in the game folder.
 - `gh` is missing: open PRs and releases through `git push` + the GitHub web UI, or install the CLI.
-- The in-game menu (`features/ingame_menu`) is built with `--features ingame_menu,...` and is not part of the release
-  variants (`tools/make_release.py`) yet. Proven in the emulator only; not on Longshot / ReLink / Rekarina, whose GPU layer
-  is not the driver's. Test builds use `--debug-dump` (test aids that write into the save volume): never the payload.
+- The in-game menu (`features/ingame_menu`) is part of the three release variants since 0.12.1 (`tools/make_release.py`). A test
+  build that adds `--debug-dump` (test aids that write into the save volume) is never the payload. The menu's own file,
+  `save:/shbmenu.bin`, is written in normal play: see RE-NOTES "In-game menu".
 
 ## Notes on the Rust app (`app/`)
 
