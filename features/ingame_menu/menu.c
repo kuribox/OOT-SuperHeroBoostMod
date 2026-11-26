@@ -6,11 +6,11 @@
 
 /* The menu's state, its input and its painting. See ingame_menu.c for how the picture reaches the screen.
  *
- * Opening and closing: + and - together, while playing. The two buttons are held back for a few reads so the game
+ * Opening and closing: - and R3 together, while playing. The two buttons are held back for a few reads so the game
  * never sees the pause or the map when it is a chord (a lone press is replayed to the game afterwards). While the
  * menu is open every button and both sticks are removed from the game's input.
  *
- * Controls: up / down choose a row, left / right (or A) change it, L / R change the page, B or + and - close.
+ * Controls: up / down choose a row, left / right (or A) change it, L / R change the page, B or - and R3 close.
  *
  * The pages mirror the configurator: the button table (a role per button, the long presses, and the options that
  * belong to a role: manual shield / tap to switch / next target under the target, the toggle under the sprint, the
@@ -552,7 +552,7 @@ static int row_value(int id, char *b) {
 
 #define IM_MAGIC2 0x4D454E55u
 u32 g_menu_dbg[8] = {IM_MAGIC2, IM_MAGIC2, IM_MAGIC2, IM_MAGIC2, IM_MAGIC2, IM_MAGIC2, IM_MAGIC2, IM_MAGIC2};
-enum { M_OPENS, M_CHORDS, M_PAINTS, M_NAVS, M_CHANGES, M_HELD, M_PRESSED, M_TAPS };   /* M_TAPS: lone + / - replayed */
+enum { M_OPENS, M_CHORDS, M_PAINTS, M_NAVS, M_CHANGES, M_HELD, M_PRESSED, M_TAPS };   /* M_TAPS: lone - / R3 replayed */
 
 volatile u8 g_open;                  /* 1 while the menu is open (read by the debug tools too) */
 static u8 g_page, g_sel;
@@ -577,18 +577,20 @@ static void touch(void) { g_ver++; }
 #define B_B     0x0002ull
 #define B_L     0x0040ull
 #define B_R     0x0080ull
+#define B_R3    0x0020ull
 #define B_PLUS  0x0400ull
 #define B_MINUS 0x0800ull
 #define B_LEFT  0x1000ull
 #define B_UP    0x2000ull
 #define B_RIGHT 0x4000ull
 #define B_DOWN  0x8000ull
-#define B_CHORD (B_PLUS | B_MINUS)
+/* The opening chord: - and R3 (+ and - open the launcher's own overlay in the recompilations). */
+#define B_CHORD (B_MINUS | B_R3)
 /* Times are real milliseconds (core/clock.c): the game reads input about twice per frame, and the frame rate varies. */
 #define REP_DELAY_MS 400u   /* a direction held this long starts repeating */
 #define REP_EVERY_MS 90u
-#define CHORD_WAIT_MS 150u  /* + or - is held back this long, waiting for the other one */
-#define TAP_READS 4u        /* reads a lone + or - is replayed for */
+#define CHORD_WAIT_MS 150u  /* - or R3 is held back this long, waiting for the other one */
+#define TAP_READS 4u        /* reads a lone - or R3 is replayed for */
 
 static void strip(const HidView *v, u64 mask, int sticks) {
     for (u32 i = 0; i < v->count; i++) {
@@ -640,7 +642,7 @@ static void move_page(int d) {
     touch();
 }
 
-/* the lone-press bookkeeping of + and - (menu closed) */
+/* the lone-press bookkeeping of - and R3 (menu closed) */
 static u32 g_t0[2];          /* when the press went down (ms) */
 static u8 g_wait[2];         /* the press is being held back */
 static u8 g_passed[2];       /* the press was let through to the game: it is passed while held */
@@ -693,7 +695,7 @@ void ingame_menu_on_input(u32 site, void *a0, void *a1, void *a2, u32 stock_resu
 
     const u32 now = shb_clock_ms();
     const int playing = hud_ingame_known() && hud_ingame() && !hud_game_covered();
-    static const u64 PM[2] = {B_PLUS, B_MINUS};
+    static const u64 PM[2] = {B_MINUS, B_R3};
     u64 hold_back = 0, replay = 0;
     int chord = 0;
 

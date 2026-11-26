@@ -931,7 +931,7 @@ name scale}.
 
 ## In-game menu (`features/ingame_menu`, branch `feat/ingame-menu`)
 
-A settings menu drawn by the module itself, opened with + and - together. It is a build feature
+A settings menu drawn by the module itself, opened with - and R3 together. It is a build feature
 (`build_core.py --features ingame_menu,...`); it is not in the release variants yet.
 
 ### How it reaches the screen
@@ -972,7 +972,7 @@ A settings menu drawn by the module itself, opened with + and - together. It is 
   keeps a button "held" for 16 reads after a release, so edges arrive late; the menu uses the newest 3.
 - The game reads input about **twice per rendered frame** (a 4-frame press showed 9 reads). Anything timed in reads is
   wrong; the menu times in real milliseconds (`shb_clock_ms`).
-- Opening: + or - on its own is held back for 150 ms (stripped from every sample); if the other one comes in that
+- Opening: - or R3 on its own is held back for 150 ms (stripped from every sample); if the other one comes in that
   window it is a chord and neither reaches the game, otherwise the press is let through (held longer) or replayed for 4
   reads (a tap). Measured: a lone + still pauses (one replayed tap), a chord leaves `g_game_paused` at 0. While the menu
   is open every button and both sticks (s32 x, y at sample+0x10 and +0x18) are cleared.
@@ -1004,7 +1004,7 @@ garbage that looks like a frozen counter.
 
 ### Not verified
 Static recompilations and a real console (the NVN calls are the driver's own there); languages other than English and
-Spanish; the game keeps running behind the menu (no pause). Pressing + and - a few ms apart may still pause the game.
+Spanish; the game keeps running behind the menu (no pause). Pressing - and R3 a few ms apart may still let one of them through to the game.
 
 ### Live HUD switches (what a menu change can and cannot do)
 - Every pane the counter code places keeps its last position: turning a counter off only stopped drawing it and left its
