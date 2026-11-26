@@ -23,11 +23,11 @@ The module changed: reinstall the profile (emulator) or rebuild the game once wi
 Checked in the emulator; reports from the recompilations are welcome.
 ```
 
-**Changelog entries (Bulk Add, one per line, no commas)**
+**Changelog entries (Bulk Add, one per line; a comma splits an entry and drops the rest, so none)**
 
 ```
-In-game settings menu: - and R3 together open it, B closes it
-Three pages: controls, HUD and gameplay, edited live
+In-game settings menu: - and R3 together open it and B closes it
+Three pages: controls and HUD and gameplay edited live
 Choices are remembered in shbmenu.bin in the save volume
 Module rebuilt: reinstall or rebuild once
 ```
@@ -37,4 +37,5 @@ Module rebuilt: reinstall or rebuild once
 `SuperHeroBoost-0.12.1-presets.zip` (15 named profiles, no executables), the copy published on the GitHub release; the
 previous file (0.12.0) is archived.
 
-SHA-256: _fill in from the v0.12.1 release's `.sha256` asset_
+SHA-256: `a958bf4ffd65eab79e682377b66cc31fee9b3fd8a61c85a9a983fda49ce98fa0` (the asset of the v0.12.1 release;
+GameBanana stored it as `superheroboost-0121-presets.zip`, file id 1905672, MD5 `6181c8aa44acb7f8acb62a8023d6ace3`)
