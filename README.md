@@ -8,10 +8,10 @@ remap, extra item buttons, quick select and more, all configurable without recom
 prebuilt module and copies the files the game needs. The module, the HUD, the textures and the app are original
 work: no third-party mod is bundled or downloaded.
 
-Current release: **0.12.0**. A small one: the Rust window keeps **Item selector** in every button's list when the item
-HUD is off (the Python app always did), and the module's HUD can now put its item buttons and plates away while the game
-runs, which is the groundwork of an **in-game settings menu** that is still emulator-only and **not in this release**.
-The module was rebuilt, so install 0.12.0 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina.
+Current release: **0.12.1**. It brings the **in-game settings menu**: press **`-` and `R3` together** while playing and a
+menu opens over the game with the button table, the HUD and the gameplay options, changing the mod live (it keeps its
+choices in a small file in the save volume). It was merged for 0.12.0 but missing from that release's module; 0.12.1 builds
+it in. The module changed, so install 0.12.1 and **rebuild the game once** on Longshot, Hookshot, ReLink or Rekarina.
 
 0.11.0 brought the **health bars** as a beta: a **red bar over every enemy** at its real height
 and a **wide bar with the boss's name** at the bottom of the screen, two separate switches, off by default. The enemy
@@ -60,6 +60,46 @@ The app, in English: [Presets](docs/capturas/app-en-presets.png), [Gameplay](doc
 [Difficulty](docs/capturas/app-en-difficulty.png), [Controls](docs/capturas/app-en-controls.png),
 [HUD](docs/capturas/app-en-hud.png) and [Install](docs/capturas/app-en-install.png).
 
+## What's new in 0.12.1
+
+Everything in 0.12.0, plus the **in-game settings menu**, which 0.12.0 left out of its module by mistake: the code was
+merged into `main` but `tools/make_release.py` did not list the feature, so the 0.12.0 module, presets and app carry no
+menu. 0.12.1 builds it into all three variants (emulator / standalone, ReLink and Rekarina). Install 0.12.1 and **rebuild
+the game once** on Longshot, Hookshot, ReLink or Rekarina; an emulator profile needs a reinstall. The configuration block
+is still 0x68 bytes, so an older app keeps working.
+
+**In-game settings menu**
+
+- **Open and close it with `-` and `R3` pressed together.** `B` closes it too. The game keeps running behind it (there is no
+  pause), and while it is open every button and both sticks are taken away from the game.
+- **Three pages, `L` / `R` change the page:** *CONTROLS* (the button table: the role of every button, the long presses
+  with their wait, and the options that belong to a role: manual shield / tap to switch / next target under the target
+  role, the toggle under the sprint), *HUD* (rupees, clock, 24 h, collectibles, counter mode, minimap, the two scales,
+  layout, simple HUD, item HUD, the enemy and boss bars, the stamina bar) and *GAMEPLAY* (stamina and its preset with the
+  custom costs, sprint speed, enemy life, damage, songbook, quick boots, quick mask). `Up` / `Down` choose a row, `Left` /
+  `Right` (or `A`) change it. Texts in English and Spanish.
+- **A change is live** and writes the same bytes the app would, including the derived ones (the HUD positions follow what
+  is shown; the sprint and shield flags follow the table). The button art style is not offered: it is a romfs choice made at
+  install time.
+- **It remembers itself.** Every change is saved to `save:/shbmenu.bin`, **a small file the mod creates in the game's save
+  volume** (the first mod feature that writes there in normal play). It is applied at the next start only while the
+  configuration installed in the game is the one the file was made on: installing anything else with the app wins, and the
+  file is ignored.
+- **A lone `-` or `R3` reaches the game 150 ms late**, because the module holds each one back to see whether the other one
+  follows. A lone `+` still pauses as always.
+- **On Longshot, Hookshot and ReLink the launcher's own overlay opens with `+` and `-`**; that is why the menu uses `-` and `R3`.
+- The menu is painted by the module itself on the game's picture (a hook on the NVN entry points). The module is 20 KB bigger
+  and reserves 4 MiB of memory for the picture. Text is ASCII only (no accents).
+- **Checked in the emulator.** The recompilations run the same module; reports from them are welcome.
+
+**Carried over from 0.12.0**
+
+- The Rust window keeps *Item selector* in every button's role list when the item HUD is off (the Python app always did).
+- The HUD's item side can be switched off while the game runs: the module hides the item buttons and plates and gives the
+  game's own item box back; the rupee / clock / collectible plates are put away when their switches change.
+- Known: with the item HUD off the module still counts the item selector as an item role, so the option is listed but does
+  nothing in game.
+
 ## What's new in 0.12.0
 
 Everything since 0.11.0. This is a small release: one fix in the Rust window and the groundwork for a live settings
@@ -78,12 +118,7 @@ configuration block is still 0x68 bytes, so an older app keeps working.
   rupee / clock / collectible plates when their switches or positions change. Nothing changes for a normal install
   (the settings are read when the HUD is built, as before); it is what the in-game menu below stands on.
 
-**Not in this release: the in-game menu (emulator test builds only)**
-
-`-` and `R3` together open a settings menu drawn by the module (the button table with each role's options, the HUD and
-the gameplay), which edits the configuration live and saves itself to the game's save volume. It is proven in the
-emulator only and is **not** in the module this release ships: Longshot, ReLink and Rekarina do not use the driver's GPU
-layer it draws through. It will be offered when it has been proven there.
+**The in-game menu** was merged for this release but left out of its module: it is in 0.12.1, above.
 
 **Known**
 
@@ -671,6 +706,7 @@ executables), for the GameBanana Mods upload. See the development guide for deta
 - [docs/GUIA-DESARROLLO.md](docs/GUIA-DESARROLLO.md): architecture, hooks, HUD, configuration and compilation.
 - [docs/APP.md](docs/APP.md): app, profiles and options.
 - [app/README.md](app/README.md): the current app (Rust): crates, build, tests, how it matches the legacy one.
+- [docs/RELEASE-0.12.1.md](docs/RELEASE-0.12.1.md): the 0.12.1 release notes.
 - [docs/RELEASE-0.12.0.md](docs/RELEASE-0.12.0.md): the 0.12.0 release notes.
 - [docs/RELEASE-0.11.0.md](docs/RELEASE-0.11.0.md): the 0.11.0 release notes.
 - [docs/RELEASE-0.10.0.md](docs/RELEASE-0.10.0.md): the 0.10.0 release notes.

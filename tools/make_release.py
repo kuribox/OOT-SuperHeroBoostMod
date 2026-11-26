@@ -18,14 +18,14 @@ BUILD_ID = "E0F3CCFAF50065AE4EA01EB5AEB13B1A45DA3348"
 VARIANTS = {"standalone": "0x4F80000", "relink": "0x4F80000", "rekarina": "0x5200000"}
 # buttonMapping needs the equip-call hooks too (--slots)
 VARIANT_ARGS = {
-    "standalone": ["--features", "controls,manual_shield,stamina,songbook,button_mapping,quick_select", "--slots"],
+    "standalone": ["--features", "controls,manual_shield,stamina,songbook,button_mapping,quick_select,ingame_menu", "--slots"],
     # ReLink: no lazy-binding check in the input wrappers (its translator turns that check into a
     # tail call and drops the dispatch, so no control/stamina feature would ever run)
-    "relink": ["--features", "controls,manual_shield,stamina,songbook,button_mapping,quick_select", "--slots",
+    "relink": ["--features", "controls,manual_shield,stamina,songbook,button_mapping,quick_select,ingame_menu", "--slots",
                "--no-lazy"],
     # Rekarina: a module linked right before sdk (base main+0x5200000) with the synthetic function-seed table its
     # lifter reads (recomp/module.py eh_frame_functions). No --base: --link-base writes the matching linker script.
-    "rekarina": ["--features", "controls,manual_shield,stamina,songbook,button_mapping,quick_select", "--slots",
+    "rekarina": ["--features", "controls,manual_shield,stamina,songbook,button_mapping,quick_select,ingame_menu", "--slots",
                  "--link-base", "0x5200000", "--rekarina"],
 }
 
